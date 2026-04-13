@@ -237,16 +237,16 @@ export const SPRITE_SIZE = SIZE;
 // prettier-ignore
 const ANIM_SPRITES = {
   coin: [
-    [ // Frame 0: 45-degree view
-      '...KKK...',
-      '..KWGGK..',
-      '..KGGGGK.',
-      '..KGGGGK.',
-      '..KGGGGK.',
-      '..KGGGGK.',
-      '..KGGGGK.',
-      '..KYYYY..',
-      '...KKK...',
+    [ // Frame 0: full face
+      '...KKKK..',
+      '..KWGGGK.',
+      '.KGGGGGGK',
+      '.KGGGGGGK',
+      '.KGGGGGGK',
+      '.KGGGGGGK',
+      '.KGGGGGGK',
+      '..KYYYYK.',
+      '...KKKK..',
     ],
     [ // Frame 1: 3/4 view
       '...KKKK..',
