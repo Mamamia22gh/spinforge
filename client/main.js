@@ -227,7 +227,7 @@ class App {
     ctx.globalCompositeOperation = 'screen';
 
     // Hub glow (always active, stepped pulse)
-    {
+    if (!this._spinning) {
       const raw = Math.sin(this._time * 3);
       const stepped = Math.floor(raw * 4) / 4;
       const pulse = 0.08 + 0.06 * stepped;
