@@ -306,8 +306,8 @@ class App {
     ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
     ctx.scale(1, tilt);
 
-    // Pressed: slight offset down
-    if (pressed) ctx.translate(0, 2);
+    // Raised by default, flush when pressed
+    if (!pressed) ctx.translate(0, -2);
 
     // Fill
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
