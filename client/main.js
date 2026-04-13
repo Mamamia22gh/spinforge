@@ -486,25 +486,13 @@ class App {
   _drawDebugSprites(ctx) {
     const scale = 4;
     const sz = SPRITE_SIZE * scale;
-    const gap = 4;
-    const labelH = 8;
     let startY = 4;
 
     for (const id of ['star']) {
-      const count = getAnimFrameCount(id);
       drawText(ctx, id.toUpperCase(), 4, startY, PAL.white, 1);
-      startY += labelH + 2;
-      for (let f = 0; f < count; f++) {
-        const x = 4 + f * (sz + gap) + sz / 2;
-        const y = startY + sz / 2;
-        drawAnimFrameCentered(ctx, id, f, x, y, scale);
-        drawTextCentered(ctx, String(f), x, startY + sz + 2, PAL.midGray, 1);
-      }
-      // Animated preview after the frames
-      const animX = 4 + count * (sz + gap) + sz / 2;
-      drawAnimSpriteCentered(ctx, id, animX, startY + sz / 2, scale, this._time, 6);
-      drawTextCentered(ctx, 'ANIM', animX, startY + sz + 2, PAL.gold, 1);
-      startY += sz + labelH + 6;
+      startY += 10;
+      drawSpriteCentered(ctx, id, 4 + sz / 2, startY + sz / 2, scale);
+      startY += sz + 10;
     }
   }
 
