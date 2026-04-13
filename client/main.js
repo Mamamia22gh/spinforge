@@ -329,11 +329,6 @@ class App {
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fillStyle = PAL.darkGold; ctx.fill();
 
-    // Border
-    ctx.strokeStyle = PAL.gold; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.stroke();
-
     // Bevel: inner ring highlight (top half = gold, bottom half = black)
     ctx.save();
     ctx.beginPath(); ctx.arc(0, 0, r - 1, 0, Math.PI * 2); ctx.clip();
