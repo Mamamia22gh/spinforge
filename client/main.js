@@ -7,6 +7,7 @@ import { drawSpriteCentered, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { getSymbol } from '../src/data/symbols.js';
 import { CRTFilter } from './gfx/CRTFilter.js';
 import { chromaText, chromaTextCentered } from './gfx/ChromaFX.js';
+import { quantize } from './gfx/PaletteQuantizer.js';
 
 // ── Canvas resolution (CSS scales this to viewport with nearest-neighbor) ──
 const W = 480, H = 270;
@@ -238,7 +239,8 @@ class App {
       this._drawActionBtn(ctx);
     }
 
-    // ── CRT post-process (always last) ──
+    // ── Palette quantize (kill AA fringes) then CRT post-process ──
+    quantize(ctx, W, H);
     this._crt.apply(ctx);
   }
 
