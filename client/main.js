@@ -82,6 +82,7 @@ class App {
     this._showTitle = false;
     this.game.startRun();
     this._syncWheel();
+    this._doSpin();
   }
 
   _syncWheel() {

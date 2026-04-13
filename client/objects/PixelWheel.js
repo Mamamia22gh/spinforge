@@ -440,7 +440,7 @@ export class PixelWheel {
 
       // Highlight flash
       const hl = this._highlights.find(h => h.idx === i);
-      const isIdle = Math.abs(this._angVel) < 0.1 && !this._balls.some(b => !b.settled);
+      const isIdle = Math.abs(this._angVel) < 0.1 && !this._balls.some(b => !b.settled) && this._highlights.length === 0;
 
       if (hl) {
         const hlColor = isGold ? PAL.gold : PAL.white;
@@ -468,22 +468,30 @@ export class PixelWheel {
           a: Math.max(0, 1 - hl.t / 1.5) * 0.35,
         });
       } else if (isIdle) {
-        // Idle chase: one pocket glows at a time, cycling
-        const idleIdx = Math.floor(this._time * 6) % data.length;
-        if (i === idleIdx) {
-          const hlColor = isGold ? PAL.gold : PAL.white;
-          ctx.fillStyle = hlColor;
-          ctx.globalAlpha = 0.35;
-          ctx.fill();
-          ctx.globalAlpha = 1;
+        // Idle chase: lead pocket + trailing glow
+        const TRAIL = 4;
+        const chasePos = this._time * 6;
+        const idleIdx = Math.floor(chasePos) % data.length;
+        for (let t = 0; t < TRAIL; t++) {
+          const ti = ((idleIdx - t) % data.length + data.length) % data.length;
+          if (ti === i) {
+            const hlColor = (data[ti].symbolId === 'gold') ? PAL.gold : PAL.white;
+            const fade = 1 - t / TRAIL;
+            ctx.fillStyle = hlColor;
+            ctx.globalAlpha = 0.35 * fade * fade;
+            ctx.fill();
+            ctx.globalAlpha = 1;
 
-          const worldA = this._angle + mid;
-          const hlR = (POCKET_INNER + POCKET_OUTER) / 2;
-          this._frameLights.push({
-            x: cx + Math.cos(worldA) * hlR,
-            y: cy + Math.sin(worldA) * hlR * TILT_Y,
-            r: 18, color: hlColor, a: 0.2,
-          });
+            if (t === 0) {
+              const worldA = this._angle + mid;
+              const hlR = (POCKET_INNER + POCKET_OUTER) / 2;
+              this._frameLights.push({
+                x: cx + Math.cos(worldA) * hlR,
+                y: cy + Math.sin(worldA) * hlR * TILT_Y,
+                r: 18, color: hlColor, a: 0.2,
+              });
+            }
+          }
         }
       }
 
