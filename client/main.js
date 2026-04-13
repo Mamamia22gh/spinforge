@@ -3,7 +3,7 @@ import { BALANCE, getQuota } from '../src/data/balance.js';
 import { PixelWheel } from './objects/PixelWheel.js';
 import { PAL, SYM_COLORS } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
-import { drawSpriteCentered, SPRITE_SIZE } from './gfx/PixelSprites.js';
+import { drawSpriteCentered, drawAnimSpriteCentered, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { getSymbol } from '../src/data/symbols.js';
 import { PostFXGL } from './gfx/PostFXGL.js';
 
@@ -29,10 +29,21 @@ class App {
     this.wheel = new PixelWheel();
     this._spinning = false;
     this.wheel.setBonusMode(false);
+
+    // Convert surplus gold to diamonds
+    const endRun = this.game.getState().run;
+    if (endRun) {
+      const endQuota = getQuota(endRun.round);
+      const surplus = Math.max(0, endRun.score - endQuota);
+      const earned = Math.floor(surplus / 5);
+      if (earned > 0) this._diamonds += earned;
+    }
     this._time = 0;
     this._pops = [];
     this._shake = { x: 0, y: 0, intensity: 0, decay: 0, time: 0 };
-    this._flash = 0; // invert flash timer (>0 = active)
+    this._flash = 0;
+    this._diamonds = 0;
+    this._goldDisplay = 0; // animated gold counter // invert flash timer (>0 = active)
 
     // Mouse tracking (normalized -1..1 from center)
     this._mx = 0;
@@ -159,6 +170,7 @@ class App {
     this._playSpin();
     this._shakeStart(4, 0.3);
     this.wheel.hubSetScore(0);
+    this._goldDisplay = 0;
     const results = await this.wheel.spinAndEject();
     this._stopSpin();
 
@@ -170,6 +182,7 @@ class App {
       this.wheel.highlight(results[i]);
       this.wheel.hubShowValue(result.result.symbol.id, result.value);
       this.wheel.hubSetScore(this.game.getState().run.score);
+      this._goldDisplay = this.game.getState().run.score;
       const run2 = this.game.getState().run;
       this.wheel.hubSetStreak(run2.colorStreak);
       this.wheel.hubSetFever(run2.fever?.active ?? false);
@@ -269,6 +282,12 @@ class App {
 
     // Title (parallax layer 3 — moves most)
     drawTextCentered(ctx, 'SPINFORGE', W / 2 + hudOx, 6 + hudOy, PAL.gold, 3);
+
+    // Diamond counter (top-right, parallax layer 3)
+    if (this._diamonds > 0) {
+      drawAnimSpriteCentered(ctx, 'diamond', W - 30 + hudOx, 10 + hudOy, 2, this._time, 4);
+      drawText(ctx, String(this._diamonds), W - 20 + hudOx, 6 + hudOy, PAL.white, 1);
+    }
 
     // Commit hash (bottom right)
     drawText(ctx, typeof __COMMIT__ !== 'undefined' ? __COMMIT__ : '???', W - 40, H - 8, PAL.midGray, 1);
@@ -404,16 +423,19 @@ class App {
         // Quota reached: BONUS + surplus
         const surplus = score - quota;
         drawTextCentered(ctx, 'BONUS', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 1);
-        drawTextCentered(ctx, '+' + surplus, 0, Math.floor(CHAR_H * 0.5), PAL.gold, 2);
+        drawAnimSpriteCentered(ctx, 'coin', -12, Math.floor(CHAR_H * 0.8), 1, t, 8);
+        drawTextCentered(ctx, '+' + surplus, 4, Math.floor(CHAR_H * 0.5), PAL.gold, 2);
       } else {
-        // During spin: show score / quota
-        drawTextCentered(ctx, String(score), 0, -Math.floor(CHAR_H * 1.5), PAL.gold, 2);
+        // During spin: show score / quota with coin icon
+        drawAnimSpriteCentered(ctx, 'coin', -16, -Math.floor(CHAR_H * 0.5), 1, t, 8);
+        drawTextCentered(ctx, String(score), 4, -Math.floor(CHAR_H * 1.5), PAL.gold, 2);
         drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
       }
     } else {
-      // Idle: SPIN label + quota below
+      // Idle: SPIN label + quota with coin icon
       drawTextCentered(ctx, 'SPIN', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 2);
-      drawTextCentered(ctx, 'QUOTA ' + quota, 0, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
+      drawAnimSpriteCentered(ctx, 'coin', -20, Math.floor(CHAR_H * 0.8), 1, t, 4);
+      drawTextCentered(ctx, 'QUOTA ' + quota, 4, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
     }
 
     ctx.restore();

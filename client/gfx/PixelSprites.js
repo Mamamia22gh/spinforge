@@ -231,3 +231,144 @@ export function drawSpriteCentered(ctx, symbolId, cx, cy, scale = 1) {
 }
 
 export const SPRITE_SIZE = SIZE;
+
+// ═══ Animated sprites (multi-frame) ═══
+
+// prettier-ignore
+const ANIM_SPRITES = {
+  coin: [
+    [ // Frame 0: full face
+      '...GGG...',
+      '..GWGGG..',
+      '.GGGGGGG.',
+      '.GG.G.GG.',
+      '.GGGGGGG.',
+      '.GG.G.GG.',
+      '.GGGGGGG.',
+      '..YYYYY..',
+      '...YYY...',
+    ],
+    [ // Frame 1: 3/4 view
+      '....GG...',
+      '...GWGG..',
+      '..GGGGGG.',
+      '..GG.GGG.',
+      '..GGGGGG.',
+      '..GG.GGG.',
+      '..GGGGGG.',
+      '...YYYY..',
+      '....YY...',
+    ],
+    [ // Frame 2: edge
+      '....G....',
+      '....G....',
+      '....G....',
+      '....G....',
+      '....G....',
+      '....G....',
+      '....G....',
+      '....Y....',
+      '....Y....',
+    ],
+    [ // Frame 3: 3/4 reverse
+      '...GG....',
+      '..GGW....',
+      '.GGGGGG..',
+      '.GGG.GG..',
+      '.GGGGGG..',
+      '.GGG.GG..',
+      '.GGGGGG..',
+      '..YYYY...',
+      '...YY....',
+    ],
+  ],
+  diamond: [
+    [ // Frame 0: normal
+      '....W....',
+      '...WLW...',
+      '..WLWLW..',
+      '.WLWLWLW.',
+      'WLWLWLWLW',
+      '.WLDLDW..',
+      '..WDDDW..',
+      '...WDW...',
+      '....W....',
+    ],
+    [ // Frame 1: sparkle top-right
+      '....W..W.',
+      '...WLW.W.',
+      '..WLWLW..',
+      '.WLWLWLW.',
+      'WLWLWLWLW',
+      '.WLDLDW..',
+      '..WDDDW..',
+      '...WDW...',
+      '....W....',
+    ],
+    [ // Frame 2: normal
+      '....W....',
+      '...WLW...',
+      '..WLWLW..',
+      '.WLWLWLW.',
+      'WLWLWLWLW',
+      '.WLDLDW..',
+      '..WDDDW..',
+      '...WDW...',
+      '....W....',
+    ],
+    [ // Frame 3: sparkle bottom-left
+      '....W....',
+      '...WLW...',
+      '..WLWLW..',
+      '.WLWLWLW.',
+      'WLWLWLWLW',
+      '.WLDLDW..',
+      '..WDDDW..',
+      '.W.WDW...',
+      '.W..W....',
+    ],
+  ],
+};
+
+const _animCache = new Map();
+
+function _renderAnimFrame(id, frame) {
+  const key = id + '_' + frame;
+  if (_animCache.has(key)) return _animCache.get(key);
+  const frames = ANIM_SPRITES[id];
+  if (!frames || !frames[frame]) return null;
+  const data = frames[frame];
+  const c = document.createElement('canvas');
+  c.width = SIZE; c.height = SIZE;
+  const ctx = c.getContext('2d');
+  for (let y = 0; y < SIZE; y++) {
+    const row = data[y];
+    for (let x = 0; x < SIZE; x++) {
+      const ch = row[x];
+      if (ch === '.') continue;
+      const col = COLOR_KEY[ch];
+      if (!col) continue;
+      ctx.fillStyle = col;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  _animCache.set(key, c);
+  return c;
+}
+
+/**
+ * Draw an animated sprite centered at (cx, cy).
+ * @param {string} id  'coin' or 'diamond'
+ * @param {number} time  game time in seconds (picks frame)
+ * @param {number} fps  animation speed (default 6)
+ */
+export function drawAnimSpriteCentered(ctx, id, cx, cy, scale = 1, time = 0, fps = 6) {
+  const frames = ANIM_SPRITES[id];
+  if (!frames) return;
+  const frame = Math.floor(time * fps) % frames.length;
+  const src = _renderAnimFrame(id, frame);
+  if (!src) return;
+  ctx.imageSmoothingEnabled = false;
+  const half = (SIZE * scale) / 2;
+  ctx.drawImage(src, 0, 0, SIZE, SIZE, Math.round(cx - half), Math.round(cy - half), SIZE * scale, SIZE * scale);
+}
