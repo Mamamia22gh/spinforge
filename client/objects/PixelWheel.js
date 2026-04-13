@@ -38,8 +38,9 @@ const TILT_Y = 0.65;
 
 // ── Drop animation ──
 const DROP_STAGGER = 0.05;   // seconds between each ball
-const DROP_DURATION = 0.40;  // seconds per ball drop
+const DROP_DURATION = 0.50;  // seconds per ball drop (total)
 const DROP_HEIGHT = 130;     // pixels above final position
+const GAUGE_TRAVEL = 0.15;   // seconds for phase 1 (slide to gauge exit)
 
 // ── Gauge (ball magazine, right side) ──
 const GAUGE_START = -1.05;   // ~-60° from right
@@ -126,6 +127,7 @@ export class PixelWheel {
         localY: Math.sin(a) * r,
         gaugeX: Math.cos(ga) * GAUGE_MID,
         gaugeY: Math.sin(ga) * GAUGE_MID,
+        gaugeAngle: ga,
         dropDelay: (n - 1 - i) * DROP_STAGGER, // top of stack ejects first
         dropDur: DROP_DURATION,
       });
@@ -465,28 +467,41 @@ export class PixelWheel {
     // ── Gauge (ball magazine) ──
     this._drawGauge(ctx, cx, cy);
 
-    // ── Ejecting balls (gauge → wheel, screen-space) ──
+    // ── Ejecting balls (gauge exit → wheel) ──
     if (this._dropping) {
+      const GMR = (RIM_R + 18 + RIM_R + 24) / 2;
+      const exitX = Math.cos(GAUGE_START) * GMR;
+      const exitY = Math.sin(GAUGE_START) * GMR;
+
       for (const pb of this._placedBalls) {
         const elapsed = this._dropClock - pb.dropDelay;
         if (elapsed < 0 || elapsed >= pb.dropDur) continue;
-        const t = Math.min(1, elapsed / pb.dropDur);
-        const eased = _bounce(t);
 
-        // Current wheel-rotated target
-        const cos = Math.cos(this._angle), sin = Math.sin(this._angle);
-        const tx = cos * pb.localX - sin * pb.localY;
-        const ty = sin * pb.localX + cos * pb.localY;
+        let bx, by;
+        if (elapsed < GAUGE_TRAVEL) {
+          // Phase 1: slide along gauge arc to exit
+          const p = elapsed / GAUGE_TRAVEL;
+          const a = pb.gaugeAngle + (GAUGE_START - pb.gaugeAngle) * p * p;
+          bx = cx + Math.cos(a) * GMR;
+          by = cy + Math.sin(a) * GMR;
+        } else {
+          // Phase 2: fly from exit to wheel target with bounce
+          const p = Math.min(1, (elapsed - GAUGE_TRAVEL) / (pb.dropDur - GAUGE_TRAVEL));
+          const eased = _bounce(p);
 
-        // Interpolate gauge → target
-        const bx = cx + pb.gaugeX * (1 - eased) + tx * eased;
-        const by = cy + pb.gaugeY * (1 - eased) + ty * eased;
+          const cos = Math.cos(this._angle), sin = Math.sin(this._angle);
+          const tx = cos * pb.localX - sin * pb.localY;
+          const ty = sin * pb.localX + cos * pb.localY;
 
-        // Shadow at landing spot
-        ctx.fillStyle = PAL.darkGold;
-        ctx.globalAlpha = eased * 0.4;
-        ctx.fillRect(Math.round(cx + tx) - 1, Math.round(cy + ty), 3, 1);
-        ctx.globalAlpha = 1;
+          bx = cx + exitX * (1 - eased) + tx * eased;
+          by = cy + exitY * (1 - eased) + ty * eased;
+
+          // Shadow at landing spot
+          ctx.fillStyle = PAL.darkGold;
+          ctx.globalAlpha = eased * 0.4;
+          ctx.fillRect(Math.round(cx + tx) - 1, Math.round(cy + ty), 3, 1);
+          ctx.globalAlpha = 1;
+        }
 
         this._drawPixelBall(ctx, bx, by, false);
       }
