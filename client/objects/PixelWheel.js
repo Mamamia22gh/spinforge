@@ -3,7 +3,7 @@ import { drawTextCentered, CHAR_H } from '../gfx/BitmapFont.js';
 import { drawSpriteCentered, SPRITE_SIZE } from '../gfx/PixelSprites.js';
 
 // ── Layout (proportional to wheel radius R) ──
-const HUB_P = 0.28;
+const HUB_P = 0.32;
 const POCKET_INNER_P = 0.30;
 const POCKET_OUTER_P = 0.37;
 const LABEL_P = 0.425;
@@ -582,8 +582,8 @@ export class PixelWheel {
   _drawPixelBall(ctx, bx, by, settled) {
     const px = Math.round(bx);
     const py = Math.round(by);
-    const col = settled ? PAL.gold : PAL.white;
-    const sh = settled ? PAL.darkGold : PAL.lightGray;
+    const col = PAL.white;
+    const sh = PAL.lightGray;
     ctx.fillStyle = col;
     ctx.fillRect(px, py - 1, 1, 1);
     ctx.fillRect(px - 1, py, 3, 1);
