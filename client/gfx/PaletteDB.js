@@ -49,7 +49,7 @@ export const SYM_COLORS = {
 // Segment alternation (casino red/black → dark/darker)
 export const SEG_A = PAL.darkGray;
 export const SEG_B = PAL.black;
-export const DIVIDER_COLOR = PAL.gold;
+export const DIVIDER_COLOR = PAL.black;
 export const HUB_BG = PAL.black;
 export const HUB_BORDER = PAL.darkGold;
 export const RIM_COLOR = PAL.midGray;
