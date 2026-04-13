@@ -26,9 +26,9 @@ const SETTLE_ANG_VEL = 0.3;
 const SETTLE_TIME = 0.15;
 const DIVIDER_W = 1.5;
 const PHYSICS_DT = 1 / 120;
-const SPIN_MIN = 14;
-const SPIN_MAX = 20;
-const SPIN_DECEL = 0.9975;
+const SPIN_MIN = 10;
+const SPIN_MAX = 14;
+const SPIN_DECEL = 0.996;
 const GRAVITY_BOOST_THRESHOLD = 2.5;
 const GRAVITY_BOOST_MAX = 6;
 
@@ -302,9 +302,11 @@ export class PixelWheel {
   }
 
   _peg() {
-    const min = Math.abs(this._angVel) > 2 ? 0.04 : 0.15;
+    // Throttle more aggressively when wheel is slow (avoid end-spam)
+    const minInterval = Math.abs(this._angVel) > 2 ? 0.04 : 0.15;
+    if (this._time - this._lastPeg < minInterval) return;
+    // Mute entirely when wheel is nearly stopped
     if (Math.abs(this._angVel) < 0.5) return;
-    if (this._time - this._lastPeg < min) return;
     this._lastPeg = this._time;
     if (this.onPegHit) this.onPegHit();
   }
@@ -318,6 +320,7 @@ export class PixelWheel {
     const dot = b.vx * nx + b.vy * ny;
     b.vx -= 2 * dot * nx; b.vy -= 2 * dot * ny;
     b.vx *= RESTITUTION; b.vy *= RESTITUTION;
+    this._peg();
   }
 
   _collideHub(b) {
@@ -337,17 +340,7 @@ export class PixelWheel {
   }
 
   _collideDividers(b) {
-    if (!this._data.length) return;
-    const d = Math.sqrt(b.x * b.x + b.y * b.y);
-    if (d > LABEL_OUTER + 2) return;
-    const tw = this._data.reduce((s, w) => s + w.weight, 0);
-    let off = 0;
-    for (const seg of this._data) {
-      const a = off + this._angle;
-      const c = Math.cos(a), s = Math.sin(a);
-      if (this._line(b, c * POCKET_INNER, s * POCKET_INNER, c * LABEL_OUTER, s * LABEL_OUTER)) this._peg();
-      off += (seg.weight / tw) * Math.PI * 2;
-    }
+    // Disabled — dividers caused balls to get stuck
   }
 
   _line(b, x1, y1, x2, y2) {
