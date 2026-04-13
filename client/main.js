@@ -27,6 +27,10 @@ class App {
     this._time = 0;
     this._pops = [];
 
+    // Mouse tracking (normalized -1..1 from center)
+    this._mx = 0;
+    this._my = 0;
+
     // Init default wheel
     const defaultWheel = BALANCE.INITIAL_WHEEL.map((id, i) => ({
       id: 'seg_' + i, symbolId: id, weight: 1, modifiers: [],
@@ -46,6 +50,7 @@ class App {
 
     // Input
     this._canvas.addEventListener('click', e => this._handleClick(e));
+    this._canvas.addEventListener('mousemove', e => this._handleMouse(e));
 
     // Render loop
     this._lastTime = 0;
@@ -59,6 +64,12 @@ class App {
       x: Math.floor((e.clientX - rect.left) / rect.width * W),
       y: Math.floor((e.clientY - rect.top) / rect.height * H),
     };
+  }
+
+  _handleMouse(e) {
+    const rect = this._canvas.getBoundingClientRect();
+    this._mx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;   // -1..1
+    this._my = ((e.clientY - rect.top) / rect.height - 0.5) * 2;   // -1..1
   }
 
   _handleClick(e) {
@@ -189,31 +200,39 @@ class App {
     ctx.fillStyle = PAL.black;
     ctx.fillRect(0, 0, W, H);
 
-    // Wheel always visible
-    this.wheel.draw(ctx, WHEEL_CX, WHEEL_CY);
+    // ── Parallax offsets ──
+    const px = this._mx;   // -1..1
+    const py = this._my;
+    const wheelOx = px * 3;    // wheel: 3px max
+    const wheelOy = py * 2;
+    const hudOx = px * 6;      // HUD: 6px max
+    const hudOy = py * 4;
 
-    // Title (always visible)
-    drawTextCentered(ctx, 'SPINFORGE', W / 2, 6, PAL.gold, 3);
+    // Wheel (parallax layer 1)
+    this.wheel.draw(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
+
+    // Title (parallax layer 2 — moves more)
+    drawTextCentered(ctx, 'SPINFORGE', W / 2 + hudOx, 6 + hudOy, PAL.gold, 3);
 
     // Commit hash (bottom right)
     drawText(ctx, typeof __COMMIT__ !== 'undefined' ? __COMMIT__ : '???', W - 40, H - 8, PAL.midGray, 1);
 
-    this._drawHUD(ctx);
+    this._drawHUD(ctx, hudOx, hudOy);
     this._drawPops(ctx);
 
     // Hub button (always on top of everything)
-    this._drawHubBtn(ctx);
+    this._drawHubBtn(ctx, wheelOx, wheelOy);
 
     ctx.restore(); // end PX scale
 
     // ── Palette quantize (kill AA fringes) then light map then CRT ──
     quantize(ctx, CW, CH);
-    this._drawLights(ctx);
+    this._drawLights(ctx, wheelOx, wheelOy);
     this._crt.apply(ctx);
   }
 
   // ── Light map (screen-mode glow, after quantize for smooth gradients) ──
-  _drawLights(ctx) {
+  _drawLights(ctx, wox, woy) {
     ctx.globalCompositeOperation = 'screen';
 
     // Hub glow (always active, stepped pulse)
@@ -221,12 +240,17 @@ class App {
       const raw = Math.sin(this._time * 3);
       const stepped = Math.floor(raw * 4) / 4;
       const pulse = 0.08 + 0.06 * stepped;
-      this._glow(ctx, WHEEL_CX * PX, WHEEL_CY * PX, 55 * PX, PAL.gold, pulse);
+      this._glow(ctx, (WHEEL_CX + wox) * PX, (WHEEL_CY + woy) * PX, 55 * PX, PAL.gold, pulse);
     }
+
+    // Cursor light (follows mouse, warm)
+    const clx = (W / 2 + this._mx * W / 2) * PX;
+    const cly = (H / 2 + this._my * H / 2) * PX;
+    this._glow(ctx, clx, cly, 80 * PX, PAL.gold, 0.06);
 
     // Wheel lights (balls + highlights)
     for (const l of this.wheel.lights) {
-      this._glow(ctx, l.x * PX, l.y * PX, l.r * PX, l.color, l.a);
+      this._glow(ctx, (l.x + wox) * PX, (l.y + woy) * PX, l.r * PX, l.color, l.a);
     }
 
     ctx.globalCompositeOperation = 'source-over';
@@ -247,29 +271,29 @@ class App {
   }
 
   // ── HUD ──
-  _drawHUD(ctx) {
+  _drawHUD(ctx, ox, oy) {
     const run = this.game.getState().run;
     if (!run) return;
 
     // Top left
-    drawText(ctx, 'RND ' + run.round + '/' + BALANCE.ROUNDS_PER_RUN, 4, 4, PAL.green, 1);
-    drawText(ctx, 'QUOTA ' + getQuota(run.round), 4, 14, PAL.midGray, 1);
+    drawText(ctx, 'RND ' + run.round + '/' + BALANCE.ROUNDS_PER_RUN, 4 + ox, 4 + oy, PAL.green, 1);
+    drawText(ctx, 'QUOTA ' + getQuota(run.round), 4 + ox, 14 + oy, PAL.midGray, 1);
 
     // Top right — score
     const scoreStr = String(run.score);
     const sw = measureText(scoreStr) * 2;
-    drawText(ctx, scoreStr, W - 4 - sw, 4, PAL.gold, 2);
+    drawText(ctx, scoreStr, W - 4 - sw + ox, 4 + oy, PAL.gold, 2);
 
     // Balls
     for (let i = 0; i < BALANCE.BALLS_PER_ROUND; i++) {
-      const bx = W - 4 - (BALANCE.BALLS_PER_ROUND - i) * 6;
+      const bx = W - 4 - (BALANCE.BALLS_PER_ROUND - i) * 6 + ox;
       ctx.fillStyle = i < run.ballsLeft ? PAL.red : PAL.darkRed;
-      ctx.fillRect(bx, 20, 4, 4);
+      ctx.fillRect(bx, 20 + oy, 4, 4);
     }
   }
 
   // ── Hub button (round, drawn on top of everything) ──
-  _drawHubBtn(ctx) {
+  _drawHubBtn(ctx, wox, woy) {
     if (this._spinning) return;
 
     let label = 'SPIN';
@@ -280,7 +304,7 @@ class App {
     const t = this._time;
 
     ctx.save();
-    ctx.translate(WHEEL_CX, WHEEL_CY);
+    ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
     ctx.scale(1, tilt);
 
     // Fill (dark gold base)
@@ -292,10 +316,12 @@ class App {
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip();
     ctx.beginPath(); ctx.arc(0, -r * 0.08, r * 0.92, 0, Math.PI * 2);
     ctx.fillStyle = PAL.gold; ctx.fill();
-    // Specular: thin white arc in upper-right
+    // Specular: thin white arc in upper-right, follows mouse
+    const specAngle = -Math.PI * 0.3 + this._mx * 0.25 + this._my * -0.15;
+    const specSpan = 0.2;
     ctx.beginPath();
-    ctx.arc(0, 0, r * 0.7, -Math.PI * 0.4, -Math.PI * 0.15);
-    ctx.arc(0, 0, r * 0.6, -Math.PI * 0.15, -Math.PI * 0.4, true);
+    ctx.arc(0, 0, r * 0.7, specAngle - specSpan, specAngle + specSpan);
+    ctx.arc(0, 0, r * 0.6, specAngle + specSpan, specAngle - specSpan, true);
     ctx.closePath();
     ctx.fillStyle = PAL.white; ctx.fill();
     ctx.restore();
