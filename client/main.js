@@ -412,35 +412,6 @@ class App {
     ctx.fillRect(-r * 0.3, -r + 3, r * 0.6, 1);
 
     if (exciting) {
-      // ── Rotating arrow (bigger dots, white for visibility) ──
-      const rotA = t * 2;
-      const arrowR = r * 0.55;
-      const DOTS = 8;
-      const ARC = Math.PI * 1.6;
-
-      for (let i = 0; i < DOTS; i++) {
-        const f = i / (DOTS - 1);
-        const a = rotA - f * ARC;
-        const px = Math.round(Math.cos(a) * arrowR);
-        const py = Math.round(Math.sin(a) * arrowR);
-
-        ctx.fillStyle = PAL.white;
-        if (i === 0) {
-          // Arrowhead (3×2 bright)
-          ctx.globalAlpha = 1;
-          ctx.fillRect(px - 1, py - 1, 3, 2);
-        } else if (i < 3) {
-          // Near head (2×1)
-          ctx.globalAlpha = 0.8 - f * 0.3;
-          ctx.fillRect(px, py, 2, 1);
-        } else {
-          // Trail (1×1 fading)
-          ctx.globalAlpha = Math.max(0.2, 0.7 - f * 0.7);
-          ctx.fillRect(px, py, 1, 1);
-        }
-      }
-      ctx.globalAlpha = 1;
-
       // ── Glass sweep (white band every ~4s) ──
       const SWEEP_INTERVAL = 3.5;
       const SWEEP_DUR = 0.25;
@@ -458,13 +429,10 @@ class App {
         ctx.globalAlpha = 1;
         ctx.restore();
       }
-
-      // Label below arrow
-      drawTextCentered(ctx, label, 0, Math.floor(r * 0.25), color, 1);
-    } else {
-      // Simple label
-      drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), color, 1);
     }
+
+    // Label (always centered)
+    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), color, 1);
 
     ctx.restore();
   }
