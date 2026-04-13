@@ -75,6 +75,9 @@ export class PixelWheel {
     this._dropClock = 0;
     this._dropping = false;
     this._inGauge = false;
+    this._ejectQueue = [];
+    this._ejecting = false;
+    this._ejectClock = 0;
     this._frameLights = [];
 
     // Hub screen state
@@ -142,23 +145,34 @@ export class PixelWheel {
   }
 
   spin() {
+    return this.spinAndEject();
+  }
+
+  /**
+   * Full physics flow: spin wheel + eject balls from gauge one by one.
+   * Returns promise resolving with segment indices when all balls settle.
+   */
+  spinAndEject() {
     return new Promise(resolve => {
       this._angVel = SPIN_MIN + Math.random() * (SPIN_MAX - SPIN_MIN);
       this._results = [];
       this._onDone = resolve;
-      this._balls = this._placedBalls.map(pb => {
-        const c = Math.cos(this._angle), s = Math.sin(this._angle);
-        const wx = c * pb.localX - s * pb.localY;
-        const wy = s * pb.localX + c * pb.localY;
-        return { x: wx, y: wy, vx: -wy * this._angVel * 0.7, vy: wx * this._angVel * 0.7, settled: false, timer: 0 };
-      });
+      this._balls = [];
+      this._inGauge = false;
+      this._dropping = false;
+
+      // Build sorted eject queue (top ball first = lowest delay)
+      this._ejectQueue = this._placedBalls.slice().sort((a, b) => a.dropDelay - b.dropDelay);
       this._placedBalls = [];
+      this._ejecting = true;
+      this._ejectClock = 0;
+
       this._spinTimeout = setTimeout(() => {
         if (!this._onDone) return;
         for (const b of this._balls) {
           if (!b.settled) this._settle(b);
         }
-      }, 8000);
+      }, 12000);
     });
   }
 
@@ -205,6 +219,34 @@ export class PixelWheel {
       if (last && this._dropClock >= last.dropDelay + last.dropDur) {
         this._dropping = false;
       }
+    }
+
+    // Staggered ball ejection (full physics)
+    if (this._ejecting) {
+      this._ejectClock += dt;
+      while (this._ejectQueue.length > 0 && this._ejectClock >= this._ejectQueue[0].dropDelay) {
+        this._ejectQueue.shift();
+
+        // Spawn physics ball just inside rim at gauge exit angle
+        const entryAngle = GAUGE_START + (Math.random() - 0.5) * 0.15;
+        const entryR = RIM_R - 4;
+        const x = Math.cos(entryAngle) * entryR;
+        const y = Math.sin(entryAngle) * entryR;
+
+        // Velocity: inward + tangential (matching wheel spin)
+        const inSpeed = 35 + Math.random() * 25;
+        const tanSpeed = this._angVel * entryR * 0.3;
+        const inDir = Math.atan2(-y, -x);
+        const tanDir = inDir + Math.PI / 2;
+
+        this._balls.push({
+          x, y,
+          vx: Math.cos(inDir) * inSpeed + Math.cos(tanDir) * tanSpeed,
+          vy: Math.sin(inDir) * inSpeed + Math.sin(tanDir) * tanSpeed,
+          settled: false, timer: 0,
+        });
+      }
+      if (this._ejectQueue.length === 0) this._ejecting = false;
     }
 
     this._acc += dt;
@@ -480,46 +522,6 @@ export class PixelWheel {
     // ── Gauge (ball magazine) ──
     this._drawGauge(ctx, cx, cy);
 
-    // ── Ejecting balls (gauge exit → wheel) ──
-    if (this._dropping) {
-      const GMR = (RIM_R + 18 + RIM_R + 24) / 2;
-      const exitX = Math.cos(GAUGE_START) * GMR;
-      const exitY = Math.sin(GAUGE_START) * GMR;
-
-      for (const pb of this._placedBalls) {
-        const elapsed = this._dropClock - pb.dropDelay;
-        if (elapsed < 0 || elapsed >= pb.dropDur) continue;
-
-        let bx, by;
-        if (elapsed < GAUGE_TRAVEL) {
-          // Phase 1: slide along gauge arc to exit
-          const p = elapsed / GAUGE_TRAVEL;
-          const a = pb.gaugeAngle + (GAUGE_START - pb.gaugeAngle) * p * p;
-          bx = cx + Math.cos(a) * GMR;
-          by = cy + Math.sin(a) * GMR;
-        } else {
-          // Phase 2: fly from exit to wheel target with bounce
-          const p = Math.min(1, (elapsed - GAUGE_TRAVEL) / (pb.dropDur - GAUGE_TRAVEL));
-          const eased = _bounce(p);
-
-          const cos = Math.cos(this._angle), sin = Math.sin(this._angle);
-          const tx = cos * pb.localX - sin * pb.localY;
-          const ty = sin * pb.localX + cos * pb.localY;
-
-          bx = cx + exitX * (1 - eased) + tx * eased;
-          by = cy + exitY * (1 - eased) + ty * eased;
-
-          // Shadow at landing spot
-          ctx.fillStyle = PAL.darkGold;
-          ctx.globalAlpha = eased * 0.4;
-          ctx.fillRect(Math.round(cx + tx) - 1, Math.round(cy + ty), 3, 1);
-          ctx.globalAlpha = 1;
-        }
-
-        this._drawPixelBall(ctx, bx, by, false);
-      }
-    }
-
     // ── Active balls (world space) ──
     for (const b of this._balls) {
       if (b.settled) continue;
@@ -643,11 +645,15 @@ export class PixelWheel {
 
     // Balls still in gauge
     let remaining = 0;
-    for (const pb of this._placedBalls) {
-      const inGauge = this._inGauge || (this._dropping && this._dropClock - pb.dropDelay < 0);
-      if (!inGauge) continue;
+    const gaugeBalls = this._inGauge ? this._placedBalls :
+                       this._ejecting ? this._ejectQueue : [];
+    for (const pb of gaugeBalls) {
       remaining++;
       this._drawPixelBall(ctx, cx + pb.gaugeX, cy + pb.gaugeY, false);
+      this._frameLights.push({
+        x: cx + pb.gaugeX, y: cy + pb.gaugeY * TILT_Y,
+        r: 6, color: PAL.white, a: 0.06,
+      });
     }
 
     // Counter (right of gauge midpoint)
