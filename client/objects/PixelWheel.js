@@ -171,7 +171,7 @@ export class PixelWheel {
         for (const b of this._balls) {
           if (!b.settled) this._settle(b);
         }
-      }, 12000);
+      }, 8000);
     });
   }
 
@@ -281,14 +281,14 @@ export class PixelWheel {
         b.vx += tx * drag; b.vy += ty * drag;
       }
       b.x += b.vx * dt; b.y += b.vy * dt;
-      this._collideRim(b); this._collideHub(b); this._collideDividers(b);
+      this._collideRim(b); this._collideHub(b); this._collideLabelWall(b); this._collideDividers(b);
     }
     this._ballBall();
     for (const b of this._balls) {
       if (b.settled) continue;
       const d = Math.sqrt(b.x * b.x + b.y * b.y);
       const spd = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
-      const inPockets = d >= POCKET_INNER && d <= POCKET_OUTER;
+      const inPockets = d >= POCKET_INNER && d <= LABEL_OUTER;
       if (spd < SETTLE_SPEED && Math.abs(this._angVel) < SETTLE_ANG_VEL && inPockets) {
         b.timer += dt; if (b.timer >= SETTLE_TIME) this._settle(b);
       } else b.timer = 0;
@@ -324,6 +324,20 @@ export class PixelWheel {
     b.vx -= 2 * dot * nx; b.vy -= 2 * dot * ny;
     b.vx *= RESTITUTION; b.vy *= RESTITUTION;
     this._peg();
+  }
+
+  _collideLabelWall(b) {
+    // Inner wall at label ring outer edge — pushes balls inward to pockets
+    const d = Math.sqrt(b.x * b.x + b.y * b.y);
+    const wall = LABEL_OUTER - BALL_RADIUS;
+    if (d <= wall) return;
+    const nx = b.x / d, ny = b.y / d;
+    b.x = nx * wall; b.y = ny * wall;
+    const dot = b.vx * nx + b.vy * ny;
+    if (dot > 0) {
+      b.vx -= 2 * dot * nx; b.vy -= 2 * dot * ny;
+      b.vx *= RESTITUTION; b.vy *= RESTITUTION;
+    }
   }
 
   _collideDividers(b) {
