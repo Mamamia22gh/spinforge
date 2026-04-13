@@ -307,24 +307,9 @@ class App {
     ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
     ctx.scale(1, tilt);
 
-    // Fill (dark gold base)
+    // Fill (gold)
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fillStyle = PAL.darkGold; ctx.fill();
-
-    // Dome: upper dome lighter (offset circle clipped)
-    ctx.save();
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip();
-    ctx.beginPath(); ctx.arc(0, -r * 0.08, r * 0.92, 0, Math.PI * 2);
-    ctx.fillStyle = PAL.gold; ctx.fill();
-    // Specular: thin white arc in upper-right, follows mouse
-    const specAngle = -Math.PI * 0.2 + this._mx * 0.25 + this._my * -0.15;
-    const specSpan = 0.3;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.7, specAngle - specSpan, specAngle + specSpan);
-    ctx.arc(0, 0, r * 0.65, specAngle + specSpan, specAngle - specSpan, true);
-    ctx.closePath();
-    ctx.fillStyle = PAL.white; ctx.fill();
-    ctx.restore();
 
     // ── Glass sweep (white band every ~3.5s) ──
     const SWEEP_INTERVAL = 3.5;
