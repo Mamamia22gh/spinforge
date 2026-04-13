@@ -41,6 +41,10 @@ const DROP_STAGGER = 0.05;   // seconds between each ball
 const DROP_DURATION = 0.40;  // seconds per ball drop
 const DROP_HEIGHT = 130;     // pixels above final position
 
+// ── Gauge (ball magazine, right side) ──
+const GAUGE_START = -1.05;   // ~-60° from right
+const GAUGE_END = 1.05;      // ~+60° from right
+
 function _bounce(t) {
   if (t < 1 / 2.75) return 7.5625 * t * t;
   if (t < 2 / 2.75) return 7.5625 * (t -= 1.5 / 2.75) * t + 0.75;
@@ -69,6 +73,7 @@ export class PixelWheel {
     this._slots = [];  // external slot data (8 entries, null = empty)
     this._dropClock = 0;
     this._dropping = false;
+    this._inGauge = false;
 
     // Hub screen state
     this._hub = {
@@ -104,17 +109,33 @@ export class PixelWheel {
     this._balls = [];
     this._results = [];
     this._dropClock = 0;
-    this._dropping = true;
+    this._dropping = false;
+    this._inGauge = true;
+
+    const GAUGE_MID = (RIM_R + 18 + RIM_R + 30) / 2;
+    const range = GAUGE_END - GAUGE_START;
+
     for (let i = 0; i < n; i++) {
+      // Target position on wheel
       const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
       const r = LABEL_OUTER + 2 + Math.random() * (RIM_R - LABEL_OUTER - BALL_RADIUS * 2 - 3);
+      // Gauge position (top to bottom)
+      const ga = GAUGE_START + (i / Math.max(1, n - 1)) * range;
       this._placedBalls.push({
         localX: Math.cos(a) * r,
         localY: Math.sin(a) * r,
+        gaugeX: Math.cos(ga) * GAUGE_MID,
+        gaugeY: Math.sin(ga) * GAUGE_MID,
         dropDelay: i * DROP_STAGGER,
         dropDur: DROP_DURATION,
       });
     }
+  }
+
+  ejectBalls() {
+    this._inGauge = false;
+    this._dropping = true;
+    this._dropClock = 0;
   }
 
   spin() {
@@ -416,10 +437,14 @@ export class PixelWheel {
     }
 
     // ── Placed balls that finished dropping (rotate with wheel) ──
-    for (const pb of this._placedBalls) {
-      const elapsed = this._dropClock - pb.dropDelay;
-      if (elapsed < pb.dropDur) continue; // still dropping or not started
-      this._drawPixelBall(ctx, pb.localX, pb.localY, false);
+    if (!this._inGauge) {
+      for (const pb of this._placedBalls) {
+        if (this._dropping) {
+          const elapsed = this._dropClock - pb.dropDelay;
+          if (elapsed < pb.dropDur) continue; // still ejecting
+        }
+        this._drawPixelBall(ctx, pb.localX, pb.localY, false);
+      }
     }
 
     // ── Settled balls (rotate with wheel) ──
@@ -435,28 +460,34 @@ export class PixelWheel {
 
     ctx.restore(); // end rotation
 
-    // ── Dropping balls (screen-space fall, inside tilt) ──
-    for (const pb of this._placedBalls) {
-      const elapsed = this._dropClock - pb.dropDelay;
-      if (elapsed < 0 || elapsed >= pb.dropDur) continue;
-      const t = Math.min(1, elapsed / pb.dropDur);
-      const eased = _bounce(t);
+    // ── Gauge (ball magazine) ──
+    this._drawGauge(ctx, cx, cy);
 
-      // Convert local → world (apply rotation manually)
-      const cos = Math.cos(this._angle), sin = Math.sin(this._angle);
-      const wx = cos * pb.localX - sin * pb.localY;
-      const wy = sin * pb.localX + cos * pb.localY;
+    // ── Ejecting balls (gauge → wheel, screen-space) ──
+    if (this._dropping) {
+      for (const pb of this._placedBalls) {
+        const elapsed = this._dropClock - pb.dropDelay;
+        if (elapsed < 0 || elapsed >= pb.dropDur) continue;
+        const t = Math.min(1, elapsed / pb.dropDur);
+        const eased = _bounce(t);
 
-      // Shadow at landing spot (grows with progress)
-      ctx.fillStyle = PAL.darkGold;
-      ctx.globalAlpha = eased * 0.4;
-      ctx.fillRect(Math.round(cx + wx) - 1, Math.round(cy + wy), 3, 1);
-      ctx.globalAlpha = 1;
+        // Current wheel-rotated target
+        const cos = Math.cos(this._angle), sin = Math.sin(this._angle);
+        const tx = cos * pb.localX - sin * pb.localY;
+        const ty = sin * pb.localX + cos * pb.localY;
 
-      // Ball drops from above
-      const bx = cx + wx;
-      const by = cy + wy - DROP_HEIGHT * (1 - eased);
-      this._drawPixelBall(ctx, bx, by, false);
+        // Interpolate gauge → target
+        const bx = cx + pb.gaugeX * (1 - eased) + tx * eased;
+        const by = cy + pb.gaugeY * (1 - eased) + ty * eased;
+
+        // Shadow at landing spot
+        ctx.fillStyle = PAL.darkGold;
+        ctx.globalAlpha = eased * 0.4;
+        ctx.fillRect(Math.round(cx + tx) - 1, Math.round(cy + ty), 3, 1);
+        ctx.globalAlpha = 1;
+
+        this._drawPixelBall(ctx, bx, by, false);
+      }
     }
 
     // ── Active balls (world space) ──
@@ -551,6 +582,45 @@ export class PixelWheel {
     }
 
     ctx.restore();
+  }
+
+  _drawGauge(ctx, cx, cy) {
+    const INNER = RIM_R + 18;
+    const OUTER = RIM_R + 30;
+
+    // Channel fill
+    ctx.beginPath();
+    ctx.arc(cx, cy, OUTER, GAUGE_START, GAUGE_END);
+    ctx.arc(cx, cy, INNER, GAUGE_END, GAUGE_START, true);
+    ctx.closePath();
+    ctx.fillStyle = SEG_B;
+    ctx.fill();
+
+    // Borders (inner, outer arcs + end caps)
+    ctx.strokeStyle = RIM_COLOR; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, OUTER, GAUGE_START, GAUGE_END); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, INNER, GAUGE_START, GAUGE_END); ctx.stroke();
+    for (const a of [GAUGE_START, GAUGE_END]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * INNER, cy + Math.sin(a) * INNER);
+      ctx.lineTo(cx + Math.cos(a) * OUTER, cy + Math.sin(a) * OUTER);
+      ctx.stroke();
+    }
+
+    // Balls still in gauge
+    let remaining = 0;
+    for (const pb of this._placedBalls) {
+      const inGauge = this._inGauge || (this._dropping && this._dropClock - pb.dropDelay < 0);
+      if (!inGauge) continue;
+      remaining++;
+      this._drawPixelBall(ctx, cx + pb.gaugeX, cy + pb.gaugeY, false);
+    }
+
+    // Counter (right of gauge midpoint)
+    const counterR = OUTER + 10;
+    const counterX = Math.round(cx + counterR);
+    const counterY = Math.round(cy);
+    drawTextCentered(ctx, String(remaining), counterX, counterY - Math.floor(CHAR_H / 2), PAL.white, 1);
   }
 
   _drawOrbitSlots(ctx, cx, cy) {
