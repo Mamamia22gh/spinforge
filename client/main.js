@@ -280,22 +280,18 @@ class App {
     // Wheel (parallax layer 1) + peripherals (layer 2)
     this.wheel.draw(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy, periOx - wheelOx, periOy - wheelOy);
 
+    // UI Ring (parallax layer 2.5 — between slots and title)
+    const uiOx = px * 3;
+    const uiOy = py * 2.5;
+    this._drawUIRing(ctx, WHEEL_CX + uiOx, WHEEL_CY + uiOy);
+
     // Title (parallax layer 3 — moves most)
     drawTextCentered(ctx, 'SPINFORGE', W / 2 + hudOx, 6 + hudOy, PAL.gold, 3);
-
-    // Diamond counter (top-right, parallax layer 3)
-    if (this._diamonds > 0) {
-      drawSpriteCentered(ctx, 'star', W - 30 + hudOx, 10 + hudOy, 2);
-      drawText(ctx, String(this._diamonds), W - 20 + hudOx, 6 + hudOy, PAL.white, 1);
-    }
 
     // Commit hash (bottom right)
     drawText(ctx, typeof __COMMIT__ !== 'undefined' ? __COMMIT__ : '???', W - 40, H - 8, PAL.midGray, 1);
 
     this._drawPops(ctx);
-
-    // Debug: animated sprite frames
-    this._drawDebugSprites(ctx);
 
     // Hub button (always on top of everything)
     this._drawHubBtn(ctx, wheelOx, wheelOy);
@@ -465,6 +461,33 @@ class App {
     ctx.restore();
   }
 
+  // ── UI Ring (gold + tickets around the wheel) ──
+  _drawUIRing(ctx, cx, cy) {
+    const RING_R = 115;
+    const run = this.game.getState().run;
+    const score = run ? run.score : 0;
+
+    // Ring outline
+    ctx.beginPath();
+    ctx.arc(cx, cy, RING_R, 0, Math.PI * 2);
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Gold counter (bottom-left)
+    const goldStr = String(score);
+    const gx = Math.round(cx - 35);
+    const gy = Math.round(cy + RING_R + 10);
+    drawAnimSpriteCentered(ctx, 'coin', gx, gy, 1, this._time, 6);
+    drawText(ctx, goldStr, gx + 7, gy - Math.floor(CHAR_H / 2), PAL.gold, 1);
+
+    // Ticket counter (bottom-right)
+    const tx = Math.round(cx + 15);
+    const ty = gy;
+    drawSpriteCentered(ctx, 'star', tx, ty, 1);
+    drawText(ctx, String(this._diamonds), tx + 7, ty - Math.floor(CHAR_H / 2), PAL.green, 1);
+  }
+
   // ── Popups ──
   _drawPops(ctx) {
     for (const p of this._pops) {
@@ -479,20 +502,6 @@ class App {
       drawTextCenteredOutlined(ctx, p.text, Math.round(px - totalW / 2 + textW / 2), py, col, 1);
       drawAnimSpriteCentered(ctx, 'coin', Math.round(px - totalW / 2 + textW + 2 + coinSz / 2), py + Math.floor(CHAR_H / 2), 1, this._time, 6);
       ctx.globalAlpha = 1;
-    }
-  }
-
-  // ── Debug sprite viewer ──
-  _drawDebugSprites(ctx) {
-    const scale = 4;
-    const sz = SPRITE_SIZE * scale;
-    let startY = 4;
-
-    for (const id of ['star']) {
-      drawText(ctx, id.toUpperCase(), 4, startY, PAL.white, 1);
-      startY += 10;
-      drawSpriteCentered(ctx, id, 4 + sz / 2, startY + sz / 2, scale);
-      startY += sz + 10;
     }
   }
 
