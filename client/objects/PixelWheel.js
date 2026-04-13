@@ -59,7 +59,7 @@ export class PixelWheel {
     this._updateRadii();
 
     this._data = [];
-    this._angle = 0;
+    this._angle = -Math.PI / 2;
     this._angVel = 0;
     this._balls = [];
     this._placedBalls = [];
