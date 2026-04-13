@@ -1,0 +1,118 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createGame, PHASE } from '../src/index.js';
+import { resetUid } from '../src/core/GameState.js';
+
+describe('Integration — Full game flow (balls only, no betting)', () => {
+  let game;
+
+  beforeEach(() => {
+    resetUid();
+    game = createGame({ seed: 42 });
+  });
+
+  it('starts in IDLE phase', () => {
+    expect(game.getPhase()).toBe('IDLE');
+  });
+
+  it('starts a run → stays IDLE (ready for spin)', () => {
+    const ok = game.startRun();
+    expect(ok).toBe(true);
+    expect(game.getPhase()).toBe('IDLE');
+  });
+
+  it('can spin (launch a ball)', () => {
+    game.startRun();
+    const state = game.getState();
+
+    const result = game.spin();
+    expect(result).not.toBeNull();
+    expect(result.result.symbol).toBeDefined();
+    expect(result.value).toBeGreaterThanOrEqual(0);
+    expect(state.run.ballsLeft).toBe(4);
+  });
+
+  it('can play through multiple spins and end round', () => {
+    game.startRun();
+    const state = game.getState();
+
+    for (let i = 0; i < 5; i++) {
+      game.spin();
+    }
+
+    // After 5 spins, should be in RESULTS or GAME_OVER
+    expect(state.run.ballsLeft).toBe(0);
+    expect(['RESULTS', 'GAME_OVER']).toContain(state.phase);
+  });
+
+  it('full run: results → choice → shop → next round', () => {
+    game.startRun();
+    const state = game.getState();
+
+    // Play through round 1
+    for (let i = 0; i < 5; i++) {
+      game.spin();
+    }
+
+    if (state.run.lastRoundResult.passed) {
+      game.continueFromResults();
+      expect(state.phase).toBe('CHOICE');
+
+      // Pick first choice or skip
+      if (state.run.currentChoices.length > 0) {
+        const addChoice = state.run.currentChoices.findIndex(c => c.type === 'add_symbol' || c.type === 'upgrade');
+        if (addChoice >= 0) {
+          game.makeChoice(addChoice);
+        } else {
+          game.skipChoice();
+        }
+      } else {
+        game.skipChoice();
+      }
+
+      expect(state.phase).toBe('SHOP');
+
+      game.endShop();
+      expect(state.phase).toBe('IDLE');
+      expect(state.run.round).toBe(2);
+    }
+  });
+
+  it('score accumulates across spins', () => {
+    game.startRun();
+    const state = game.getState();
+
+    let totalValue = 0;
+    for (let i = 0; i < 5; i++) {
+      const r = game.spin();
+      if (r) totalValue += r.value;
+    }
+
+    expect(state.run.score).toBe(totalValue);
+  });
+
+  it('meta system: stars are awarded on game over', () => {
+    game.startRun();
+    const state = game.getState();
+
+    for (let i = 0; i < 5; i++) {
+      game.spin();
+    }
+
+    if (!state.run.lastRoundResult.passed) {
+      expect(state.phase).toBe('GAME_OVER');
+      expect(state.meta.totalStars).toBeGreaterThan(0);
+    }
+  });
+
+  it('events are emitted correctly', () => {
+    const events = [];
+    game.on('run:started', (e) => events.push({ type: 'run:started', ...e }));
+    game.on('spin:resolved', (e) => events.push({ type: 'spin:resolved', ...e }));
+
+    game.startRun();
+    game.spin();
+
+    expect(events.some(e => e.type === 'run:started')).toBe(true);
+    expect(events.some(e => e.type === 'spin:resolved')).toBe(true);
+  });
+});

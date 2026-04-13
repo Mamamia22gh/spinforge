@@ -1,0 +1,375 @@
+import { EventBus } from './EventBus.js';
+import { RNG } from './RNG.js';
+import { createGameState, createRunState, PHASE } from './GameState.js';
+import { BALANCE, getQuota } from '../data/balance.js';
+import { getSymbol } from '../data/symbols.js';
+import { WheelSystem } from '../systems/WheelSystem.js';
+import { ScoringSystem } from '../systems/ScoringSystem.js';
+import { EffectSystem } from '../systems/EffectSystem.js';
+import { ChoiceSystem } from '../systems/ChoiceSystem.js';
+import { ShopSystem } from '../systems/ShopSystem.js';
+import { MetaSystem } from '../systems/MetaSystem.js';
+
+/**
+ * Main game orchestrator — owns state, delegates to systems, manages phases.
+ * Balls land on segments → value calculated from symbol × weight × modifiers.
+ * `spin()` picks randomly (for tests); `resolveBallAt(idx)` accepts physics result.
+ */
+export class GameLoop {
+  constructor(options = {}) {
+    this.events = new EventBus();
+    this.rng = new RNG(options.seed ?? Date.now());
+    this.state = createGameState(this.rng.seed);
+
+    if (options.meta) {
+      this.state.meta = { ...this.state.meta, ...options.meta };
+    }
+
+    this.wheel = new WheelSystem(this.events);
+    this.scoring = new ScoringSystem();
+    this.effects = new EffectSystem();
+    this.choice = new ChoiceSystem(this.events);
+    this.shop = new ShopSystem(this.events);
+    this.meta = new MetaSystem(this.events);
+  }
+
+  #getMods() {
+    return this.effects.compute(this.state.run?.relics ?? []);
+  }
+
+  // ─── Lifecycle ───
+
+  startRun() {
+    const ok = [PHASE.IDLE, PHASE.GAME_OVER, PHASE.VICTORY];
+    if (!ok.includes(this.state.phase)) {
+      return this.#error('Cannot start run in phase ' + this.state.phase);
+    }
+
+    this.state.run = createRunState();
+    this.#setPhase(PHASE.IDLE);
+    this.#emitRoundPreview();
+    this.events.emit('run:started', { seed: this.rng.seed });
+    return true;
+  }
+
+  // ─── Spin (RNG-based, for tests / headless) ───
+
+  spin() {
+    const ok = [PHASE.IDLE, PHASE.SPINNING];
+    if (!ok.includes(this.state.phase)) {
+      return this.#error('Cannot spin in phase ' + this.state.phase);
+    }
+
+    const run = this.state.run;
+    if (!run) return this.#error('No active run');
+    if (run.ballsLeft <= 0) {
+      this.events.emit('error', { message: 'Plus de billes' });
+      return null;
+    }
+
+    this.#setPhase(PHASE.SPINNING);
+    const result = this.wheel.spin(run, this.rng);
+    return this.#recordBall(run, result.segmentIndex);
+  }
+
+  // ─── Resolve ball at specific segment (physics-driven) ───
+
+  resolveBallAt(segmentIndex) {
+    const ok = [PHASE.IDLE, PHASE.SPINNING];
+    if (!ok.includes(this.state.phase)) {
+      return this.#error('Cannot resolve ball in phase ' + this.state.phase);
+    }
+
+    const run = this.state.run;
+    if (!run) return this.#error('No active run');
+    if (run.ballsLeft <= 0) return null;
+
+    const segment = run.wheel[segmentIndex];
+    if (!segment) return this.#error('Invalid segment index: ' + segmentIndex);
+
+    this.#setPhase(PHASE.SPINNING);
+    return this.#recordBall(run, segmentIndex);
+  }
+
+  // ─── Shared ball resolution ───
+
+  #recordBall(run, segmentIndex) {
+    const { segment, symbol, value } = this.#resolveSegment(run, segmentIndex);
+
+    const spinResult = { segmentIndex, segment, symbol, value };
+    run.spinResults.push(spinResult);
+    run.score += value;
+    run.ballsLeft--;
+
+    this.events.emit('spin:resolved', {
+      result: spinResult,
+      value,
+      ballsLeft: run.ballsLeft,
+    });
+
+    if (run.ballsLeft <= 0) {
+      this.#endRound();
+    }
+
+    return { result: spinResult, value };
+  }
+
+  #resolveSegment(run, segmentIndex) {
+    const segment = run.wheel[segmentIndex];
+    const symbol = getSymbol(segment.symbolId);
+    const mods = this.#getMods();
+
+    let value = symbol.baseValue * segment.weight;
+
+    // Payout bonus from upgrades
+    if (run._payoutBonus > 0) {
+      value = Math.floor(value * (1 + run._payoutBonus / 100));
+    }
+
+    // Relic flat payout modifiers
+    const payoutMult = 1 + (mods.allPayoutPercent || 0) / 100;
+    value = Math.floor(value * payoutMult);
+
+    // Color streak
+    if (symbol.color === run.lastColor && run.lastColor !== null) {
+      run.colorStreak = Math.min(run.colorStreak + 1, BALANCE.COLOR_STREAK_MAX);
+    } else {
+      run.colorStreak = symbol.color === run.lastColor ? 1 : 0;
+    }
+    run.lastColor = symbol.color;
+
+    if (run.colorStreak > 0) {
+      const streakBonus = run.colorStreak * BALANCE.COLOR_STREAK_BONUS;
+      value = Math.floor(value * (1 + streakBonus));
+    }
+
+    // Fever multiplier
+    if (run.fever.active) {
+      value = Math.floor(value * BALANCE.FEVER_MULTIPLIER);
+    }
+
+    // Symbol special effects
+    if (symbol.specialEffect === 'double_payout') {
+      value *= 2;
+    } else if (symbol.specialEffect === 'multiply_all') {
+      value = Math.floor(value * 1.5);
+    } else if (symbol.specialEffect === 'jackpot') {
+      value = Math.floor(value * 3);
+    }
+
+    // Echo spin (relic effect — double once per round)
+    if (mods.echoSpins > 0 && !run._echoUsedThisRound && value > 0) {
+      value *= 2;
+      run._echoUsedThisRound = true;
+      this.events.emit('echo:triggered', { doubled: value });
+    }
+
+    // Fever tracking
+    if (value >= symbol.baseValue * 1.5) {
+      run.consecutiveHigh++;
+    } else {
+      run.consecutiveHigh = 0;
+    }
+
+    if (run.consecutiveHigh >= BALANCE.FEVER_THRESHOLD && !run.fever.active) {
+      const feverDur = BALANCE.FEVER_DURATION_BALLS + (mods.feverDuration || 0);
+      run.fever.active = true;
+      run.fever.remaining = feverDur;
+      this.events.emit('fever:started', { duration: feverDur });
+    }
+
+    if (run.fever.active) {
+      run.fever.remaining--;
+      if (run.fever.remaining <= 0) {
+        run.fever.active = false;
+        this.events.emit('fever:ended');
+      }
+    }
+
+    return { segment, symbol, value };
+  }
+
+  // ─── End of round → Results ───
+
+  #endRound() {
+    const run = this.state.run;
+    const mods = this.#getMods();
+
+    const { totalWon, quota, passed, surplus, shopCoins } = this.scoring.evaluateRound(run);
+
+    const moneyBonus = mods.moneyBonus || 0;
+
+    run.lastRoundResult = {
+      round: run.round,
+      totalWon,
+      quota,
+      passed,
+      surplus,
+      shopCoins: shopCoins + moneyBonus,
+    };
+
+    run.shopCurrency += shopCoins + moneyBonus;
+
+    this.#setPhase(PHASE.RESULTS);
+    this.events.emit('round:ended', run.lastRoundResult);
+
+    if (!passed) {
+      this.#gameOver();
+    }
+  }
+
+  // ─── Results → Choice ───
+
+  continueFromResults() {
+    if (this.state.phase !== PHASE.RESULTS) return false;
+
+    const run = this.state.run;
+    if (!run.lastRoundResult.passed) return false;
+
+    if (run.round >= BALANCE.ROUNDS_PER_RUN) {
+      this.#victory();
+      return true;
+    }
+
+    const choices = this.choice.generate(run, this.state.meta, this.rng);
+    run.currentChoices = choices;
+
+    this.#setPhase(PHASE.CHOICE);
+    this.events.emit('choice:presented', { choices });
+    return true;
+  }
+
+  // ─── Choice → Shop ───
+
+  makeChoice(index, targetIndex = null) {
+    if (this.state.phase !== PHASE.CHOICE) {
+      return this.#error('Not in CHOICE phase');
+    }
+
+    const run = this.state.run;
+    if (index < 0 || index >= run.currentChoices.length) {
+      return this.#error('Invalid choice index');
+    }
+
+    const choice = run.currentChoices[index];
+    const ok = this.choice.apply(run, choice, targetIndex, this.wheel);
+    if (!ok) return false;
+
+    this.events.emit('choice:made', { choice, index });
+    this.#openShop();
+    return true;
+  }
+
+  skipChoice() {
+    if (this.state.phase !== PHASE.CHOICE) return false;
+    this.#openShop();
+    return true;
+  }
+
+  #openShop() {
+    const run = this.state.run;
+    run.shopOfferings = this.shop.generateOfferings(run, this.rng);
+    run.rerollCount = 0;
+
+    this.#setPhase(PHASE.SHOP);
+    this.events.emit('shop:opened', { currency: run.shopCurrency, offerings: run.shopOfferings });
+  }
+
+  // ─── Shop ───
+
+  shopBuyRelic(offeringIndex) {
+    if (this.state.phase !== PHASE.SHOP) return this.#error('Not in SHOP');
+    return this.shop.buyRelic(this.state.run, offeringIndex);
+  }
+
+  shopReroll() {
+    if (this.state.phase !== PHASE.SHOP) return this.#error('Not in SHOP');
+    return this.shop.reroll(this.state.run, this.rng);
+  }
+
+  endShop() {
+    if (this.state.phase !== PHASE.SHOP) return false;
+
+    const run = this.state.run;
+    const mods = this.#getMods();
+
+    run.round++;
+
+    if (run.round > BALANCE.ROUNDS_PER_RUN) {
+      this.#victory();
+      return true;
+    }
+
+    // Reset for next round
+    run.ballsLeft = BALANCE.BALLS_PER_ROUND + (mods.extraSpins || 0);
+    run.spinResults = [];
+    run.consecutiveHigh = 0;
+    run.fever = { active: false, remaining: 0 };
+    run._echoUsedThisRound = false;
+    run.lastColor = null;
+    run.colorStreak = 0;
+    run.shopDiscount = Math.min(80, mods.shopDiscount || 0);
+
+    this.#setPhase(PHASE.IDLE);
+    this.#emitRoundPreview();
+    return true;
+  }
+
+  // ─── End states ───
+
+  #gameOver() {
+    const run = this.state.run;
+    const stars = this.meta.calculateStars(run, false);
+    this.#applyStars(stars, run);
+
+    this.#setPhase(PHASE.GAME_OVER);
+    this.events.emit('game:over', {
+      round: run.round,
+      stars,
+      score: run.score,
+      quota: getQuota(run.round),
+      totalWon: run.lastRoundResult?.totalWon ?? 0,
+    });
+  }
+
+  #victory() {
+    const run = this.state.run;
+    const stars = this.meta.calculateStars(run, true);
+    this.#applyStars(stars, run);
+
+    this.#setPhase(PHASE.VICTORY);
+    this.events.emit('game:won', { round: run.round, stars, score: run.score });
+  }
+
+  #applyStars(stars, run) {
+    this.state.meta.stars += stars;
+    this.state.meta.totalStars += stars;
+    this.state.meta.runsCompleted++;
+    this.state.meta.bestRound = Math.max(this.state.meta.bestRound, run.round);
+  }
+
+  // ─── Helpers ───
+
+  #setPhase(phase) {
+    this.state.phase = phase;
+    this.events.emit('phase:changed', { phase });
+  }
+
+  #emitRoundPreview() {
+    const run = this.state.run;
+    this.events.emit('round:preview', {
+      round: run.round,
+      quota: getQuota(run.round),
+      ballsLeft: run.ballsLeft,
+      wheel: run.wheel,
+      probabilities: this.wheel.getProbabilities(run.wheel),
+      relics: run.relics,
+      fever: run.fever,
+    });
+  }
+
+  #error(msg) {
+    this.events.emit('error', { message: msg });
+    return false;
+  }
+}
