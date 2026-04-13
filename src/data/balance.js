@@ -6,13 +6,12 @@ export const BALANCE = Object.freeze({
   ROUNDS_PER_RUN: 12,
   BALLS_PER_ROUND: 15,
 
-  // Starting wheel — 40 segments
+  // Starting wheel — 40 segments, 4 gold
   INITIAL_WHEEL: [
-    'red', 'blue', 'gold', 'red', 'blue', 'red', 'gold', 'blue',
-    'red', 'blue', 'red', 'gold', 'blue', 'red', 'blue', 'gold',
-    'red', 'blue', 'red', 'gold', 'blue', 'red', 'blue', 'gold',
-    'red', 'blue', 'gold', 'red', 'blue', 'red', 'gold', 'blue',
-    'red', 'gold', 'blue', 'red', 'blue', 'gold', 'red', 'blue',
+    'gold', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red',
+    'gold', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red',
+    'gold', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red',
+    'gold', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red',
   ],
 
   // Quota scaling — quota(round) = BASE × GROWTH^(round-1)

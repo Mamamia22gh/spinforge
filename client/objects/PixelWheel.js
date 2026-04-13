@@ -1,5 +1,4 @@
-import { getSymbol } from '../../src/data/symbols.js';
-import { PAL, SYM_COLORS, SEG_A, SEG_B, DIVIDER_COLOR, HUB_BG, HUB_BORDER, RIM_COLOR } from '../gfx/PaletteDB.js';
+import { PAL, SEG_A, SEG_B, DIVIDER_COLOR, HUB_BG, HUB_BORDER, RIM_COLOR } from '../gfx/PaletteDB.js';
 import { drawTextCentered, CHAR_H } from '../gfx/BitmapFont.js';
 import { drawSpriteCentered, SPRITE_SIZE } from '../gfx/PixelSprites.js';
 
@@ -427,27 +426,27 @@ export class PixelWheel {
     let off = 0;
     for (let i = 0; i < data.length; i++) {
       const seg = data[i], angle = (seg.weight / tw) * Math.PI * 2;
-      const sym = getSymbol(seg.symbolId);
-      const symCol = SYM_COLORS[sym.color] || { fg: PAL.lightGray, bg: PAL.midGray };
+      const isGold = seg.symbolId === 'gold';
       const dark = i % 2 === 0;
       const mid = off + angle / 2;
 
-      // ── Pocket (flat fill) ──
+      // ── Pocket (flat fill — gold or default) ──
       ctx.beginPath();
       ctx.arc(0, 0, POCKET_OUTER, off, off + angle);
       ctx.arc(0, 0, POCKET_INNER, off + angle, off, true);
       ctx.closePath();
-      ctx.fillStyle = dark ? SEG_A : SEG_B;
+      ctx.fillStyle = isGold ? PAL.darkGold : (dark ? SEG_A : SEG_B);
       ctx.fill();
 
       // Highlight flash
       const hl = this._highlights.find(h => h.idx === i);
       if (hl) {
-        let a, fillCol;
-        if (hl.t < 0.15) { a = 0.9; fillCol = PAL.white; }
-        else if (hl.t < 0.4) { a = 0.7; fillCol = symCol.fg; }
-        else { a = Math.max(0, 1 - (hl.t - 0.4) / 1.1) * 0.5; fillCol = symCol.fg; }
-        ctx.fillStyle = fillCol;
+        const hlColor = isGold ? PAL.gold : PAL.white;
+        let a;
+        if (hl.t < 0.15) a = 0.9;
+        else if (hl.t < 0.4) a = 0.7;
+        else a = Math.max(0, 1 - (hl.t - 0.4) / 1.1) * 0.5;
+        ctx.fillStyle = hlColor;
         ctx.globalAlpha = a;
         ctx.fill();
         ctx.beginPath();
@@ -463,7 +462,7 @@ export class PixelWheel {
         this._frameLights.push({
           x: cx + Math.cos(worldA) * hlR,
           y: cy + Math.sin(worldA) * hlR * TILT_Y,
-          r: 25, color: symCol.fg,
+          r: 25, color: hlColor,
           a: Math.max(0, 1 - hl.t / 1.5) * 0.35,
         });
       }
@@ -583,11 +582,7 @@ export class PixelWheel {
       const startX = Math.round(cx - ((total - 1) * spacing) / 2);
       const histY = Math.round(cy + r * 0.55);
       for (let i = 0; i < total; i++) {
-        try {
-          const sym = getSymbol(h.history[i]);
-          const col = SYM_COLORS[sym.color] || { fg: PAL.lightGray };
-          ctx.fillStyle = col.fg;
-        } catch { ctx.fillStyle = PAL.lightGray; }
+        ctx.fillStyle = h.history[i] === 'gold' ? PAL.gold : PAL.lightGray;
         ctx.fillRect(startX + i * spacing, histY, 3, 3);
       }
     }
