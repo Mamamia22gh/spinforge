@@ -201,6 +201,9 @@ class App {
     // Wheel always visible
     this.wheel.draw(ctx, WHEEL_CX, WHEEL_CY);
 
+    // Commit hash (bottom right)
+    drawText(ctx, typeof __COMMIT__ !== 'undefined' ? __COMMIT__ : '???', W - 40, H - 8, PAL.midGray, 1);
+
     if (this._showTitle) {
       this._drawTitle(ctx);
     } else {

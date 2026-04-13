@@ -1,5 +1,8 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { execSync } from 'child_process';
+
+const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
 
 export default defineConfig({
   base: '/spinforge/',
@@ -23,4 +26,5 @@ export default defineConfig({
     },
   },
   server: { port: 3000, open: true },
+  define: { __COMMIT__: JSON.stringify(commitHash) },
 });
