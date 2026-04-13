@@ -23,7 +23,7 @@ export const PAL = {
   darkPurple: '#441a66',
 
   neonPink:   '#ff44aa',
-  cyan:       '#00e5ff',
+  cyan:       '#66ccff',
   darkCyan:   '#0088bb',
 };
 
