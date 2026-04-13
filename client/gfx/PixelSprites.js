@@ -111,8 +111,8 @@ const SPRITES = {
   // ── UI ──
   ball: [ // roulette ball
     '.........',
-    '......W..',
-    '...WWW...',
+    '.........',
+    '...WWWW..',
     '..WWWWW..',
     '..WWWWW..',
     '..WWWWW..',
