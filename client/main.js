@@ -390,10 +390,18 @@ class App {
 
     const r = this.wheel.hubRadius || 42;
     const tilt = this.wheel.tilt || 0.65;
+    const exciting = (label === 'SPIN' || label === 'PLAY');
+    const t = this._time;
 
     ctx.save();
     ctx.translate(WHEEL_CX, WHEEL_CY);
     ctx.scale(1, tilt);
+
+    // Pulse (exciting only)
+    if (exciting) {
+      const pulse = 1 + 0.04 * Math.sin(t * 4);
+      ctx.scale(pulse, pulse);
+    }
 
     // Fill
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -407,8 +415,52 @@ class App {
     ctx.fillStyle = PAL.midGray;
     ctx.fillRect(-r * 0.3, -r + 3, r * 0.6, 1);
 
-    // Label
-    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), color, 1);
+    if (exciting) {
+      // ── Rotating arrow (pixel dots in a 270° arc) ──
+      const rotA = t * 2.5;
+      const arrowR = r * 0.5;
+      const DOTS = 7;
+      const ARC = Math.PI * 1.5;
+
+      ctx.fillStyle = color;
+      for (let i = 0; i < DOTS; i++) {
+        const f = i / (DOTS - 1);
+        const a = rotA - f * ARC;
+        const px = Math.round(Math.cos(a) * arrowR);
+        const py = Math.round(Math.sin(a) * arrowR);
+
+        if (i === 0) {
+          // Arrowhead (2×2 bright)
+          ctx.globalAlpha = 1;
+          ctx.fillRect(px - 1, py - 1, 2, 2);
+        } else {
+          // Trail dots (fading)
+          ctx.globalAlpha = Math.max(0.15, 1 - f * 0.85);
+          ctx.fillRect(px, py, 1, 1);
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // ── Orbiting sparkle particles (outside border) ──
+      const orbitR = r + 4;
+      const PARTS = 4;
+      for (let i = 0; i < PARTS; i++) {
+        const a = t * 1.8 + (i / PARTS) * Math.PI * 2;
+        const sparkle = 0.4 + 0.6 * Math.sin(t * 8 + i * 2.5);
+        ctx.globalAlpha = Math.max(0, sparkle);
+        ctx.fillStyle = PAL.gold;
+        const px = Math.round(Math.cos(a) * orbitR);
+        const py = Math.round(Math.sin(a) * orbitR);
+        ctx.fillRect(px, py, 1, 1);
+      }
+      ctx.globalAlpha = 1;
+
+      // Label (below arrow center)
+      drawTextCentered(ctx, label, 0, Math.floor(r * 0.25), color, 1);
+    } else {
+      // Simple label
+      drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), color, 1);
+    }
 
     ctx.restore();
   }
