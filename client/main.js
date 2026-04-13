@@ -37,6 +37,8 @@ class App {
     // Mouse tracking (normalized -1..1 from center)
     this._mx = 0;
     this._my = 0;
+    this._hubHover = false;
+    this._sweepTrigger = -99;  // time of last hover-triggered sweep
 
     // Init default wheel
     const defaultWheel = BALANCE.INITIAL_WHEEL.map((id, i) => ({
@@ -86,6 +88,18 @@ class App {
     const rect = this._display.getBoundingClientRect();
     this._mx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;   // -1..1
     this._my = ((e.clientY - rect.top) / rect.height - 0.5) * 2;   // -1..1
+
+    // Hub hover detection
+    const x = Math.floor((e.clientX - rect.left) / rect.width * W);
+    const y = Math.floor((e.clientY - rect.top) / rect.height * H);
+    const dx = x - WHEEL_CX;
+    const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
+    const wasHover = this._hubHover;
+    this._hubHover = dx * dx + dy * dy < 40 * 40;
+    this._display.style.cursor = this._hubHover && !this._spinning ? 'pointer' : 'default';
+
+    // Trigger sweep on hover enter
+    if (this._hubHover && !wasHover) this._sweepTrigger = this._time;
   }
 
   _handleClick(e) {
@@ -328,6 +342,7 @@ class App {
     const tilt = this.wheel.tilt || 0.65;
     const t = this._time;
     const pressed = this._spinning;
+    const hover = this._hubHover && !pressed;
     const run = this.game.getState().run;
     const quota = run ? getQuota(run.round) : 0;
     const score = run ? run.score : 0;
@@ -336,28 +351,33 @@ class App {
     ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
     ctx.scale(1, tilt);
 
-    // Raised by default, flush when pressed
-    if (!pressed) ctx.translate(0, -2);
+    // Raised by default, higher on hover, flush when pressed
+    if (!pressed) ctx.translate(0, hover ? -4 : -2);
 
     // Fill (blinks gold/darkGold at 4Hz when quota reached during spin)
     const quotaReached = pressed && score >= quota;
 
     if (quotaReached) {
       ctx.fillStyle = Math.sin(t * 8 * Math.PI) > 0 ? PAL.gold : PAL.darkGold;
+    } else if (hover) {
+      ctx.fillStyle = PAL.gold;  // brighten on hover
     } else {
-      ctx.fillStyle = PAL.gold;
+      ctx.fillStyle = PAL.darkGold;
     }
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // Glass sweep (idle only, BEFORE pressed overlay)
+    // Glass sweep (idle only — periodic + hover triggered)
     if (!pressed) {
       const SWEEP_INTERVAL = 3.5;
       const SWEEP_DUR = 0.25;
-      const sweepT = t % SWEEP_INTERVAL;
-      if (sweepT < SWEEP_DUR) {
-        const p = sweepT / SWEEP_DUR;
-        const sx = -r + p * r * 2;
+      const periodicT = t % SWEEP_INTERVAL;
+      const hoverT = t - this._sweepTrigger;
+      const sweepActive = periodicT < SWEEP_DUR || (hoverT >= 0 && hoverT < SWEEP_DUR);
+      const sweepProgress = periodicT < SWEEP_DUR ? periodicT / SWEEP_DUR :
+                            (hoverT >= 0 && hoverT < SWEEP_DUR) ? hoverT / SWEEP_DUR : -1;
+      if (sweepActive && sweepProgress >= 0) {
+        const sx = -r + sweepProgress * r * 2;
         ctx.save();
         ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
         ctx.fillStyle = PAL.white;
