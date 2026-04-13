@@ -402,7 +402,7 @@ class App {
     ctx.fillStyle = PAL.darkGray; ctx.fill();
 
     // Border
-    ctx.strokeStyle = PAL.midGray; ctx.lineWidth = 2;
+    ctx.strokeStyle = PAL.gold; ctx.lineWidth = 2;
     ctx.stroke();
 
     // Highlight pixel (top edge, 3D bevel)
@@ -430,7 +430,7 @@ class App {
     }
 
     // Label (always centered)
-    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), color, 1);
+    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), PAL.gold, 1);
 
     ctx.restore();
   }
