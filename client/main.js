@@ -294,43 +294,53 @@ class App {
 
   // ── Hub button (round, drawn on top of everything) ──
   _drawHubBtn(ctx, wox, woy) {
-    if (this._spinning) return;
-
-    let label = 'SPIN';
-    let color = PAL.green;
-
+    const label = 'SPIN';
     const r = this.wheel.hubRadius || 42;
     const tilt = this.wheel.tilt || 0.65;
     const t = this._time;
+    const pressed = this._spinning;
 
     ctx.save();
     ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
     ctx.scale(1, tilt);
 
-    // Fill (gold)
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fillStyle = PAL.darkGold; ctx.fill();
+    // Pressed: darker fill, slight offset down
+    if (pressed) ctx.translate(0, 2);
 
-    // ── Glass sweep (white band every ~3.5s) ──
-    const SWEEP_INTERVAL = 3.5;
-    const SWEEP_DUR = 0.25;
-    const sweepT = t % SWEEP_INTERVAL;
-    if (sweepT < SWEEP_DUR) {
-      const p = sweepT / SWEEP_DUR;
-      const sx = -r + p * r * 2;
-      ctx.save();
-      ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
-      ctx.fillStyle = PAL.white;
-      ctx.globalAlpha = 0.25;
-      for (let dy = -r; dy <= r; dy += 1) {
-        ctx.fillRect(Math.round(sx + dy * 0.4), dy, 2, 1);
-      }
+    // Fill
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = pressed ? PAL.darkGold : PAL.darkGold; ctx.fill();
+
+    // Pressed overlay (darken)
+    if (pressed) {
+      ctx.fillStyle = PAL.black;
+      ctx.globalAlpha = 0.3;
+      ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.restore();
     }
 
-    // Label (always centered, dark for contrast on gold dome)
-    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), PAL.darkGray, 1);
+    // Glass sweep (only when not pressed)
+    if (!pressed) {
+      const SWEEP_INTERVAL = 3.5;
+      const SWEEP_DUR = 0.25;
+      const sweepT = t % SWEEP_INTERVAL;
+      if (sweepT < SWEEP_DUR) {
+        const p = sweepT / SWEEP_DUR;
+        const sx = -r + p * r * 2;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
+        ctx.fillStyle = PAL.white;
+        ctx.globalAlpha = 0.25;
+        for (let dy = -r; dy <= r; dy += 1) {
+          ctx.fillRect(Math.round(sx + dy * 0.4), dy, 2, 1);
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    }
+
+    // Label
+    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), pressed ? PAL.midGray : PAL.darkGray, 1);
 
     ctx.restore();
   }

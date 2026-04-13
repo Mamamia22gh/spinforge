@@ -559,9 +559,6 @@ export class PixelWheel {
       });
     }
 
-    // ── Hub Screen (fixed, screen coords) ──
-    this._drawHubScreen(ctx, cx, cy);
-
     // ── Relic slots orbiting outside rim ──
     this._drawOrbitSlots(ctx, cx, cy);
 
