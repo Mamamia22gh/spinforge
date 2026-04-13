@@ -69,6 +69,7 @@ export class PixelWheel {
     this._time = 0;
     this._highlights = [];
     this.onPegHit = null;
+    this.onBallEject = null;
     this._lastPeg = 0;
     this._slots = [];  // external slot data (8 entries, null = empty)
     this._dropClock = 0;
@@ -78,6 +79,7 @@ export class PixelWheel {
     this._ejecting = false;
     this._ejectClock = 0;
     this._frameLights = [];
+    this._bonusMode = false;
 
     // Hub screen state
     this._hub = {
@@ -196,6 +198,7 @@ export class PixelWheel {
   hubSetScore(s) { this._hub.scoreTarget = s; }
   hubMessage(msg) { this._hub.message = msg; this._hub.messageFade = 2.5; }
   setSlots(data) { this._slots = data || []; }
+  setBonusMode(b) { this._bonusMode = b; }
 
   update(dt) {
     this._time += dt;
@@ -244,6 +247,7 @@ export class PixelWheel {
           vy: Math.sin(inDir) * inSpeed + Math.sin(tanDir) * tanSpeed,
           settled: false, timer: 0,
         });
+        if (this.onBallEject) this.onBallEject();
       }
       if (this._ejectQueue.length === 0) this._ejecting = false;
     }
@@ -458,6 +462,7 @@ export class PixelWheel {
       // Highlight flash
       const hl = this._highlights.find(h => h.idx === i);
       const isIdle = Math.abs(this._angVel) < 0.1 && !this._balls.some(b => !b.settled) && this._highlights.length === 0;
+      const showChase = isIdle || this._bonusMode;
 
       if (hl) {
         const hlColor = isGold ? PAL.gold : PAL.white;
@@ -484,15 +489,22 @@ export class PixelWheel {
           r: 25, color: hlColor,
           a: Math.max(0, 1 - hl.t / 1.5) * 0.35,
         });
-      } else if (isIdle) {
-        // Idle chase: lead pocket + trailing glow
-        const TRAIL = 4;
-        const chasePos = this._time * 6;
+      } else if (showChase) {
+        // Chase: fast rainbow in bonus mode, slow white/gold in idle
+        const TRAIL = this._bonusMode ? 6 : 4;
+        const speed = this._bonusMode ? 18 : 6;
+        const RAINBOW = [PAL.red, PAL.gold, PAL.green, PAL.blue, PAL.purple, PAL.neonPink];
+        const chasePos = this._time * speed;
         const idleIdx = Math.floor(chasePos) % data.length;
         for (let t = 0; t < TRAIL; t++) {
           const ti = ((idleIdx - t) % data.length + data.length) % data.length;
           if (ti === i) {
-            const hlColor = (data[ti].symbolId === 'gold') ? PAL.gold : PAL.white;
+            let hlColor;
+            if (this._bonusMode) {
+              hlColor = RAINBOW[(Math.floor(chasePos) + t) % RAINBOW.length];
+            } else {
+              hlColor = (data[ti].symbolId === 'gold') ? PAL.gold : PAL.white;
+            }
             const fade = 1 - t / TRAIL;
             ctx.fillStyle = hlColor;
             ctx.globalAlpha = 0.35 * fade * fade;
@@ -505,7 +517,7 @@ export class PixelWheel {
               this._frameLights.push({
                 x: cx + Math.cos(worldA) * hlR,
                 y: cy + Math.sin(worldA) * hlR * TILT_Y,
-                r: 18, color: hlColor, a: 0.2,
+                r: 18, color: hlColor, a: this._bonusMode ? 0.3 : 0.2,
               });
             }
           }

@@ -28,6 +28,7 @@ class App {
     this.game = createGame({ seed: Date.now() });
     this.wheel = new PixelWheel();
     this._spinning = false;
+    this.wheel.setBonusMode(false);
     this._time = 0;
     this._pops = [];
     this._shake = { x: 0, y: 0, intensity: 0, decay: 0, time: 0 };
@@ -61,6 +62,7 @@ class App {
     // Audio
     this._audioCtx = null;
     this.wheel.onPegHit = () => this._tick();
+    this.wheel.onBallEject = () => this._playEject();
 
     // Input (on display canvas)
     this._display.addEventListener('click', e => this._handleClick(e));
@@ -169,11 +171,12 @@ class App {
       // Shake on gold pocket
       if (result.result.symbol.id === 'gold') this._shakeStart(2, 0.2);
 
-      // Shake on quota reached + invert flash
+      // Shake on quota reached + invert flash + bonus mode
       const run3 = this.game.getState().run;
       if (run3.score >= getQuota(run3.round) && run3.score - result.value < getQuota(run3.round)) {
         this._shakeStart(5, 0.5);
         this._flash = 0.3;
+        this.wheel.setBonusMode(true);
       }
 
       await this._delay(450);
@@ -417,6 +420,11 @@ class App {
   }
 
   _tick() { this._tone(800 + Math.random() * 400, 0.02, 'square', 0.03); }
+
+  _playEject() {
+    this._tone(1400 + Math.random() * 200, 0.04, 'sine', 0.05);
+    setTimeout(() => this._tone(900 + Math.random() * 200, 0.03, 'square', 0.03), 20);
+  }
 
   _playReveal(idx, total) {
     const notes = [523, 587, 659, 784, 880, 1047];
