@@ -276,8 +276,6 @@ class App {
 
   // ── Title screen ──
   _drawTitle(ctx) {
-    this._drawDim(ctx);
-
     drawTextCentered(ctx, 'SPINFORGE', W / 2, 14, PAL.gold, 3);
     drawTextCentered(ctx, 'MYSTIC ROULETTE ROGUELIKE', W / 2, 42, PAL.midGray, 1);
   }
