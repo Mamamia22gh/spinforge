@@ -680,7 +680,7 @@ export class PixelWheel {
 
   _drawOrbitSlots(ctx, cx, cy) {
     const INNER = RIM_R + 3;           // small gap outside rim
-    const OUTER = RIM_R + 14;          // slot band thickness
+    const OUTER = RIM_R + 25;          // slot band thickness
     const SLOT_ARC = 0.28;             // ~16° per slot
     const PAIR_GAP = 0.06;             // gap between two slots of a pair
 
