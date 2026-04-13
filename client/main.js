@@ -245,9 +245,48 @@ class App {
 
     ctx.restore(); // end PX scale
 
-    // ── Palette quantize (kill AA fringes) then CRT post-process ──
+    // ── Palette quantize (kill AA fringes) then light map then CRT ──
     quantize(ctx, CW, CH);
+    this._drawLights(ctx);
     this._crt.apply(ctx);
+  }
+
+  // ── Light map (screen-mode glow, after quantize for smooth gradients) ──
+  _drawLights(ctx) {
+    ctx.globalCompositeOperation = 'screen';
+
+    // Hub glow (pulsing)
+    if (!this._spinning) {
+      let col;
+      if (this._showTitle) col = PAL.green;
+      else {
+        const ph = this.game.getPhase();
+        col = (ph === 'IDLE') ? PAL.green : (ph === 'GAME_OVER') ? PAL.red : PAL.gold;
+      }
+      const pulse = 0.10 + 0.04 * Math.sin(this._time * 3);
+      this._glow(ctx, WHEEL_CX * PX, WHEEL_CY * PX, 55 * PX, col, pulse);
+    }
+
+    // Wheel lights (balls + highlights)
+    for (const l of this.wheel.lights) {
+      this._glow(ctx, l.x * PX, l.y * PX, l.r * PX, l.color, l.a);
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  _glow(ctx, x, y, r, color, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, color);
+    grad.addColorStop(0.5, color);
+    grad.addColorStop(1, '#000');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   // ── Drawing helpers ──

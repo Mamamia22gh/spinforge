@@ -75,6 +75,7 @@ export class PixelWheel {
     this._dropClock = 0;
     this._dropping = false;
     this._inGauge = false;
+    this._frameLights = [];
 
     // Hub screen state
     this._hub = {
@@ -166,6 +167,7 @@ export class PixelWheel {
   get speed() { return Math.abs(this._angVel); }
   get hubRadius() { return HUB_R; }
   get tilt() { return TILT_Y; }
+  get lights() { return this._frameLights; }
 
   // ── Hub screen API ──
   hubShowValue(symbolId, value) {
@@ -371,6 +373,7 @@ export class PixelWheel {
     ctx.translate(-cx, -cy);
 
     // ── Rim ──
+    this._frameLights = [];  // reset light sources each frame
     ctx.beginPath(); ctx.arc(cx, cy, RIM_R, 0, Math.PI * 2);
     ctx.strokeStyle = RIM_COLOR; ctx.lineWidth = 1; ctx.stroke();
 
@@ -411,6 +414,16 @@ export class PixelWheel {
         ctx.closePath();
         ctx.fill();
         ctx.globalAlpha = 1;
+
+        // Light source for glow
+        const worldA = this._angle + mid;
+        const hlR = (POCKET_INNER + POCKET_OUTER) / 2;
+        this._frameLights.push({
+          x: cx + Math.cos(worldA) * hlR,
+          y: cy + Math.sin(worldA) * hlR * TILT_Y,
+          r: 25, color: symCol.fg,
+          a: Math.max(0, 1 - hl.t / 1.5) * 0.35,
+        });
       }
 
       // ── Number ring (casino red/black) ──
@@ -511,6 +524,10 @@ export class PixelWheel {
     for (const b of this._balls) {
       if (b.settled) continue;
       this._drawPixelBall(ctx, cx + b.x, cy + b.y, false);
+      this._frameLights.push({
+        x: cx + b.x, y: cy + b.y * TILT_Y,
+        r: 10, color: PAL.white, a: 0.12,
+      });
     }
 
     // ── Hub Screen (fixed, screen coords) ──
