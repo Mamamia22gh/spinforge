@@ -319,28 +319,6 @@ class App {
     ctx.restore();
   }
 
-  // ── HUD ──
-  _drawHUD(ctx, ox, oy) {
-    const run = this.game.getState().run;
-    if (!run) return;
-
-    // Top left
-    drawText(ctx, 'RND ' + run.round + '/' + BALANCE.ROUNDS_PER_RUN, 4 + ox, 4 + oy, PAL.green, 1);
-    drawText(ctx, 'QUOTA ' + getQuota(run.round), 4 + ox, 14 + oy, PAL.midGray, 1);
-
-    // Top right — score
-    const scoreStr = String(run.score);
-    const sw = measureText(scoreStr) * 2;
-    drawText(ctx, scoreStr, W - 4 - sw + ox, 4 + oy, PAL.gold, 2);
-
-    // Balls
-    for (let i = 0; i < BALANCE.BALLS_PER_ROUND; i++) {
-      const bx = W - 4 - (BALANCE.BALLS_PER_ROUND - i) * 6 + ox;
-      ctx.fillStyle = i < run.ballsLeft ? PAL.red : PAL.darkRed;
-      ctx.fillRect(bx, 20 + oy, 4, 4);
-    }
-  }
-
   // ── Hub button (round, drawn on top of everything) ──
   _drawHubBtn(ctx, wox, woy) {
     const r = this.wheel.hubRadius || 42;
@@ -359,9 +337,6 @@ class App {
     if (!pressed) ctx.translate(0, -2);
 
     // Fill (blinks gold/darkGold at 4Hz when quota reached during spin)
-    const run = this.game.getState().run;
-    const quota = run ? getQuota(run.round) : 0;
-    const score = run ? run.score : 0;
     const quotaReached = pressed && score >= quota;
 
     if (quotaReached) {
