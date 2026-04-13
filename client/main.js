@@ -360,9 +360,9 @@ class App {
     if (quotaReached) {
       ctx.fillStyle = Math.sin(t * 8 * Math.PI) > 0 ? PAL.gold : PAL.darkGold;
     } else if (hover) {
-      ctx.fillStyle = PAL.gold;  // brighten on hover
+      ctx.fillStyle = PAL.white;  // extra bright on hover
     } else {
-      ctx.fillStyle = PAL.darkGold;
+      ctx.fillStyle = PAL.gold;
     }
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
