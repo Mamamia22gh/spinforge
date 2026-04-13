@@ -333,9 +333,9 @@ export class PixelWheel {
   }
 
   _collideLabelWall(b) {
-    // Inner wall at label ring outer edge — pushes balls inward to pockets
+    // Inner wall at pocket outer edge — balls can't enter number ring
     const d = Math.sqrt(b.x * b.x + b.y * b.y);
-    const wall = LABEL_OUTER - BALL_RADIUS;
+    const wall = POCKET_OUTER - BALL_RADIUS;
     if (d <= wall) return;
     const nx = b.x / d, ny = b.y / d;
     b.x = nx * wall; b.y = ny * wall;

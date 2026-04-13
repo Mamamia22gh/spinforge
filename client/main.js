@@ -443,22 +443,28 @@ class App {
   _playSpin() {
     if (!this._audioCtx) return;
     this._killSpin();
-    this._spinOsc = this._audioCtx.createOscillator();
-    this._spinOsc2 = this._audioCtx.createOscillator();
+    // Filtered noise (mechanical whirr, not engine drone)
+    const bufLen = this._audioCtx.sampleRate * 2;
+    const buf = this._audioCtx.createBuffer(1, bufLen, this._audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    this._spinNoise = this._audioCtx.createBufferSource();
+    this._spinNoise.buffer = buf;
+    this._spinNoise.loop = true;
+    this._spinFilter = this._audioCtx.createBiquadFilter();
+    this._spinFilter.type = 'bandpass';
+    this._spinFilter.frequency.value = 300;
+    this._spinFilter.Q.value = 2;
     this._spinGain = this._audioCtx.createGain();
-    const filt = this._audioCtx.createBiquadFilter();
-    filt.type = 'lowpass'; filt.frequency.value = 500;
-    this._spinOsc.type = 'triangle'; this._spinOsc.frequency.value = 80;
-    this._spinOsc2.type = 'sawtooth'; this._spinOsc2.frequency.value = 120;
-    this._spinGain.gain.value = 0.04;
-    this._spinOsc.connect(filt); this._spinOsc2.connect(filt);
-    filt.connect(this._spinGain).connect(this._audioCtx.destination);
-    this._spinOsc.start(); this._spinOsc2.start();
+    this._spinGain.gain.value = 0.03;
+    this._spinNoise.connect(this._spinFilter);
+    this._spinFilter.connect(this._spinGain);
+    this._spinGain.connect(this._audioCtx.destination);
+    this._spinNoise.start();
     this._spinInterval = setInterval(() => {
       const spd = Math.min(1, this.wheel.speed / 18);
-      if (this._spinOsc) this._spinOsc.frequency.value = 60 + spd * 180;
-      if (this._spinOsc2) this._spinOsc2.frequency.value = 90 + spd * 150;
-      if (this._spinGain) this._spinGain.gain.value = 0.02 + spd * 0.08;
+      if (this._spinFilter) this._spinFilter.frequency.value = 200 + spd * 800;
+      if (this._spinGain) this._spinGain.gain.value = 0.01 + spd * 0.04;
     }, 50);
   }
 
@@ -474,10 +480,9 @@ class App {
   }
 
   _killSpin() {
-    try { this._spinOsc?.stop(); } catch {}
-    try { this._spinOsc2?.stop(); } catch {}
-    this._spinOsc = null;
-    this._spinOsc2 = null;
+    try { this._spinNoise?.stop(); } catch {}
+    this._spinNoise = null;
+    this._spinFilter = null;
     this._spinGain = null;
   }
 
