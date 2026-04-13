@@ -48,6 +48,14 @@ class App {
     // GPU post-process (replaces CPU quantizer + CRT filter)
     this._postfx = new PostFXGL(this._display);
 
+    // Lights overlay (screen blend via CSS — NOT quantized)
+    this._lightsCanvas = document.createElement('canvas');
+    this._lightsCanvas.width = CW;
+    this._lightsCanvas.height = CH;
+    this._lightsCanvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;image-rendering:pixelated;image-rendering:crisp-edges;';
+    document.body.appendChild(this._lightsCanvas);
+    this._lightsCtx = this._lightsCanvas.getContext('2d');
+
     // Audio
     this._audioCtx = null;
     this.wheel.onPegHit = () => this._tick();
@@ -230,14 +238,17 @@ class App {
 
     ctx.restore(); // end PX scale
 
-    // ── Palette quantize + scanlines + vignette (GPU) ──
-    this._drawLights(ctx, wheelOx, wheelOy);
+    // ── GPU post-process (quantize + scanlines + vignette) ──
     this._postfx.apply(this._canvas);
+
+    // ── Lights overlay (smooth, NOT quantized) ──
+    this._drawLights(wheelOx, wheelOy);
   }
 
   // ── Light map (screen-mode glow, after quantize for smooth gradients) ──
-  _drawLights(ctx, wox, woy) {
-    ctx.globalCompositeOperation = 'screen';
+  _drawLights(wox, woy) {
+    const ctx = this._lightsCtx;
+    ctx.clearRect(0, 0, CW, CH);
 
     // Hub glow (always active, stepped pulse)
     if (!this._spinning) {
@@ -256,8 +267,6 @@ class App {
     for (const l of this.wheel.lights) {
       this._glow(ctx, (l.x + wox) * PX, (l.y + woy) * PX, l.r * PX, l.color, l.a);
     }
-
-    ctx.globalCompositeOperation = 'source-over';
   }
 
   _glow(ctx, x, y, r, color, alpha) {
