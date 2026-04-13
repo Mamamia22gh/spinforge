@@ -326,10 +326,10 @@ class App {
     // Dome: upper dome lighter (offset circle clipped)
     ctx.save();
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip();
-    ctx.beginPath(); ctx.arc(0, -r * 0.3, r * 0.9, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(0, -r * 0.55, r * 0.85, 0, Math.PI * 2);
     ctx.fillStyle = PAL.gold; ctx.fill();
-    // Specular: small bright spot upper area
-    ctx.beginPath(); ctx.arc(r * 0.15, -r * 0.35, r * 0.2, 0, Math.PI * 2);
+    // Specular: small bright spot upper-right
+    ctx.beginPath(); ctx.arc(r * 0.3, -r * 0.5, r * 0.15, 0, Math.PI * 2);
     ctx.fillStyle = PAL.white; ctx.fill();
     ctx.restore();
 
