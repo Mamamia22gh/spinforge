@@ -586,18 +586,7 @@ export class PixelWheel {
   }
 
   _drawPixelBall(ctx, bx, by, settled) {
-    const px = Math.round(bx);
-    const py = Math.round(by);
-    const col = PAL.white;
-    const sh = PAL.lightGray;
-    ctx.fillStyle = col;
-    ctx.fillRect(px, py - 1, 1, 1);
-    ctx.fillRect(px - 1, py, 3, 1);
-    ctx.fillRect(px, py + 1, 1, 1);
-    ctx.fillStyle = PAL.white;
-    ctx.fillRect(px - 1, py - 1, 1, 1);
-    ctx.fillStyle = sh;
-    ctx.fillRect(px + 1, py + 1, 1, 1);
+    drawSpriteCentered(ctx, 'ball', Math.round(bx), Math.round(by), 1);
   }
 
   _drawHubScreen(ctx, cx, cy) {

@@ -492,9 +492,6 @@ class App {
       }
       drawText(ctx, String(it.val), ix + 7, iy - Math.floor(CHAR_H / 2), it.col, 1);
     }
-
-    // Debug: ball sprite (large, top-left)
-    drawSpriteCentered(ctx, 'ball', 30, 30, 4);
   }
 
   // ── Popups ──
