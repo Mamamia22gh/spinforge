@@ -34,7 +34,7 @@ const GRAVITY_BOOST_THRESHOLD = 2.5;
 const GRAVITY_BOOST_MAX = 6;
 
 // ── 3D perspective tilt ──
-const TILT_Y = 0.65;
+const TILT_Y = 0.82;
 
 // ── Drop animation ──
 const DROP_STAGGER = 0.05;   // seconds between each ball
