@@ -51,5 +51,5 @@ export const SEG_A = PAL.darkGray;
 export const SEG_B = PAL.black;
 export const DIVIDER_COLOR = PAL.black;
 export const HUB_BG = PAL.black;
-export const HUB_BORDER = PAL.darkGold;
-export const RIM_COLOR = PAL.midGray;
+export const HUB_BORDER = PAL.midGray;
+export const RIM_COLOR = PAL.darkGray;

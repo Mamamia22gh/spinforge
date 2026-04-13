@@ -554,46 +554,50 @@ export class PixelWheel {
   }
 
   _drawOrbitSlots(ctx, cx, cy) {
-    const SLOT_R = RIM_R + 16;  // orbit radius (just past rim)
-    const SW = 14, SH = 14;    // slot size
+    const INNER = RIM_R + 3;           // small gap outside rim
+    const OUTER = RIM_R + 14;          // slot band thickness
     const COUNT = 8;
+    const SLOT_FRAC = 0.55;            // each slot fills 55% of its 45° sector
+    const SECTOR = Math.PI * 2 / COUNT;
+    const HALF_ARC = SECTOR * SLOT_FRAC / 2;
 
     for (let i = 0; i < COUNT; i++) {
-      const angle = (i / COUNT) * Math.PI * 2 - Math.PI / 2; // start from top
-      const sx = Math.round(cx + Math.cos(angle) * SLOT_R - SW / 2);
-      const sy = Math.round(cy + Math.sin(angle) * SLOT_R - SH / 2);
-
+      const center = i * SECTOR - Math.PI / 2; // start from top
+      const a0 = center - HALF_ARC;
+      const a1 = center + HALF_ARC;
+      const dark = i % 2 === 0;
       const filled = this._slots && this._slots[i];
-      const borderCol = filled ? PAL.gold : PAL.darkGold;
 
-      // Interior (black)
-      ctx.fillStyle = PAL.black;
-      ctx.fillRect(sx + 1, sy + 1, SW - 2, SH - 2);
+      // Arc fill (pocket style)
+      ctx.beginPath();
+      ctx.arc(cx, cy, OUTER, a0, a1);
+      ctx.arc(cx, cy, INNER, a1, a0, true);
+      ctx.closePath();
+      ctx.fillStyle = dark ? SEG_A : SEG_B;
+      ctx.fill();
 
-      // Rounded border (skip corner pixels)
-      ctx.fillStyle = borderCol;
-      ctx.fillRect(sx + 2, sy, SW - 4, 1);         // top
-      ctx.fillRect(sx + 2, sy + SH - 1, SW - 4, 1); // bottom
-      ctx.fillRect(sx, sy + 2, 1, SH - 4);         // left
-      ctx.fillRect(sx + SW - 1, sy + 2, 1, SH - 4); // right
-      // Corner pixels (1px inset)
-      ctx.fillRect(sx + 1, sy + 1, 1, 1);           // TL
-      ctx.fillRect(sx + SW - 2, sy + 1, 1, 1);     // TR
-      ctx.fillRect(sx + 1, sy + SH - 2, 1, 1);     // BL
-      ctx.fillRect(sx + SW - 2, sy + SH - 2, 1, 1); // BR
+      // Radial dividers (black)
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a0) * INNER, cy + Math.sin(a0) * INNER);
+      ctx.lineTo(cx + Math.cos(a0) * OUTER, cy + Math.sin(a0) * OUTER);
+      ctx.moveTo(cx + Math.cos(a1) * INNER, cy + Math.sin(a1) * INNER);
+      ctx.lineTo(cx + Math.cos(a1) * OUTER, cy + Math.sin(a1) * OUTER);
+      ctx.strokeStyle = DIVIDER_COLOR; ctx.lineWidth = 1; ctx.stroke();
+
+      // Content
+      const midR = (INNER + OUTER) / 2;
+      const mx = Math.round(cx + Math.cos(center) * midR);
+      const my = Math.round(cy + Math.sin(center) * midR);
 
       if (filled) {
         try {
-          drawSpriteCentered(ctx, filled.id || 'diamond',
-            sx + Math.floor(SW / 2), sy + Math.floor(SH / 2), 1);
+          drawSpriteCentered(ctx, filled.id || 'diamond', mx, my, 1);
         } catch {
-          drawTextCentered(ctx, '?', sx + Math.floor(SW / 2),
-            sy + Math.floor((SH - CHAR_H) / 2), PAL.gold, 1);
+          drawTextCentered(ctx, '?', mx, my - Math.floor(CHAR_H / 2), PAL.gold, 1);
         }
       } else {
-        // Empty: dim center dot
         ctx.fillStyle = PAL.midGray;
-        ctx.fillRect(sx + Math.floor(SW / 2), sy + Math.floor(SH / 2), 1, 1);
+        ctx.fillRect(mx, my, 1, 1);
       }
     }
   }
