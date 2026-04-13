@@ -25,6 +25,11 @@ export const PAL = {
   neonPink:   '#ff44aa',
   cyan:       '#66ccff',
   darkCyan:   '#0088bb',
+
+  // Diamond shadow tones
+  deepBlue:   '#0e1144',
+  shadedBlue: '#1a2e88',
+  shadedCyan: '#337799',
 };
 
 // Same palette as uint32 ABGR (for ImageData manipulation)
