@@ -12,7 +12,7 @@ import { quantize } from './gfx/PaletteQuantizer.js';
 const W = 480, H = 270;
 const PX = 2;                          // pixel scale — each art pixel = PX×PX canvas pixels
 const CW = W * PX, CH = H * PX;       // canvas resolution (960×540)
-const WHEEL_CX = 240, WHEEL_CY = 125;
+const WHEEL_CX = 240, WHEEL_CY = 140;
 
 class App {
   constructor() {
