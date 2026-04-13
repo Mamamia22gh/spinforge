@@ -461,11 +461,12 @@ class App {
     ctx.restore();
   }
 
-  // ── UI Ring (gold + tickets around the wheel) ──
+  // ── UI Ring (gold + tickets + balls along right arc) ──
   _drawUIRing(ctx, cx, cy) {
     const RING_R = 115;
     const run = this.game.getState().run;
     const score = run ? run.score : 0;
+    const balls = run ? run.ballsLeft : 0;
 
     // Ring outline
     ctx.beginPath();
@@ -474,18 +475,23 @@ class App {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Gold counter (bottom-left)
-    const goldStr = String(score);
-    const gx = Math.round(cx - 35);
-    const gy = Math.round(cy + RING_R + 10);
-    drawAnimSpriteCentered(ctx, 'coin', gx, gy, 1, this._time, 6);
-    drawText(ctx, goldStr, gx + 7, gy - Math.floor(CHAR_H / 2), PAL.gold, 1);
+    // 3 items along the right arc
+    const items = [
+      { angle: -0.55, sprite: 'coin', anim: true, val: score, col: PAL.gold },
+      { angle:  0,    sprite: 'star', anim: false, val: this._diamonds, col: PAL.green },
+      { angle:  0.55, sprite: 'ball', anim: false, val: balls, col: PAL.white },
+    ];
 
-    // Ticket counter (bottom-right)
-    const tx = Math.round(cx + 15);
-    const ty = gy;
-    drawSpriteCentered(ctx, 'star', tx, ty, 1);
-    drawText(ctx, String(this._diamonds), tx + 7, ty - Math.floor(CHAR_H / 2), PAL.green, 1);
+    for (const it of items) {
+      const ix = Math.round(cx + Math.cos(it.angle) * (RING_R + 6));
+      const iy = Math.round(cy + Math.sin(it.angle) * (RING_R + 6));
+      if (it.anim) {
+        drawAnimSpriteCentered(ctx, it.sprite, ix, iy, 1, this._time, 6);
+      } else {
+        drawSpriteCentered(ctx, it.sprite, ix, iy, 1);
+      }
+      drawText(ctx, String(it.val), ix + 7, iy - Math.floor(CHAR_H / 2), it.col, 1);
+    }
   }
 
   // ── Popups ──
