@@ -309,9 +309,9 @@ class App {
     // Raised by default, flush when pressed
     if (!pressed) ctx.translate(0, -2);
 
-    // Fill
+    // Fill (bright gold)
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fillStyle = PAL.darkGold; ctx.fill();
+    ctx.fillStyle = PAL.gold; ctx.fill();
 
     // Pressed overlay (darken)
     if (pressed) {
@@ -343,13 +343,13 @@ class App {
 
     if (pressed) {
       // During spin: show score / quota
-      const scoreCol = score >= quota ? PAL.green : PAL.gold;
+      const scoreCol = score >= quota ? PAL.green : PAL.white;
       drawTextCentered(ctx, String(score), 0, -Math.floor(CHAR_H * 1.5), scoreCol, 2);
-      drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 0.5), PAL.midGray, 1);
+      drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
     } else {
       // Idle: SPIN label + quota below
-      drawTextCentered(ctx, 'SPIN', 0, -Math.floor(CHAR_H * 1.5), PAL.gold, 2);
-      drawTextCentered(ctx, String(quota), 0, Math.floor(CHAR_H * 0.5), PAL.midGray, 1);
+      drawTextCentered(ctx, 'SPIN', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 2);
+      drawTextCentered(ctx, String(quota), 0, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
     }
 
     ctx.restore();
