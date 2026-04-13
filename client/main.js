@@ -10,13 +10,15 @@ import { quantize } from './gfx/PaletteQuantizer.js';
 
 // ── Canvas resolution (CSS scales this to viewport with nearest-neighbor) ──
 const W = 480, H = 270;
+const PX = 2;                          // pixel scale — each art pixel = PX×PX canvas pixels
+const CW = W * PX, CH = H * PX;       // canvas resolution (960×540)
 const WHEEL_CX = 240, WHEEL_CY = 125;
 
 class App {
   constructor() {
     this._canvas = document.getElementById('game');
-    this._canvas.width = W;
-    this._canvas.height = H;
+    this._canvas.width = CW;
+    this._canvas.height = CH;
     this._ctx = this._canvas.getContext('2d');
 
     this.game = createGame({ seed: Date.now() });
@@ -43,7 +45,7 @@ class App {
     this._dimPattern = this._createDimPattern();
 
     // CRT post-process (barrel distortion + chroma + scanlines + vignette)
-    this._crt = new CRTFilter(W, H);
+    this._crt = new CRTFilter(CW, CH);
 
     // Audio
     this._audioCtx = null;
@@ -215,6 +217,10 @@ class App {
     const ctx = this._ctx;
     ctx.imageSmoothingEnabled = false;
 
+    // Draw everything in logical 480×270 space, scaled 2×
+    ctx.save();
+    ctx.scale(PX, PX);
+
     // Clear
     ctx.fillStyle = PAL.black;
     ctx.fillRect(0, 0, W, H);
@@ -238,8 +244,10 @@ class App {
       this._drawActionBtn(ctx);
     }
 
+    ctx.restore(); // end PX scale
+
     // ── Palette quantize (kill AA fringes) then CRT post-process ──
-    quantize(ctx, W, H);
+    quantize(ctx, CW, CH);
     this._crt.apply(ctx);
   }
 
