@@ -351,11 +351,14 @@ class App {
     ctx.globalAlpha = 1;
     ctx.restore();
 
-    // Specular highlight (small bright arc near top)
+    // Specular highlight (clipped to button circle)
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
     ctx.fillStyle = PAL.lightGray;
     ctx.fillRect(-r * 0.35, -r + 4, r * 0.7, 1);
     ctx.fillStyle = PAL.white;
     ctx.fillRect(-r * 0.15, -r + 3, r * 0.3, 1);
+    ctx.restore();
 
     // Border
     ctx.strokeStyle = PAL.gold; ctx.lineWidth = 2;
