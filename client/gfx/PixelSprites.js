@@ -20,6 +20,7 @@ const COLOR_KEY = {
   'W': PAL.white,    'D': PAL.midGray,
   'K': PAL.black,    'N': PAL.neonPink,
   'L': PAL.lightGray,
+  'C': PAL.cyan,     'c': PAL.darkCyan,
 };
 
 const SIZE = 9;
@@ -108,16 +109,16 @@ const SPRITES = {
   ],
 
   // ── Rares ──
-  diamond: [ // sparkling diamond
-    '....W....',
-    '...WLW...',
-    '..WLWLW..',
-    '.WLWLWLW.',
-    'WLWLWLWLW',
-    '.WLDLDW..',
-    '..WDDDW..',
-    '...WDW...',
-    '....W....',
+  diamond: [ // cut gem (cyan)
+    '.........',
+    '...cCc...',
+    '.cCCCCCc.',
+    '.ccccccc.',
+    '.cCCCCCc.',
+    '..cCCCc..',
+    '...cCc...',
+    '....c....',
+    '.........',
   ],
   seven: [ // lucky 7
     '.RRRRRRR.',
@@ -238,26 +239,26 @@ export const SPRITE_SIZE = SIZE;
 const ANIM_SPRITES = {
   coin: [
     [ // Frame 0: full face
-      '...KKKK..',
-      '..KWGGGK.',
-      '.KGGGGGGK',
-      '.KGGGGGGK',
-      '.KGGGGGGK',
-      '.KGGGGGGK',
-      '.KGGGGGGK',
-      '..KYYYYK.',
-      '...KKKK..',
-    ],
-    [ // Frame 1: 3/4 view (45°)
-      '...KKKK..',
-      '..KGWGK..',
-      '..KGGGGK.',
-      '..KGGGGK.',
-      '..KGGGGK.',
-      '..KGGGGK.',
-      '..KGGGGK.',
+      '...KKK...',
+      '..KWGGK..',
+      '.KGGGGGK.',
+      '.KGGGGGK.',
+      '.KGGGGGK.',
+      '.KGGGGGK.',
       '..KYYYK..',
-      '...KKKK..',
+      '...KKK...',
+      '.........',
+    ],
+    [ // Frame 1: face cropped 1px each side
+      '....K....',
+      '...KWK...',
+      '..KGGGK..',
+      '..KGGGK..',
+      '..KGGGK..',
+      '..KGGGK..',
+      '...KYK...',
+      '....K....',
+      '.........',
     ],
     [ // Frame 2: edge
       '....K....',
@@ -268,64 +269,64 @@ const ANIM_SPRITES = {
       '....K....',
       '....K....',
       '....K....',
-      '....K....',
+      '.........',
     ],
-    [ // Frame 3: 3/4 reverse (45°)
-      '..KKKK...',
-      '..KGWGK..',
-      '.KGGGGK..',
-      '.KGGGGK..',
-      '.KGGGGK..',
-      '.KGGGGK..',
-      '.KGGGGK..',
-      '..KYYYК..',
-      '..KKKK...',
+    [ // Frame 3: face cropped 1px each side
+      '....K....',
+      '...KWK...',
+      '..KGGGK..',
+      '..KGGGK..',
+      '..KGGGK..',
+      '..KGGGK..',
+      '...KYK...',
+      '....K....',
+      '.........',
     ],
   ],
   diamond: [
-    [ // Frame 0: normal
-      '....K....',
-      '...KBK...',
-      '..KBWBK..',
-      '.KBWBWBK.',
-      'KBWBWBWBK',
-      '.KBWbBK..',
-      '..KbbbK..',
-      '...KbK...',
-      '....K....',
+    [ // Frame 0: Sparkle top
+      '.........',
+      '...cWc...',
+      '.cCCCCCc.',
+      '.ccccccc.',
+      '.cCCCCCc.',
+      '..cCCCc..',
+      '...cCc...',
+      '....c....',
+      '.........',
     ],
-    [ // Frame 1: sparkle top-right
-      '....K..W.',
-      '...KBK.W.',
-      '..KBWBK..',
-      '.KBWBWBK.',
-      'KBWBWBWBK',
-      '.KBWbBK..',
-      '..KbbbK..',
-      '...KbK...',
-      '....K....',
+    [ // Frame 1: Sparkle right
+      '.........',
+      '...cCc...',
+      '.cCCCCWc.',
+      '.ccccccc.',
+      '.cCCCCCc.',
+      '..cCCCc..',
+      '...cCc...',
+      '....c....',
+      '.........',
     ],
-    [ // Frame 2: normal
-      '....K....',
-      '...KBK...',
-      '..KBWBK..',
-      '.KBWBWBK.',
-      'KBWBWBWBK',
-      '.KBWbBK..',
-      '..KbbbK..',
-      '...KbK...',
-      '....K....',
+    [ // Frame 2: Sparkle bottom
+      '.........',
+      '...cCc...',
+      '.cCCCCCc.',
+      '.ccccccc.',
+      '.cCCWCCc.',
+      '..cCCCc..',
+      '...cCc...',
+      '....c....',
+      '.........',
     ],
-    [ // Frame 3: sparkle bottom-left
-      '....K....',
-      '...KBK...',
-      '..KBWBK..',
-      '.KBWBWBK.',
-      'KBWBWBWBK',
-      '.KBWbBK..',
-      '..KbbbK..',
-      '.W.KbK...',
-      '.W..K....',
+    [ // Frame 3: Sparkle left
+      '.........',
+      '...cCc...',
+      '.cWCCCCc.',
+      '.ccccccc.',
+      '.cCCCCCc.',
+      '..cCCCc..',
+      '...cCc...',
+      '....c....',
+      '.........',
     ],
   ],
 };
@@ -371,4 +372,19 @@ export function drawAnimSpriteCentered(ctx, id, cx, cy, scale = 1, time = 0, fps
   ctx.imageSmoothingEnabled = false;
   const half = (SIZE * scale) / 2;
   ctx.drawImage(src, 0, 0, SIZE, SIZE, Math.round(cx - half), Math.round(cy - half), SIZE * scale, SIZE * scale);
+}
+
+/**
+ * Draw a specific frame of an animated sprite centered at (cx, cy).
+ */
+export function drawAnimFrameCentered(ctx, id, frame, cx, cy, scale = 1) {
+  const src = _renderAnimFrame(id, frame);
+  if (!src) return;
+  ctx.imageSmoothingEnabled = false;
+  const half = (SIZE * scale) / 2;
+  ctx.drawImage(src, 0, 0, SIZE, SIZE, Math.round(cx - half), Math.round(cy - half), SIZE * scale, SIZE * scale);
+}
+
+export function getAnimFrameCount(id) {
+  return ANIM_SPRITES[id]?.length ?? 0;
 }
