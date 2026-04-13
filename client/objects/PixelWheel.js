@@ -229,16 +229,18 @@ export class PixelWheel {
       while (this._ejectQueue.length > 0 && this._ejectClock >= this._ejectQueue[0].dropDelay) {
         this._ejectQueue.shift();
 
-        // Spawn physics ball just inside rim at gauge exit angle
-        const entryAngle = GAUGE_START + (Math.random() - 0.5) * 0.15;
+        // Spawn physics ball just inside rim — spread entry angle across gauge
+        const spread = GAUGE_END - GAUGE_START;
+        const entryAngle = GAUGE_START + Math.random() * spread;
         const entryR = RIM_R - 4;
         const x = Math.cos(entryAngle) * entryR;
         const y = Math.sin(entryAngle) * entryR;
 
-        // Velocity: inward + tangential (matching wheel spin)
-        const inSpeed = 35 + Math.random() * 25;
-        const tanSpeed = this._angVel * entryR * 0.3;
-        const inDir = Math.atan2(-y, -x);
+        // Velocity: inward + random tangential kick
+        const inSpeed = 25 + Math.random() * 40;
+        const tanSpeed = this._angVel * entryR * (0.1 + Math.random() * 0.5);
+        const kickAngle = (Math.random() - 0.5) * 1.2; // random lateral kick
+        const inDir = Math.atan2(-y, -x) + kickAngle;
         const tanDir = inDir + Math.PI / 2;
 
         this._balls.push({
