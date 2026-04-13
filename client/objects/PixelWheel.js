@@ -162,6 +162,8 @@ export class PixelWheel {
   highlight(idx) { this._highlights.push({ idx, t: 0 }); }
   get spinning() { return this._angVel > 0.05 || this._balls.some(b => !b.settled); }
   get speed() { return Math.abs(this._angVel); }
+  get hubRadius() { return HUB_R; }
+  get tilt() { return TILT_Y; }
 
   // ── Hub screen API ──
   hubShowValue(symbolId, value) {
@@ -586,7 +588,7 @@ export class PixelWheel {
 
   _drawGauge(ctx, cx, cy) {
     const INNER = RIM_R + 18;
-    const OUTER = RIM_R + 30;
+    const OUTER = RIM_R + 24;
 
     // Channel fill
     ctx.beginPath();

@@ -29,8 +29,6 @@ class App {
     this._pops = [];
 
     // Clickable regions (computed each frame)
-    this._btnStart = null;
-    this._btnAction = null;
     this._choiceCards = null;
     this._shopCards = null;
 
@@ -76,14 +74,8 @@ class App {
     this._initAudio();
     const { x, y } = this._mapCoords(e);
 
-    if (this._showTitle) {
-      if (this._hitBtn(this._btnStart, x, y)) this._startGame();
-      return;
-    }
-
-    const phase = this.game.getPhase();
-
-    // Choice cards
+    // Choice cards (priority over hub)
+    const phase = this._showTitle ? null : this.game.getPhase();
     if (phase === 'CHOICE' && this._choiceCards) {
       for (let i = 0; i < this._choiceCards.length; i++) {
         if (this._hitBtn(this._choiceCards[i], x, y)) {
@@ -98,7 +90,7 @@ class App {
       }
     }
 
-    // Shop cards
+    // Shop cards (priority over hub)
     if (phase === 'SHOP' && this._shopCards) {
       for (let i = 0; i < this._shopCards.length; i++) {
         if (this._hitBtn(this._shopCards[i], x, y)) {
@@ -112,9 +104,14 @@ class App {
       }
     }
 
-    // Action button
-    if (this._hitBtn(this._btnAction, x, y)) {
-      this._onAction();
+    // Hub button click (ellipse hit test with tilt)
+    const dx = x - WHEEL_CX;
+    const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
+    if (dx * dx + dy * dy < 40 * 40) {
+      if (this._spinning) return;
+      if (this._showTitle) this._startGame();
+      else this._onAction();
+      return;
     }
   }
 
@@ -241,9 +238,10 @@ class App {
       else if (phase === 'SHOP') this._drawShop(ctx);
       else if (phase === 'GAME_OVER') this._drawGameOver(ctx);
       else if (phase === 'VICTORY') this._drawVictory(ctx);
-
-      this._drawActionBtn(ctx);
     }
+
+    // Hub button (always on top of everything)
+    this._drawHubBtn(ctx);
 
     ctx.restore(); // end PX scale
 
@@ -304,10 +302,6 @@ class App {
     drawTextCentered(ctx, 'SPINFORGE', W / 2, 50, PAL.gold, 3);
     drawTextCentered(ctx, 'MYSTIC ROULETTE ROGUELIKE', W / 2, 78, PAL.midGray, 1);
 
-    const b = this._makeBtn('NEW RUN', W / 2, 120, 12, 14);
-    this._btnStart = b;
-    this._drawBtn(ctx, b.label, b.x, b.y, b.w, b.h, PAL.green);
-
     const meta = this.game.getMeta();
     drawTextCentered(ctx, 'STARS ' + meta.totalStars, W / 2, 160, PAL.gold, 1);
     drawTextCentered(ctx, 'BEST ROUND ' + meta.bestRound, W / 2, 172, PAL.midGray, 1);
@@ -335,23 +329,49 @@ class App {
     }
   }
 
-  // ── Action button ──
-  _drawActionBtn(ctx) {
-    if (this._spinning) { this._btnAction = null; return; }
-    const phase = this.game.getPhase();
+  // ── Hub button (round, drawn on top of everything) ──
+  _drawHubBtn(ctx) {
+    if (this._spinning) return;
+
     let label, color;
-    switch (phase) {
-      case 'IDLE': label = 'SPIN'; color = PAL.green; break;
-      case 'RESULTS': label = 'CONTINUE'; color = PAL.green; break;
-      case 'CHOICE': label = 'SKIP'; color = PAL.gold; break;
-      case 'SHOP': label = 'LEAVE SHOP'; color = PAL.midGray; break;
-      case 'GAME_OVER': label = 'MENU'; color = PAL.red; break;
-      case 'VICTORY': label = 'MENU'; color = PAL.gold; break;
-      default: this._btnAction = null; return;
+    if (this._showTitle) {
+      label = 'PLAY'; color = PAL.green;
+    } else {
+      const phase = this.game.getPhase();
+      switch (phase) {
+        case 'IDLE': label = 'SPIN'; color = PAL.green; break;
+        case 'RESULTS': label = 'OK'; color = PAL.green; break;
+        case 'CHOICE': label = 'SKIP'; color = PAL.gold; break;
+        case 'SHOP': label = 'EXIT'; color = PAL.midGray; break;
+        case 'GAME_OVER': label = 'END'; color = PAL.red; break;
+        case 'VICTORY': label = 'END'; color = PAL.gold; break;
+        default: return;
+      }
     }
-    const b = this._makeBtn(label, W / 2, H - 18, 12, 14);
-    this._btnAction = b;
-    this._drawBtn(ctx, label, b.x, b.y, b.w, b.h, color);
+
+    const r = this.wheel.hubRadius || 42;
+    const tilt = this.wheel.tilt || 0.65;
+
+    ctx.save();
+    ctx.translate(WHEEL_CX, WHEEL_CY);
+    ctx.scale(1, tilt);
+
+    // Fill
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = PAL.darkGray; ctx.fill();
+
+    // Gold border (2px)
+    ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Highlight pixel (top edge, 3D bevel)
+    ctx.fillStyle = PAL.midGray;
+    ctx.fillRect(-r * 0.3, -r + 3, r * 0.6, 1);
+
+    // Label
+    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), color, 1);
+
+    ctx.restore();
   }
 
   // ── Popups ──
