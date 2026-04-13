@@ -141,7 +141,6 @@ class App {
 
     this._playSpin();
     this._shakeStart(4, 0.3);
-    await this._delay(200);
     const results = await this.wheel.spinAndEject();
     this._stopSpin();
 
