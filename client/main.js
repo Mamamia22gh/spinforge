@@ -329,7 +329,7 @@ class App {
     ctx.beginPath(); ctx.arc(0, -r * 0.3, r * 0.9, 0, Math.PI * 2);
     ctx.fillStyle = PAL.gold; ctx.fill();
     // Specular: small bright spot upper area
-    ctx.beginPath(); ctx.arc(-r * 0.15, -r * 0.35, r * 0.2, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(r * 0.15, -r * 0.35, r * 0.2, 0, Math.PI * 2);
     ctx.fillStyle = PAL.white; ctx.fill();
     ctx.restore();
 
@@ -351,8 +351,8 @@ class App {
       ctx.restore();
     }
 
-    // Label (always centered)
-    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), PAL.gold, 1);
+    // Label (always centered, dark for contrast on gold dome)
+    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), PAL.darkGray, 1);
 
     ctx.restore();
   }
