@@ -112,21 +112,21 @@ export class PixelWheel {
     this._dropping = false;
     this._inGauge = true;
 
-    const GAUGE_MID = (RIM_R + 18 + RIM_R + 30) / 2;
-    const range = GAUGE_END - GAUGE_START;
+    const GAUGE_MID = (RIM_R + 18 + RIM_R + 24) / 2;
+    const BALL_SPACING = 0.04; // radians between ball centers (tight stack)
 
     for (let i = 0; i < n; i++) {
       // Target position on wheel
       const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
       const r = LABEL_OUTER + 2 + Math.random() * (RIM_R - LABEL_OUTER - BALL_RADIUS * 2 - 3);
-      // Gauge position (top to bottom)
-      const ga = GAUGE_START + (i / Math.max(1, n - 1)) * range;
+      // Gauge: stack from bottom (GAUGE_END) upward, tightly packed
+      const ga = GAUGE_END - i * BALL_SPACING;
       this._placedBalls.push({
         localX: Math.cos(a) * r,
         localY: Math.sin(a) * r,
         gaugeX: Math.cos(ga) * GAUGE_MID,
         gaugeY: Math.sin(ga) * GAUGE_MID,
-        dropDelay: i * DROP_STAGGER,
+        dropDelay: (n - 1 - i) * DROP_STAGGER, // top of stack ejects first
         dropDur: DROP_DURATION,
       });
     }
