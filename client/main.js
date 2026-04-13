@@ -239,8 +239,8 @@ class App {
     if (!this._spinning) {
       const raw = Math.sin(this._time * 3);
       const stepped = Math.floor(raw * 4) / 4;
-      const pulse = 0.08 + 0.06 * stepped;
-      this._glow(ctx, (WHEEL_CX + wox) * PX, (WHEEL_CY + woy) * PX, 55 * PX, PAL.gold, pulse);
+      const pulse = 0.12 + 0.08 * stepped;
+      this._glow(ctx, (WHEEL_CX + wox) * PX, (WHEEL_CY + woy) * PX, 65 * PX, PAL.gold, pulse);
     }
 
     // Cursor light (follows mouse, warm)
@@ -304,12 +304,12 @@ class App {
     ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
     ctx.scale(1, tilt);
 
-    // Pressed: darker fill, slight offset down
+    // Pressed: slight offset down
     if (pressed) ctx.translate(0, 2);
 
     // Fill
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fillStyle = pressed ? PAL.darkGold : PAL.darkGold; ctx.fill();
+    ctx.fillStyle = PAL.darkGold; ctx.fill();
 
     // Pressed overlay (darken)
     if (pressed) {
@@ -339,8 +339,8 @@ class App {
       }
     }
 
-    // Label
-    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), pressed ? PAL.midGray : PAL.darkGray, 1);
+    // Label (bigger, gold)
+    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H), pressed ? PAL.midGray : PAL.gold, 2);
 
     ctx.restore();
   }
