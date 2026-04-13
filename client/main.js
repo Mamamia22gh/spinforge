@@ -24,7 +24,6 @@ class App {
     this.game = createGame({ seed: Date.now() });
     this.wheel = new PixelWheel();
     this._spinning = false;
-    this._showTitle = true;
     this._time = 0;
     this._pops = [];
 
@@ -33,10 +32,10 @@ class App {
       id: 'seg_' + i, symbolId: id, weight: 1, modifiers: [],
     }));
     this.wheel.setWheel(defaultWheel);
-    this.wheel.placeBalls(BALANCE.BALLS_PER_ROUND);
 
-    // Dim pattern (checkerboard for overlay dimming)
-    this._dimPattern = this._createDimPattern();
+    // Start game immediately
+    this.game.startRun();
+    this._syncWheel();
 
     // CRT post-process (barrel distortion + chroma + scanlines + vignette)
     this._crt = new CRTFilter(CW, CH);
@@ -71,20 +70,12 @@ class App {
     const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
     if (dx * dx + dy * dy < 40 * 40) {
       if (this._spinning) return;
-      if (this._showTitle) this._startGame();
-      else this._onAction();
+      this._onAction();
       return;
     }
   }
 
   // ── Game flow ──
-  _startGame() {
-    this._showTitle = false;
-    this.game.startRun();
-    this._syncWheel();
-    this._doSpin();
-  }
-
   _syncWheel() {
     const state = this.game.getState();
     if (state.run) {
@@ -201,15 +192,14 @@ class App {
     // Wheel always visible
     this.wheel.draw(ctx, WHEEL_CX, WHEEL_CY);
 
+    // Title (always visible)
+    drawTextCentered(ctx, 'SPINFORGE', W / 2, 6, PAL.gold, 3);
+
     // Commit hash (bottom right)
     drawText(ctx, typeof __COMMIT__ !== 'undefined' ? __COMMIT__ : '???', W - 40, H - 8, PAL.midGray, 1);
 
-    if (this._showTitle) {
-      this._drawTitle(ctx);
-    } else {
-      this._drawHUD(ctx);
-      this._drawPops(ctx);
-    }
+    this._drawHUD(ctx);
+    this._drawPops(ctx);
 
     // Hub button (always on top of everything)
     this._drawHubBtn(ctx);
@@ -256,28 +246,6 @@ class App {
     ctx.restore();
   }
 
-  // ── Drawing helpers ──
-  _createDimPattern() {
-    const c = document.createElement('canvas');
-    c.width = 2; c.height = 2;
-    const x = c.getContext('2d');
-    x.fillStyle = PAL.black;
-    x.fillRect(0, 0, 1, 1);
-    x.fillRect(1, 1, 1, 1);
-    return this._ctx.createPattern(c, 'repeat');
-  }
-
-  _drawDim(ctx) {
-    ctx.fillStyle = this._dimPattern;
-    ctx.fillRect(0, 0, W, H);
-  }
-
-  // ── Title screen ──
-  _drawTitle(ctx) {
-    drawTextCentered(ctx, 'SPINFORGE', W / 2, 6, PAL.gold, 3);
-    drawTextCentered(ctx, 'MYSTIC ROULETTE ROGUELIKE', W / 2, 34, PAL.midGray, 1);
-  }
-
   // ── HUD ──
   _drawHUD(ctx) {
     const run = this.game.getState().run;
@@ -304,12 +272,8 @@ class App {
   _drawHubBtn(ctx) {
     if (this._spinning) return;
 
-    let label, color;
-    if (this._showTitle) {
-      label = 'PLAY'; color = PAL.green;
-    } else {
-      label = 'SPIN'; color = PAL.green;
-    }
+    let label = 'SPIN';
+    let color = PAL.green;
 
     const r = this.wheel.hubRadius || 42;
     const tilt = this.wheel.tilt || 0.65;
