@@ -31,6 +31,7 @@ class App {
     this._time = 0;
     this._pops = [];
     this._shake = { x: 0, y: 0, intensity: 0, decay: 0, time: 0 };
+    this._flash = 0; // invert flash timer (>0 = active)
 
     // Mouse tracking (normalized -1..1 from center)
     this._mx = 0;
@@ -141,6 +142,7 @@ class App {
 
     this._playSpin();
     this._shakeStart(4, 0.3);
+    this.wheel.hubSetScore(0);
     const results = await this.wheel.spinAndEject();
     this._stopSpin();
 
@@ -167,10 +169,11 @@ class App {
       // Shake on gold pocket
       if (result.result.symbol.id === 'gold') this._shakeStart(2, 0.2);
 
-      // Shake on quota reached
+      // Shake on quota reached + invert flash
       const run3 = this.game.getState().run;
       if (run3.score >= getQuota(run3.round) && run3.score - result.value < getQuota(run3.round)) {
         this._shakeStart(5, 0.5);
+        this._flash = 0.3;
       }
 
       await this._delay(450);
@@ -259,6 +262,17 @@ class App {
     this._drawHubBtn(ctx, wheelOx, wheelOy);
 
     ctx.restore(); // end PX scale
+
+    // ── Invert flash (difference blend) ──
+    if (this._flash > 0) {
+      this._flash -= 1 / 60;
+      ctx.save();
+      ctx.globalCompositeOperation = 'difference';
+      ctx.globalAlpha = Math.min(1, this._flash / 0.15);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, CW, CH);
+      ctx.restore();
+    }
 
     // ── GPU post-process (quantize + scanlines + vignette) ──
     this._postfx.apply(this._canvas);
