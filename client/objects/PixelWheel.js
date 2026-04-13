@@ -54,6 +54,7 @@ export class PixelWheel {
     this._highlights = [];
     this.onPegHit = null;
     this._lastPeg = 0;
+    this._slots = [];  // external slot data (8 entries, null = empty)
 
     // Hub screen state
     this._hub = {
@@ -133,6 +134,7 @@ export class PixelWheel {
   hubSetFever(f) { this._hub.fever = f; }
   hubSetScore(s) { this._hub.scoreTarget = s; }
   hubMessage(msg) { this._hub.message = msg; this._hub.messageFade = 2.5; }
+  setSlots(data) { this._slots = data || []; }
 
   update(dt) {
     this._time += dt;
@@ -407,6 +409,9 @@ export class PixelWheel {
     // ── Hub Screen (fixed, screen coords) ──
     this._drawHubScreen(ctx, cx, cy);
 
+    // ── Relic slots orbiting outside rim ──
+    this._drawOrbitSlots(ctx, cx, cy);
+
     ctx.restore(); // end tilt
   }
 
@@ -487,5 +492,50 @@ export class PixelWheel {
     }
 
     ctx.restore();
+  }
+
+  _drawOrbitSlots(ctx, cx, cy) {
+    const SLOT_R = RIM_R + 16;  // orbit radius (just past rim)
+    const SW = 14, SH = 14;    // slot size
+    const COUNT = 8;
+
+    for (let i = 0; i < COUNT; i++) {
+      const angle = (i / COUNT) * Math.PI * 2 - Math.PI / 2; // start from top
+      const sx = Math.round(cx + Math.cos(angle) * SLOT_R - SW / 2);
+      const sy = Math.round(cy + Math.sin(angle) * SLOT_R - SH / 2);
+
+      const filled = this._slots && this._slots[i];
+      const borderCol = filled ? PAL.gold : PAL.darkGold;
+
+      // Interior (black)
+      ctx.fillStyle = PAL.black;
+      ctx.fillRect(sx + 1, sy + 1, SW - 2, SH - 2);
+
+      // Rounded border (skip corner pixels)
+      ctx.fillStyle = borderCol;
+      ctx.fillRect(sx + 2, sy, SW - 4, 1);         // top
+      ctx.fillRect(sx + 2, sy + SH - 1, SW - 4, 1); // bottom
+      ctx.fillRect(sx, sy + 2, 1, SH - 4);         // left
+      ctx.fillRect(sx + SW - 1, sy + 2, 1, SH - 4); // right
+      // Corner pixels (1px inset)
+      ctx.fillRect(sx + 1, sy + 1, 1, 1);           // TL
+      ctx.fillRect(sx + SW - 2, sy + 1, 1, 1);     // TR
+      ctx.fillRect(sx + 1, sy + SH - 2, 1, 1);     // BL
+      ctx.fillRect(sx + SW - 2, sy + SH - 2, 1, 1); // BR
+
+      if (filled) {
+        try {
+          drawSpriteCentered(ctx, filled.id || 'diamond',
+            sx + Math.floor(SW / 2), sy + Math.floor(SH / 2), 1);
+        } catch {
+          drawTextCentered(ctx, '?', sx + Math.floor(SW / 2),
+            sy + Math.floor((SH - CHAR_H) / 2), PAL.gold, 1);
+        }
+      } else {
+        // Empty: dim center dot
+        ctx.fillStyle = PAL.midGray;
+        ctx.fillRect(sx + Math.floor(SW / 2), sy + Math.floor(SH / 2), 1, 1);
+      }
+    }
   }
 }

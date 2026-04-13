@@ -332,51 +332,6 @@ class App {
       ctx.fillStyle = i < run.ballsLeft ? PAL.red : PAL.darkRed;
       ctx.fillRect(bx, 20, 4, 4);
     }
-
-    // Relic slots
-    this._drawSlots(ctx, run);
-  }
-
-  // ── Relic / artifact slots ──
-  _drawSlots(ctx, run) {
-    const SLOT_W = 18, SLOT_H = 20;
-    const GAP = 4;
-    const COUNT = 8;
-    const totalW = COUNT * SLOT_W + (COUNT - 1) * GAP;
-    const startX = Math.floor(W / 2 - totalW / 2);
-    const slotY = 192;
-
-    for (let i = 0; i < COUNT; i++) {
-      const sx = startX + i * (SLOT_W + GAP);
-
-      // Background
-      ctx.fillStyle = PAL.black;
-      ctx.fillRect(sx, slotY, SLOT_W, SLOT_H);
-
-      // Border
-      const hasFill = run.relics && run.relics[i];
-      const borderCol = hasFill ? PAL.gold : PAL.darkGold;
-      ctx.fillStyle = borderCol;
-      ctx.fillRect(sx, slotY, SLOT_W, 1);
-      ctx.fillRect(sx, slotY + SLOT_H - 1, SLOT_W, 1);
-      ctx.fillRect(sx, slotY, 1, SLOT_H);
-      ctx.fillRect(sx + SLOT_W - 1, slotY, 1, SLOT_H);
-
-      if (hasFill) {
-        // Draw relic sprite (use symbol sprite as placeholder)
-        try {
-          drawSpriteCentered(ctx, run.relics[i].id || 'diamond',
-            sx + Math.floor(SLOT_W / 2), slotY + Math.floor(SLOT_H / 2), 1);
-        } catch {
-          drawTextCentered(ctx, '?', sx + Math.floor(SLOT_W / 2),
-            slotY + Math.floor((SLOT_H - CHAR_H) / 2), PAL.gold, 1);
-        }
-      } else {
-        // Empty: dim center dot
-        ctx.fillStyle = PAL.midGray;
-        ctx.fillRect(sx + Math.floor(SLOT_W / 2), slotY + Math.floor(SLOT_H / 2), 1, 1);
-      }
-    }
   }
 
   // ── Action button ──
