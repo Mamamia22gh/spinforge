@@ -619,7 +619,7 @@ export class PixelWheel {
       if (b.settled) continue;
       this._drawPixelBall(ctx, cx + b.x, cy + b.y, false);
       this._frameLights.push({
-        x: cx + b.x, y: cy + b.y * TILT_Y,
+        x: cx + b.x, y: cy + b.y * this.tilt,
         r: 10, color: PAL.white, a: 0.12,
       });
     }
@@ -740,7 +740,7 @@ export class PixelWheel {
       ctx.fillRect(bx - 4, by - 3, 7, 7);
       this._drawPixelBall(ctx, bx, by, false);
       this._frameLights.push({
-        x: cx + pb.gaugeX, y: cy + pb.gaugeY * TILT_Y,
+        x: cx + pb.gaugeX, y: cy + pb.gaugeY * this.tilt,
         r: 6, color: PAL.white, a: 0.06,
       });
     }
