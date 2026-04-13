@@ -5,7 +5,7 @@
  */
 
 const DEFAULTS = {
-  bend:     0.03,   // barrel distortion (0 = none, 0.1 = strong CRT bulge)
+  bend:     0,      // barrel distortion (0 = none, 0.1 = strong CRT bulge)
   chroma:   0,      // per-element chroma via ChromaFX instead
   scanDim:  0.06,   // scanline darkening (0 = none, 0.3 = heavy)
   vignette: 0.25,   // vignette corner darkening
