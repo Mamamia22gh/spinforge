@@ -688,7 +688,12 @@ export class PixelWheel {
                        this._ejecting ? this._ejectQueue : [];
     for (const pb of gaugeBalls) {
       remaining++;
-      this._drawPixelBall(ctx, cx + pb.gaugeX, cy + pb.gaugeY, false);
+      // Shadow behind each ball for stacking visibility
+      const bx = Math.round(cx + pb.gaugeX);
+      const by = Math.round(cy + pb.gaugeY);
+      ctx.fillStyle = PAL.black;
+      ctx.fillRect(bx - 4, by - 3, 7, 7);
+      this._drawPixelBall(ctx, bx, by, false);
       this._frameLights.push({
         x: cx + pb.gaugeX, y: cy + pb.gaugeY * TILT_Y,
         r: 6, color: PAL.white, a: 0.06,
