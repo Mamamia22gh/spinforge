@@ -30,6 +30,7 @@ class App {
     this._spinning = false;
     this._time = 0;
     this._pops = [];
+    this._shake = { x: 0, y: 0, intensity: 0, decay: 0, time: 0 };
 
     // Mouse tracking (normalized -1..1 from center)
     this._mx = 0;
@@ -139,6 +140,7 @@ class App {
     this._spinning = true;
 
     this._playSpin();
+    this._shakeStart(4, 0.3);
     await this._delay(200);
     const results = await this.wheel.spinAndEject();
     this._stopSpin();
@@ -162,6 +164,16 @@ class App {
 
       this._playReveal(i, results.length);
       this._pop('+' + result.value);
+
+      // Shake on gold pocket
+      if (result.result.symbol.id === 'gold') this._shakeStart(2, 0.2);
+
+      // Shake on quota reached
+      const run3 = this.game.getState().run;
+      if (run3.score >= getQuota(run3.round) && run3.score - result.value < getQuota(run3.round)) {
+        this._shakeStart(5, 0.5);
+      }
+
       await this._delay(450);
     }
 
@@ -190,6 +202,16 @@ class App {
 
     this.wheel.update(dt);
 
+    // Shake decay
+    if (this._shake.intensity > 0) {
+      this._shake.time += dt;
+      const t = Math.min(1, this._shake.time / this._shake.decay);
+      const amp = this._shake.intensity * (1 - t);
+      this._shake.x = Math.round((Math.random() - 0.5) * 2 * amp);
+      this._shake.y = Math.round((Math.random() - 0.5) * 2 * amp);
+      if (t >= 1) { this._shake.intensity = 0; this._shake.x = 0; this._shake.y = 0; }
+    }
+
     // Update pops
     for (let i = this._pops.length - 1; i >= 0; i--) {
       this._pops[i].age += dt;
@@ -207,6 +229,7 @@ class App {
     // Draw everything in logical 480×270 space, scaled 2×
     ctx.save();
     ctx.scale(PX, PX);
+    ctx.translate(this._shake.x, this._shake.y);
 
     // Clear
     ctx.fillStyle = PAL.black;
@@ -456,6 +479,12 @@ class App {
   }
 
   _delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  _shakeStart(intensity, decay) {
+    this._shake.intensity = intensity;
+    this._shake.decay = decay;
+    this._shake.time = 0;
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => new App());
