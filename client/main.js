@@ -219,7 +219,6 @@ class App {
     // Commit hash (bottom right)
     drawText(ctx, typeof __COMMIT__ !== 'undefined' ? __COMMIT__ : '???', W - 40, H - 8, PAL.midGray, 1);
 
-    this._drawHUD(ctx, hudOx, hudOy);
     this._drawPops(ctx);
 
     // Hub button (always on top of everything)
