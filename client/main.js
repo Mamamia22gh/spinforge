@@ -315,15 +315,7 @@ class App {
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fillStyle = PAL.gold; ctx.fill();
 
-    // Pressed overlay (darken)
-    if (pressed) {
-      ctx.fillStyle = PAL.black;
-      ctx.globalAlpha = 0.3;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-
-    // Glass sweep (always active, even when pressed)
+    // Glass sweep (white band every ~3.5s, BEFORE pressed overlay)
     const SWEEP_INTERVAL = 3.5;
     const SWEEP_DUR = 0.25;
     const sweepT = t % SWEEP_INTERVAL;
@@ -341,10 +333,18 @@ class App {
       ctx.restore();
     }
 
+    // Pressed overlay (darken)
+    if (pressed) {
+      ctx.fillStyle = PAL.black;
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
     if (pressed) {
       // During spin: show score / quota
-      const scoreCol = score >= quota ? PAL.green : PAL.white;
-      drawTextCentered(ctx, String(score), 0, -Math.floor(CHAR_H * 1.5), scoreCol, 2);
+      drawTextCentered(ctx, String(score), 0, -Math.floor(CHAR_H * 1.5), PAL.gold, 2);
       drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
     } else {
       // Idle: SPIN label + quota below
