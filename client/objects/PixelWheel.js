@@ -339,13 +339,13 @@ export class PixelWheel {
   _collideDividers(b) {
     if (!this._data.length) return;
     const d = Math.sqrt(b.x * b.x + b.y * b.y);
-    if (d > POCKET_OUTER + 2) return;
+    if (d > LABEL_OUTER + 2) return;
     const tw = this._data.reduce((s, w) => s + w.weight, 0);
     let off = 0;
     for (const seg of this._data) {
       const a = off + this._angle;
       const c = Math.cos(a), s = Math.sin(a);
-      if (this._line(b, c * POCKET_INNER, s * POCKET_INNER, c * POCKET_OUTER, s * POCKET_OUTER)) this._peg();
+      if (this._line(b, c * POCKET_INNER, s * POCKET_INNER, c * LABEL_OUTER, s * LABEL_OUTER)) this._peg();
       off += (seg.weight / tw) * Math.PI * 2;
     }
   }
