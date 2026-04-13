@@ -255,7 +255,7 @@ class App {
   _drawLights(ctx) {
     ctx.globalCompositeOperation = 'screen';
 
-    // Hub glow (pulsing)
+    // Hub glow (stepped pulse, not smooth)
     if (!this._spinning) {
       let col;
       if (this._showTitle) col = PAL.green;
@@ -263,7 +263,9 @@ class App {
         const ph = this.game.getPhase();
         col = (ph === 'IDLE') ? PAL.green : (ph === 'GAME_OVER') ? PAL.red : PAL.gold;
       }
-      const pulse = 0.10 + 0.04 * Math.sin(this._time * 3);
+      const raw = Math.sin(this._time * 3);
+      const stepped = Math.floor(raw * 4) / 4; // quantize to 4 levels
+      const pulse = 0.08 + 0.06 * stepped;
       this._glow(ctx, WHEEL_CX * PX, WHEEL_CY * PX, 55 * PX, col, pulse);
     }
 
@@ -397,17 +399,11 @@ class App {
     ctx.translate(WHEEL_CX, WHEEL_CY);
     ctx.scale(1, tilt);
 
-    // Pulse (exciting only)
-    if (exciting) {
-      const pulse = 1 + 0.04 * Math.sin(t * 4);
-      ctx.scale(pulse, pulse);
-    }
-
     // Fill
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fillStyle = PAL.darkGray; ctx.fill();
 
-    // Gold border (2px)
+    // Border
     ctx.strokeStyle = color; ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -416,46 +412,54 @@ class App {
     ctx.fillRect(-r * 0.3, -r + 3, r * 0.6, 1);
 
     if (exciting) {
-      // ── Rotating arrow (pixel dots in a 270° arc) ──
-      const rotA = t * 2.5;
-      const arrowR = r * 0.5;
-      const DOTS = 7;
-      const ARC = Math.PI * 1.5;
+      // ── Rotating arrow (bigger dots, white for visibility) ──
+      const rotA = t * 2;
+      const arrowR = r * 0.55;
+      const DOTS = 8;
+      const ARC = Math.PI * 1.6;
 
-      ctx.fillStyle = color;
       for (let i = 0; i < DOTS; i++) {
         const f = i / (DOTS - 1);
         const a = rotA - f * ARC;
         const px = Math.round(Math.cos(a) * arrowR);
         const py = Math.round(Math.sin(a) * arrowR);
 
+        ctx.fillStyle = PAL.white;
         if (i === 0) {
-          // Arrowhead (2×2 bright)
+          // Arrowhead (3×2 bright)
           ctx.globalAlpha = 1;
-          ctx.fillRect(px - 1, py - 1, 2, 2);
+          ctx.fillRect(px - 1, py - 1, 3, 2);
+        } else if (i < 3) {
+          // Near head (2×1)
+          ctx.globalAlpha = 0.8 - f * 0.3;
+          ctx.fillRect(px, py, 2, 1);
         } else {
-          // Trail dots (fading)
-          ctx.globalAlpha = Math.max(0.15, 1 - f * 0.85);
+          // Trail (1×1 fading)
+          ctx.globalAlpha = Math.max(0.2, 0.7 - f * 0.7);
           ctx.fillRect(px, py, 1, 1);
         }
       }
       ctx.globalAlpha = 1;
 
-      // ── Orbiting sparkle particles (outside border) ──
-      const orbitR = r + 4;
-      const PARTS = 4;
-      for (let i = 0; i < PARTS; i++) {
-        const a = t * 1.8 + (i / PARTS) * Math.PI * 2;
-        const sparkle = 0.4 + 0.6 * Math.sin(t * 8 + i * 2.5);
-        ctx.globalAlpha = Math.max(0, sparkle);
-        ctx.fillStyle = PAL.gold;
-        const px = Math.round(Math.cos(a) * orbitR);
-        const py = Math.round(Math.sin(a) * orbitR);
-        ctx.fillRect(px, py, 1, 1);
+      // ── Glass sweep (white band every ~4s) ──
+      const SWEEP_INTERVAL = 3.5;
+      const SWEEP_DUR = 0.25;
+      const sweepT = t % SWEEP_INTERVAL;
+      if (sweepT < SWEEP_DUR) {
+        const p = sweepT / SWEEP_DUR;
+        const sx = -r + p * r * 2;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
+        ctx.fillStyle = PAL.white;
+        ctx.globalAlpha = 0.25;
+        for (let dy = -r; dy <= r; dy += 1) {
+          ctx.fillRect(Math.round(sx + dy * 0.4), dy, 2, 1);
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
       }
-      ctx.globalAlpha = 1;
 
-      // Label (below arrow center)
+      // Label below arrow
       drawTextCentered(ctx, label, 0, Math.floor(r * 0.25), color, 1);
     } else {
       // Simple label
