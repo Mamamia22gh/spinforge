@@ -490,7 +490,7 @@ class App {
     const labelH = 8;
     let startY = 4;
 
-    for (const id of ['coin']) {
+    for (const id of ['star']) {
       const count = getAnimFrameCount(id);
       drawText(ctx, id.toUpperCase(), 4, startY, PAL.white, 1);
       startY += labelH + 2;
