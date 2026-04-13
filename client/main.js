@@ -321,24 +321,22 @@ class App {
       ctx.globalAlpha = 1;
     }
 
-    // Glass sweep (only when not pressed)
-    if (!pressed) {
-      const SWEEP_INTERVAL = 3.5;
-      const SWEEP_DUR = 0.25;
-      const sweepT = t % SWEEP_INTERVAL;
-      if (sweepT < SWEEP_DUR) {
-        const p = sweepT / SWEEP_DUR;
-        const sx = -r + p * r * 2;
-        ctx.save();
-        ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
-        ctx.fillStyle = PAL.white;
-        ctx.globalAlpha = 0.25;
-        for (let dy = -r; dy <= r; dy += 1) {
-          ctx.fillRect(Math.round(sx + dy * 0.4), dy, 2, 1);
-        }
-        ctx.globalAlpha = 1;
-        ctx.restore();
+    // Glass sweep (always active, even when pressed)
+    const SWEEP_INTERVAL = 3.5;
+    const SWEEP_DUR = 0.25;
+    const sweepT = t % SWEEP_INTERVAL;
+    if (sweepT < SWEEP_DUR) {
+      const p = sweepT / SWEEP_DUR;
+      const sx = -r + p * r * 2;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
+      ctx.fillStyle = PAL.white;
+      ctx.globalAlpha = 0.45;
+      for (let dy = -r; dy <= r; dy += 1) {
+        ctx.fillRect(Math.round(sx + dy * 0.4), dy, 3, 1);
       }
+      ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
     if (pressed) {
@@ -349,7 +347,7 @@ class App {
     } else {
       // Idle: SPIN label + quota below
       drawTextCentered(ctx, 'SPIN', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 2);
-      drawTextCentered(ctx, String(quota), 0, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
+      drawTextCentered(ctx, 'QUOTA ' + quota, 0, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
     }
 
     ctx.restore();
