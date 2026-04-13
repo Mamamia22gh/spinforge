@@ -670,8 +670,9 @@ export class PixelWheel {
 
   _drawOneSlot(ctx, cx, cy, inner, outer, a0, a1, idx) {
     const filled = this._slots && this._slots[idx];
+    const locked = idx >= 2; // only top-left pair (0,1) unlocked
 
-    // Arc fill (same color for all)
+    // Arc fill (same dark color for all)
     ctx.beginPath();
     ctx.arc(cx, cy, outer, a0, a1);
     ctx.arc(cx, cy, inner, a1, a0, true);
@@ -699,7 +700,15 @@ export class PixelWheel {
       } catch {
         drawTextCentered(ctx, '?', mx, my - Math.floor(CHAR_H / 2), PAL.gold, 1);
       }
+    } else if (locked) {
+      // Padlock icon (3×4 pixel art)
+      ctx.fillStyle = PAL.midGray;
+      ctx.fillRect(mx, my - 3, 1, 1);       // shackle top
+      ctx.fillRect(mx - 1, my - 2, 1, 1);   // shackle left
+      ctx.fillRect(mx + 1, my - 2, 1, 1);   // shackle right
+      ctx.fillRect(mx - 1, my - 1, 3, 2);   // body
     } else {
+      // Unlocked empty: dim dot
       ctx.fillStyle = PAL.midGray;
       ctx.fillRect(mx, my, 1, 1);
     }
