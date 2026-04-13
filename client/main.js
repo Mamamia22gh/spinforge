@@ -378,13 +378,20 @@ class App {
 
     if (quotaReached) {
       ctx.fillStyle = Math.sin(t * 8 * Math.PI) > 0 ? PAL.gold : PAL.darkGold;
-    } else if (hover) {
-      ctx.fillStyle = PAL.white;  // extra bright on hover
     } else {
       ctx.fillStyle = PAL.gold;
     }
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
+
+    // Hover brighten (subtle white overlay on gold)
+    if (hover) {
+      ctx.fillStyle = PAL.white;
+      ctx.globalAlpha = 0.15;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
 
     // Glass sweep (idle only — periodic + hover triggered)
     if (!pressed) {
