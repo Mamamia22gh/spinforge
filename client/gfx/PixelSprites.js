@@ -286,7 +286,7 @@ const ANIM_SPRITES = {
   diamond: [
     [ // Frame 0: Sparkle top
       '.........',
-      '...cWc...',
+      '...cCc...',
       '.cCCCCCc.',
       '.ccccccc.',
       '.cCCCCCc.',
@@ -298,7 +298,7 @@ const ANIM_SPRITES = {
     [ // Frame 1: Sparkle right
       '.........',
       '...cCc...',
-      '.cCCCCWc.',
+      '.cCCCCCc.',
       '.ccccccc.',
       '.cCCCCCc.',
       '..cCCCc..',
@@ -311,7 +311,7 @@ const ANIM_SPRITES = {
       '...cCc...',
       '.cCCCCCc.',
       '.ccccccc.',
-      '.cCCWCCc.',
+      '.cCCCCCc.',
       '..cCCCc..',
       '...cCc...',
       '....c....',
@@ -320,7 +320,7 @@ const ANIM_SPRITES = {
     [ // Frame 3: Sparkle left
       '.........',
       '...cCc...',
-      '.cWCCCCc.',
+      '.cCCCCCc.',
       '.ccccccc.',
       '.cCCCCCc.',
       '..cCCCc..',
