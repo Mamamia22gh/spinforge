@@ -34,7 +34,7 @@ const GRAVITY_BOOST_THRESHOLD = 2.5;
 const GRAVITY_BOOST_MAX = 6;
 
 // ── 3D perspective tilt ──
-const TILT_Y = 0.48;  // vertical compression (1 = flat, 0.4 = ~66°)
+const TILT_Y = 0.65;  // vertical compression (1 = flat, 0.4 = ~66°)
 
 export class PixelWheel {
   constructor() {
