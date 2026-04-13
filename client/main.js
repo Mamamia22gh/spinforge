@@ -226,18 +226,12 @@ class App {
   _drawLights(ctx) {
     ctx.globalCompositeOperation = 'screen';
 
-    // Hub glow (stepped pulse, not smooth)
-    if (!this._spinning) {
-      let col;
-      if (this._showTitle) col = PAL.green;
-      else {
-        const ph = this.game.getPhase();
-        col = (ph === 'IDLE') ? PAL.green : (ph === 'GAME_OVER') ? PAL.red : PAL.gold;
-      }
+    // Hub glow (always active, stepped pulse)
+    {
       const raw = Math.sin(this._time * 3);
-      const stepped = Math.floor(raw * 4) / 4; // quantize to 4 levels
+      const stepped = Math.floor(raw * 4) / 4;
       const pulse = 0.08 + 0.06 * stepped;
-      this._glow(ctx, WHEEL_CX * PX, WHEEL_CY * PX, 55 * PX, col, pulse);
+      this._glow(ctx, WHEEL_CX * PX, WHEEL_CY * PX, 55 * PX, PAL.gold, pulse);
     }
 
     // Wheel lights (balls + highlights)
@@ -325,11 +319,21 @@ class App {
     ctx.translate(WHEEL_CX, WHEEL_CY);
     ctx.scale(1, tilt);
 
-    // Fill (gold)
+    // Fill (dark gold base)
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fillStyle = PAL.darkGold; ctx.fill();
 
-    // ── Glass sweep (white band every ~4s) ──
+    // Dome: upper dome lighter (offset circle clipped)
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip();
+    ctx.beginPath(); ctx.arc(0, -r * 0.3, r * 0.9, 0, Math.PI * 2);
+    ctx.fillStyle = PAL.gold; ctx.fill();
+    // Specular: small bright spot upper area
+    ctx.beginPath(); ctx.arc(-r * 0.15, -r * 0.35, r * 0.2, 0, Math.PI * 2);
+    ctx.fillStyle = PAL.white; ctx.fill();
+    ctx.restore();
+
+    // ── Glass sweep (white band every ~3.5s) ──
     const SWEEP_INTERVAL = 3.5;
     const SWEEP_DUR = 0.25;
     const sweepT = t % SWEEP_INTERVAL;
