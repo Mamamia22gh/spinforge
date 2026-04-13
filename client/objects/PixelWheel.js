@@ -2,7 +2,6 @@ import { getSymbol } from '../../src/data/symbols.js';
 import { PAL, SYM_COLORS, SEG_A, SEG_B, DIVIDER_COLOR, HUB_BG, HUB_BORDER, RIM_COLOR } from '../gfx/PaletteDB.js';
 import { drawTextCentered, CHAR_H } from '../gfx/BitmapFont.js';
 import { drawSpriteCentered, SPRITE_SIZE } from '../gfx/PixelSprites.js';
-import { chromaTextCentered, chromaSpriteCentered } from '../gfx/ChromaFX.js';
 
 // ── Layout (proportional to wheel radius R) ──
 const HUB_P = 0.28;
@@ -338,13 +337,6 @@ export class PixelWheel {
       ctx.fillStyle = dark ? SEG_A : SEG_B;
       ctx.fill();
 
-      // Color pip in pocket center
-      const pipR = (POCKET_INNER + POCKET_OUTER) * 0.5;
-      const pipX = Math.round(Math.cos(mid) * pipR);
-      const pipY = Math.round(Math.sin(mid) * pipR);
-      ctx.fillStyle = symCol.fg;
-      ctx.fillRect(pipX - 1, pipY - 1, 3, 3);
-
       // Highlight flash
       const hl = this._highlights.find(h => h.idx === i);
       if (hl) {
@@ -449,7 +441,7 @@ export class PixelWheel {
     // Last symbol sprite
     if (h.lastSymbolId && h.valueFade > 0) {
       ctx.globalAlpha = Math.min(1, h.valueFade);
-      chromaSpriteCentered(ctx, h.lastSymbolId, cx, Math.round(cy + 2), 2, 1);
+      drawSpriteCentered(ctx, h.lastSymbolId, cx, Math.round(cy + 2), 2);
       ctx.globalAlpha = 1;
     }
 
@@ -471,26 +463,26 @@ export class PixelWheel {
 
     // Streak
     if (h.streak > 1) {
-      chromaTextCentered(ctx, 'X' + h.streak, cx, Math.round(cy + r * 0.75), PAL.red, 1, 1);
+      drawTextCentered(ctx, 'X' + h.streak, cx, Math.round(cy + r * 0.75), PAL.red, 1);
     }
 
     // Fever
     if (h.fever) {
       const col = Math.sin(this._time * 8) > 0 ? PAL.red : PAL.gold;
-      chromaTextCentered(ctx, 'FEVER', cx, Math.round(cy - r * 0.6), col, 1, 1);
+      drawTextCentered(ctx, 'FEVER', cx, Math.round(cy - r * 0.6), col, 1);
     }
 
     // Value flash
     if (h.valueFade > 0) {
       ctx.globalAlpha = Math.min(1, h.valueFade);
-      chromaTextCentered(ctx, '+' + h.lastValue, cx, Math.round(cy + r * 0.05), PAL.green, 1, 1);
+      drawTextCentered(ctx, '+' + h.lastValue, cx, Math.round(cy + r * 0.05), PAL.green, 1);
       ctx.globalAlpha = 1;
     }
 
     // Message flash
     if (h.messageFade > 0) {
       ctx.globalAlpha = Math.min(1, h.messageFade);
-      chromaTextCentered(ctx, h.message, cx, Math.round(cy - r * 0.45), PAL.gold, 1, 1);
+      drawTextCentered(ctx, h.message, cx, Math.round(cy - r * 0.45), PAL.gold, 1);
       ctx.globalAlpha = 1;
     }
 
