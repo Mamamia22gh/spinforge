@@ -440,6 +440,8 @@ export class PixelWheel {
 
       // Highlight flash
       const hl = this._highlights.find(h => h.idx === i);
+      const isIdle = Math.abs(this._angVel) < 0.1 && !this._balls.some(b => !b.settled);
+
       if (hl) {
         const hlColor = isGold ? PAL.gold : PAL.white;
         let a;
@@ -465,6 +467,24 @@ export class PixelWheel {
           r: 25, color: hlColor,
           a: Math.max(0, 1 - hl.t / 1.5) * 0.35,
         });
+      } else if (isIdle) {
+        // Idle chase: one pocket glows at a time, cycling
+        const idleIdx = Math.floor(this._time * 6) % data.length;
+        if (i === idleIdx) {
+          const hlColor = isGold ? PAL.gold : PAL.white;
+          ctx.fillStyle = hlColor;
+          ctx.globalAlpha = 0.35;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+
+          const worldA = this._angle + mid;
+          const hlR = (POCKET_INNER + POCKET_OUTER) / 2;
+          this._frameLights.push({
+            x: cx + Math.cos(worldA) * hlR,
+            y: cy + Math.sin(worldA) * hlR * TILT_Y,
+            r: 18, color: hlColor, a: 0.2,
+          });
+        }
       }
 
       // ── Number ring (casino red/black) ──
@@ -719,12 +739,13 @@ export class PixelWheel {
         drawTextCentered(ctx, '?', mx, my - Math.floor(CHAR_H / 2), PAL.gold, 1);
       }
     } else if (locked) {
-      // Padlock icon (3×4 pixel art)
+      // Cross (X) for locked
       ctx.fillStyle = PAL.midGray;
-      ctx.fillRect(mx, my - 3, 1, 1);       // shackle top
-      ctx.fillRect(mx - 1, my - 2, 1, 1);   // shackle left
-      ctx.fillRect(mx + 1, my - 2, 1, 1);   // shackle right
-      ctx.fillRect(mx - 1, my - 1, 3, 2);   // body
+      ctx.fillRect(mx - 1, my - 1, 1, 1);
+      ctx.fillRect(mx + 1, my - 1, 1, 1);
+      ctx.fillRect(mx, my, 1, 1);
+      ctx.fillRect(mx - 1, my + 1, 1, 1);
+      ctx.fillRect(mx + 1, my + 1, 1, 1);
     } else {
       // Unlocked empty: dim dot
       ctx.fillStyle = PAL.midGray;
