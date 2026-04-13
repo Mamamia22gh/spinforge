@@ -6,6 +6,7 @@ import { drawText, drawTextCentered, drawTextWrapped, measureText, CHAR_W, CHAR_
 import { drawSpriteCentered, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { getSymbol } from '../src/data/symbols.js';
 import { CRTFilter } from './gfx/CRTFilter.js';
+import { chromaText, chromaTextCentered } from './gfx/ChromaFX.js';
 
 // ── Canvas resolution (CSS scales this to viewport with nearest-neighbor) ──
 const W = 480, H = 270;
@@ -291,6 +292,7 @@ class App {
     this._drawDim(ctx);
 
     drawTextCentered(ctx, 'SPINFORGE', W / 2, 50, PAL.gold, 3);
+    chromaTextCentered(ctx, 'SPINFORGE', W / 2, 50, PAL.gold, 3, 2);
     drawTextCentered(ctx, 'MYSTIC ROULETTE ROGUELIKE', W / 2, 78, PAL.midGray, 1);
 
     const b = this._makeBtn('NEW RUN', W / 2, 120, 12, 14);
@@ -314,7 +316,7 @@ class App {
     // Top right — score
     const scoreStr = String(run.score);
     const sw = measureText(scoreStr) * 2;
-    drawText(ctx, scoreStr, W - 4 - sw, 4, PAL.gold, 2);
+    chromaText(ctx, scoreStr, W - 4 - sw, 4, PAL.gold, 2, 1);
 
     // Balls
     for (let i = 0; i < BALANCE.BALLS_PER_ROUND; i++) {
@@ -362,7 +364,7 @@ class App {
     this._drawPanel(ctx, px, py, pw, ph);
 
     const titleCol = r.passed ? PAL.green : PAL.red;
-    drawTextCentered(ctx, r.passed ? 'ROUND PASSED!' : 'QUOTA FAILED!', W / 2, py + 6, titleCol, 1);
+    chromaTextCentered(ctx, r.passed ? 'ROUND PASSED!' : 'QUOTA FAILED!', W / 2, py + 6, titleCol, 1, 2);
 
     let ly = py + 22;
     for (const sr of run.spinResults) {
@@ -389,7 +391,7 @@ class App {
     const choices = run.currentChoices;
     this._drawDim(ctx);
 
-    drawTextCentered(ctx, 'CHOOSE UPGRADE', W / 2, 18, PAL.gold, 2);
+    chromaTextCentered(ctx, 'CHOOSE UPGRADE', W / 2, 18, PAL.gold, 2, 2);
 
     this._choiceCards = [];
     const cardW = 100, cardH = 100, gap = 12;
@@ -422,7 +424,7 @@ class App {
     const run = this.game.getState().run;
     this._drawDim(ctx);
 
-    drawTextCentered(ctx, 'THE FORGE', W / 2, 10, PAL.gold, 2);
+    chromaTextCentered(ctx, 'THE FORGE', W / 2, 10, PAL.gold, 2, 2);
     drawTextCentered(ctx, 'COINS: ' + run.shopCurrency, W / 2, 28, PAL.green, 1);
 
     this._shopCards = [];
@@ -471,6 +473,7 @@ class App {
     this._drawPanel(ctx, px, py, pw, ph);
 
     drawTextCentered(ctx, 'GAME OVER', W / 2, py + 10, PAL.red, 2);
+    chromaTextCentered(ctx, 'GAME OVER', W / 2, py + 10, PAL.red, 2, 2);
     drawTextCentered(ctx, 'ROUND ' + run.round + '  SCORE ' + run.score, W / 2, py + 34, PAL.white, 1);
     drawTextCentered(ctx, 'STARS ' + meta.totalStars, W / 2, py + 50, PAL.gold, 1);
   }
@@ -485,6 +488,7 @@ class App {
     this._drawPanel(ctx, px, py, pw, ph);
 
     drawTextCentered(ctx, 'VICTORY!', W / 2, py + 10, PAL.gold, 2);
+    chromaTextCentered(ctx, 'VICTORY!', W / 2, py + 10, PAL.gold, 2, 2);
     drawTextCentered(ctx, 'SCORE ' + run.score, W / 2, py + 34, PAL.white, 1);
     drawTextCentered(ctx, 'STARS ' + meta.totalStars, W / 2, py + 50, PAL.gold, 1);
   }
