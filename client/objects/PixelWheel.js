@@ -42,8 +42,8 @@ const DROP_HEIGHT = 130;     // pixels above final position
 const GAUGE_TRAVEL = 0.15;   // seconds for phase 1 (slide to gauge exit)
 
 // ── Gauge (ball magazine, right side) ──
-const GAUGE_START = -0.65;   // ~-37° from right (avoids top-right slots)
-const GAUGE_END = 0.65;      // ~+37° from right (avoids bottom-right slots)
+const GAUGE_START = -0.40;   // ~-23° from right (fits between slot pairs)
+const GAUGE_END = 0.40;      // ~+23° from right
 
 function _bounce(t) {
   if (t < 1 / 2.75) return 7.5625 * t * t;
