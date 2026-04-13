@@ -119,7 +119,7 @@ export class PixelWheel {
     this._dropping = false;
     this._inGauge = true;
 
-    const GAUGE_MID = (RIM_R + 18 + RIM_R + 24) / 2;
+    const GAUGE_MID = (RIM_R + 22 + RIM_R + 28) / 2;
     const BALL_SPACING = 0.04; // radians between ball centers (tight stack)
 
     for (let i = 0; i < n; i++) {
@@ -660,8 +660,8 @@ export class PixelWheel {
   }
 
   _drawGauge(ctx, cx, cy) {
-    const INNER = RIM_R + 18;
-    const OUTER = RIM_R + 24;
+    const INNER = RIM_R + 22;
+    const OUTER = RIM_R + 28;
 
     // Channel fill
     ctx.beginPath();
@@ -702,8 +702,8 @@ export class PixelWheel {
   }
 
   _drawOrbitSlots(ctx, cx, cy) {
-    const INNER = RIM_R + 3;           // small gap outside rim
-    const OUTER = RIM_R + 25;          // slot band thickness
+    const INNER = RIM_R + 7;           // small gap outside rim
+    const OUTER = RIM_R + 29;          // slot band thickness
     const SLOT_ARC = 0.28;             // ~16° per slot
     const PAIR_GAP = 0.06;             // gap between two slots of a pair
 
