@@ -34,7 +34,7 @@ const GRAVITY_BOOST_THRESHOLD = 2.5;
 const GRAVITY_BOOST_MAX = 6;
 
 // ── 3D perspective tilt ──
-const TILT_Y = 1.0;
+// (now dynamic — see constructor)
 
 // ── Drop animation ──
 const DROP_STAGGER = 0.05;   // seconds between each ball
@@ -81,6 +81,11 @@ export class PixelWheel {
     this._ejectClock = 0;
     this._frameLights = [];
     this._bonusMode = false;
+
+    this._tilt = 1.0;
+    this._flip = null;
+    this.onFlipMid = null;
+    this.onFlipDone = null;
 
     // Hub screen state
     this._hub = {
@@ -187,8 +192,15 @@ export class PixelWheel {
     return 0;
   }
   get hubRadius() { return HUB_R; }
-  get tilt() { return TILT_Y; }
+  get tilt() { return Math.abs(this._tilt); }
   get lights() { return this._frameLights; }
+
+  get flipped() { return this._tilt < 0; }
+
+  startFlip(duration = 0.45) {
+    const to = this._tilt > 0 ? -1 : 1;
+    this._flip = { from: this._tilt, to, duration, elapsed: 0, midFired: false };
+  }
 
   // ── Hub screen API ──
   hubShowValue(symbolId, value) {
@@ -219,6 +231,26 @@ export class PixelWheel {
     }
     this._hub.valueFade = Math.max(0, this._hub.valueFade - dt);
     this._hub.messageFade = Math.max(0, this._hub.messageFade - dt);
+
+    // Flip animation
+    if (this._flip) {
+      this._flip.elapsed += dt;
+      const t = Math.min(1, this._flip.elapsed / this._flip.duration);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      this._tilt = this._flip.from + (this._flip.to - this._flip.from) * ease;
+
+      if (!this._flip.midFired && Math.sign(this._tilt) !== Math.sign(this._flip.from)) {
+        this._flip.midFired = true;
+        if (this.onFlipMid) this.onFlipMid();
+      }
+
+      if (t >= 1) {
+        this._tilt = this._flip.to;
+        const cb = this.onFlipDone;
+        this._flip = null;
+        if (cb) cb();
+      }
+    }
 
     // Drop animation clock
     if (this._dropping) {
@@ -420,10 +452,23 @@ export class PixelWheel {
     const tw = data.reduce((s, w) => s + w.weight, 0);
 
     // ── 3D perspective tilt (compress Y) ──
+    const TILT_Y = Math.abs(this._tilt);
+    if (TILT_Y < 0.01) { ctx.restore(); return; } // edge-on, skip
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(1, TILT_Y);
     ctx.translate(-cx, -cy);
+
+    // ── Flipped: draw shop face ──
+    if (this._tilt < 0) {
+      this._frameLights = [];
+      ctx.beginPath(); ctx.arc(cx, cy, RIM_R, 0, Math.PI * 2);
+      ctx.fillStyle = PAL.darkGray; ctx.fill();
+      ctx.strokeStyle = PAL.gold; ctx.lineWidth = 2; ctx.stroke();
+      drawTextCentered(ctx, 'SHOP', cx, cy - Math.floor(CHAR_H), PAL.gold, 2);
+      ctx.restore(); // end tilt
+      return;
+    }
 
     // ── Rim ──
     this._frameLights = [];  // reset light sources each frame

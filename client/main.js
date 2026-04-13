@@ -76,6 +76,8 @@ class App {
     this._audioCtx = null;
     this.wheel.onPegHit = () => this._tick();
     this.wheel.onBallEject = () => this._playEject();
+    this.wheel.onFlipMid = () => this._shakeStart(3, 0.2);
+    this.wheel.onFlipDone = () => this._shakeStart(8, 0.3);
 
     // Input (on display canvas)
     this._display.addEventListener('click', e => this._handleClick(e));
@@ -211,8 +213,19 @@ class App {
 
     this._spinning = false;
 
-    // Auto-advance through results/choice/shop
+    // Flip wheel to show shop
     await this._delay(500);
+    this.wheel.startFlip();
+    await this._delay(600);
+
+    // TODO: shop interaction here
+    await this._delay(2000);
+
+    // Flip back
+    this.wheel.startFlip();
+    await this._delay(600);
+
+    // Auto-advance through results/choice/shop
     this._autoAdvance();
   }
 
@@ -293,8 +306,10 @@ class App {
 
     this._drawPops(ctx);
 
-    // Hub button (always on top of everything)
-    this._drawHubBtn(ctx, wheelOx, wheelOy);
+    // Hub button (always on top of everything, hidden when flipped)
+    if (!this.wheel.flipped) {
+      this._drawHubBtn(ctx, wheelOx, wheelOy);
+    }
 
     ctx.restore(); // end PX scale
 
