@@ -34,6 +34,9 @@ const SPIN_DECEL = 0.9975;
 const GRAVITY_BOOST_THRESHOLD = 2.5;
 const GRAVITY_BOOST_MAX = 6;
 
+// ── 3D perspective tilt ──
+const TILT_Y = 0.55;  // vertical compression (1 = flat, 0.5 = ~60°)
+
 export class PixelWheel {
   constructor() {
     // Fixed physics radius — independent of canvas
@@ -304,6 +307,12 @@ export class PixelWheel {
     if (!data.length) return;
     const tw = data.reduce((s, w) => s + w.weight, 0);
 
+    // ── 3D perspective tilt (compress Y) ──
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1, TILT_Y);
+    ctx.translate(-cx, -cy);
+
     // ── Rim ──
     ctx.beginPath(); ctx.arc(cx, cy, RIM_R, 0, Math.PI * 2);
     ctx.strokeStyle = RIM_COLOR; ctx.lineWidth = 1; ctx.stroke();
@@ -405,6 +414,8 @@ export class PixelWheel {
 
     // ── Hub Screen (fixed, screen coords) ──
     this._drawHubScreen(ctx, cx, cy);
+
+    ctx.restore(); // end tilt
   }
 
   _drawPixelBall(ctx, bx, by, settled) {
