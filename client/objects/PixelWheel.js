@@ -3,7 +3,8 @@ import { drawTextCentered, CHAR_H } from '../gfx/BitmapFont.js';
 import { drawSpriteCentered, SPRITE_SIZE } from '../gfx/PixelSprites.js';
 
 // ── Layout (proportional to wheel radius R) ──
-const HUB_P = 0.32;
+const HUB_P = 0.28;
+const HUB_COLLIDE_P = 0.32;  // collision radius (larger than visual)
 const POCKET_INNER_P = 0.30;
 const POCKET_OUTER_P = 0.37;
 const LABEL_P = 0.425;
@@ -325,7 +326,7 @@ export class PixelWheel {
 
   _collideHub(b) {
     const d = Math.sqrt(b.x * b.x + b.y * b.y);
-    const min = HUB_R + BALL_RADIUS;
+    const min = this.R * HUB_COLLIDE_P + BALL_RADIUS;
     if (d >= min || d === 0) return;
     const nx = b.x / d, ny = b.y / d;
     b.x = nx * min; b.y = ny * min;
