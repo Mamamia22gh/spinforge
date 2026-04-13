@@ -322,43 +322,9 @@ class App {
     ctx.translate(WHEEL_CX, WHEEL_CY);
     ctx.scale(1, tilt);
 
-    // Fill — 3 zones for bevel (top half lighter, middle, bottom darker)
+    // Fill (gold)
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fillStyle = PAL.darkGray; ctx.fill();
-
-    // Top half — lighter (beveled highlight)
-    ctx.save();
-    ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
-    ctx.beginPath();
-    ctx.arc(0, 0, r - 2, -Math.PI, 0); // top half arc
-    ctx.lineTo(r - 2, 0);
-    ctx.lineTo(-r + 2, 0);
-    ctx.closePath();
-    ctx.fillStyle = PAL.midGray;
-    ctx.globalAlpha = 0.3;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // Bottom shadow
-    ctx.beginPath();
-    ctx.arc(0, 0, r - 2, 0, Math.PI); // bottom half arc
-    ctx.lineTo(-r + 2, 0);
-    ctx.lineTo(r - 2, 0);
-    ctx.closePath();
-    ctx.fillStyle = PAL.black;
-    ctx.globalAlpha = 0.35;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.restore();
-
-    // Specular highlight (clipped to button circle)
-    ctx.save();
-    ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = PAL.lightGray;
-    ctx.fillRect(-r * 0.35, -r + 4, r * 0.7, 1);
-    ctx.fillStyle = PAL.white;
-    ctx.fillRect(-r * 0.15, -r + 3, r * 0.3, 1);
-    ctx.restore();
+    ctx.fillStyle = PAL.darkGold; ctx.fill();
 
     // Border
     ctx.strokeStyle = PAL.gold; ctx.lineWidth = 2;
