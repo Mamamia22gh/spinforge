@@ -328,8 +328,11 @@ class App {
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip();
     ctx.beginPath(); ctx.arc(0, -r * 0.55, r * 0.85, 0, Math.PI * 2);
     ctx.fillStyle = PAL.gold; ctx.fill();
-    // Specular: small bright spot upper-right
-    ctx.beginPath(); ctx.arc(r * 0.3, -r * 0.5, r * 0.15, 0, Math.PI * 2);
+    // Specular: white arc in upper-right
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.7, -Math.PI * 0.45, -Math.PI * 0.1);
+    ctx.arc(0, 0, r * 0.5, -Math.PI * 0.1, -Math.PI * 0.45, true);
+    ctx.closePath();
     ctx.fillStyle = PAL.white; ctx.fill();
     ctx.restore();
 
