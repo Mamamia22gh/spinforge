@@ -28,10 +28,6 @@ class App {
     this._time = 0;
     this._pops = [];
 
-    // Clickable regions (computed each frame)
-    this._choiceCards = null;
-    this._shopCards = null;
-
     // Init default wheel
     const defaultWheel = BALANCE.INITIAL_WHEEL.map((id, i) => ({
       id: 'seg_' + i, symbolId: id, weight: 1, modifiers: [],
@@ -66,43 +62,9 @@ class App {
     };
   }
 
-  _hitBtn(btn, x, y) {
-    return btn && x >= btn.x && x < btn.x + btn.w && y >= btn.y && y < btn.y + btn.h;
-  }
-
   _handleClick(e) {
     this._initAudio();
     const { x, y } = this._mapCoords(e);
-
-    // Choice cards (priority over hub)
-    const phase = this._showTitle ? null : this.game.getPhase();
-    if (phase === 'CHOICE' && this._choiceCards) {
-      for (let i = 0; i < this._choiceCards.length; i++) {
-        if (this._hitBtn(this._choiceCards[i], x, y)) {
-          const run = this.game.getState().run;
-          const c = run.currentChoices[i];
-          if (c.type === 'add_symbol' || c.type === 'upgrade') this.game.makeChoice(i);
-          else this.game.makeChoice(i, 0);
-          this._playSelect();
-          this._syncWheel();
-          return;
-        }
-      }
-    }
-
-    // Shop cards (priority over hub)
-    if (phase === 'SHOP' && this._shopCards) {
-      for (let i = 0; i < this._shopCards.length; i++) {
-        if (this._hitBtn(this._shopCards[i], x, y)) {
-          const run = this.game.getState().run;
-          if (run.shopCurrency >= run.shopOfferings[i].finalCost) {
-            this.game.shopBuyRelic(i);
-            this._playCoin();
-          }
-          return;
-        }
-      }
-    }
 
     // Hub button click (ellipse hit test with tilt)
     const dx = x - WHEEL_CX;
@@ -134,23 +96,33 @@ class App {
     const phase = this.game.getPhase();
     if (phase === 'IDLE' && !this._spinning) {
       this._doSpin();
-    } else if (phase === 'RESULTS') {
-      this.game.continueFromResults();
-    } else if (phase === 'CHOICE') {
-      this.game.skipChoice();
-    } else if (phase === 'SHOP') {
-      this.game.endShop();
-      this._syncWheel();
-    } else if (phase === 'GAME_OVER' || phase === 'VICTORY') {
-      this._showTitle = true;
     }
+  }
+
+  /** Auto-advance through non-interactive phases silently. */
+  _autoAdvance() {
+    let safety = 10;
+    while (safety-- > 0) {
+      const phase = this.game.getPhase();
+      if (phase === 'IDLE') break;
+      if (phase === 'RESULTS') {
+        this.game.continueFromResults();
+      } else if (phase === 'CHOICE') {
+        this.game.skipChoice();
+      } else if (phase === 'SHOP') {
+        this.game.endShop();
+      } else if (phase === 'GAME_OVER' || phase === 'VICTORY') {
+        // Restart run
+        this.game.startRun();
+      } else break;
+    }
+    this._syncWheel();
   }
 
   async _doSpin() {
     if (this._spinning) return;
     this._spinning = true;
 
-    const run = this.game.getState().run;
     this._playSpin();
     await this._delay(200);
     const results = await this.wheel.spinAndEject();
@@ -179,6 +151,10 @@ class App {
     }
 
     this._spinning = false;
+
+    // Auto-advance through results/choice/shop
+    await this._delay(500);
+    this._autoAdvance();
   }
 
   _pop(text) {
@@ -229,13 +205,6 @@ class App {
     } else {
       this._drawHUD(ctx);
       this._drawPops(ctx);
-
-      const phase = this.game.getPhase();
-      if (phase === 'RESULTS') this._drawResults(ctx);
-      else if (phase === 'CHOICE') this._drawChoices(ctx);
-      else if (phase === 'SHOP') this._drawShop(ctx);
-      else if (phase === 'GAME_OVER') this._drawGameOver(ctx);
-      else if (phase === 'VICTORY') this._drawVictory(ctx);
     }
 
     // Hub button (always on top of everything)
@@ -305,35 +274,6 @@ class App {
     ctx.fillRect(0, 0, W, H);
   }
 
-  _drawPanel(ctx, x, y, w, h) {
-    ctx.fillStyle = PAL.darkGray;
-    ctx.fillRect(x, y, w, h);
-    // Gold 1px border
-    ctx.fillStyle = PAL.gold;
-    ctx.fillRect(x, y, w, 1);
-    ctx.fillRect(x, y + h - 1, w, 1);
-    ctx.fillRect(x, y, 1, h);
-    ctx.fillRect(x + w - 1, y, 1, h);
-  }
-
-  _drawBtn(ctx, label, x, y, w, h, borderColor) {
-    ctx.fillStyle = PAL.darkGray;
-    ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = borderColor;
-    ctx.fillRect(x, y, w, 1);
-    ctx.fillRect(x, y + h - 1, w, 1);
-    ctx.fillRect(x, y, 1, h);
-    ctx.fillRect(x + w - 1, y, 1, h);
-    drawTextCentered(ctx, label, x + Math.floor(w / 2), y + Math.floor((h - CHAR_H) / 2), PAL.white, 1);
-  }
-
-  _makeBtn(label, cx, y, padX, h) {
-    const tw = measureText(label);
-    const w = tw + padX * 2;
-    const x = Math.floor(cx - w / 2);
-    return { x, y, w, h, label };
-  }
-
   // ── Title screen ──
   _drawTitle(ctx) {
     this._drawDim(ctx);
@@ -372,21 +312,11 @@ class App {
     if (this._showTitle) {
       label = 'PLAY'; color = PAL.green;
     } else {
-      const phase = this.game.getPhase();
-      switch (phase) {
-        case 'IDLE': label = 'SPIN'; color = PAL.green; break;
-        case 'RESULTS': label = 'OK'; color = PAL.green; break;
-        case 'CHOICE': label = 'SKIP'; color = PAL.gold; break;
-        case 'SHOP': label = 'EXIT'; color = PAL.midGray; break;
-        case 'GAME_OVER': label = 'END'; color = PAL.red; break;
-        case 'VICTORY': label = 'END'; color = PAL.gold; break;
-        default: return;
-      }
+      label = 'SPIN'; color = PAL.green;
     }
 
     const r = this.wheel.hubRadius || 42;
     const tilt = this.wheel.tilt || 0.65;
-    const exciting = true; // glass sweep + glow on all states
     const t = this._time;
 
     ctx.save();
@@ -405,24 +335,22 @@ class App {
     ctx.fillStyle = PAL.midGray;
     ctx.fillRect(-r * 0.3, -r + 3, r * 0.6, 1);
 
-    if (exciting) {
-      // ── Glass sweep (white band every ~4s) ──
-      const SWEEP_INTERVAL = 3.5;
-      const SWEEP_DUR = 0.25;
-      const sweepT = t % SWEEP_INTERVAL;
-      if (sweepT < SWEEP_DUR) {
-        const p = sweepT / SWEEP_DUR;
-        const sx = -r + p * r * 2;
-        ctx.save();
-        ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
-        ctx.fillStyle = PAL.white;
-        ctx.globalAlpha = 0.25;
-        for (let dy = -r; dy <= r; dy += 1) {
-          ctx.fillRect(Math.round(sx + dy * 0.4), dy, 2, 1);
-        }
-        ctx.globalAlpha = 1;
-        ctx.restore();
+    // ── Glass sweep (white band every ~4s) ──
+    const SWEEP_INTERVAL = 3.5;
+    const SWEEP_DUR = 0.25;
+    const sweepT = t % SWEEP_INTERVAL;
+    if (sweepT < SWEEP_DUR) {
+      const p = sweepT / SWEEP_DUR;
+      const sx = -r + p * r * 2;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
+      ctx.fillStyle = PAL.white;
+      ctx.globalAlpha = 0.25;
+      for (let dy = -r; dy <= r; dy += 1) {
+        ctx.fillRect(Math.round(sx + dy * 0.4), dy, 2, 1);
       }
+      ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
     // Label (always centered)
@@ -437,144 +365,6 @@ class App {
       const col = p.age < 1.0 ? PAL.gold : PAL.darkGold;
       drawTextCentered(ctx, p.text, Math.round(p.x), Math.round(p.y), col, 1);
     }
-  }
-
-  // ── Results overlay ──
-  _drawResults(ctx) {
-    const run = this.game.getState().run;
-    const r = run.lastRoundResult;
-    this._drawDim(ctx);
-
-    const pw = 180, ph = 150;
-    const px = W / 2 - pw / 2, py = 20;
-    this._drawPanel(ctx, px, py, pw, ph);
-
-    const titleCol = r.passed ? PAL.green : PAL.red;
-    drawTextCentered(ctx, r.passed ? 'ROUND PASSED!' : 'QUOTA FAILED!', W / 2, py + 6, titleCol, 1);
-
-    let ly = py + 22;
-    for (const sr of run.spinResults) {
-      const sym = sr.symbol;
-      drawSpriteCentered(ctx, sym.id, px + 12, ly + 3, 1);
-      drawText(ctx, sym.name.toUpperCase().substring(0, 8), px + 22, ly, PAL.white, 1);
-      const valStr = '+' + sr.value;
-      const vw = measureText(valStr);
-      drawText(ctx, valStr, px + pw - 6 - vw, ly, PAL.gold, 1);
-      ly += 10;
-      if (ly > py + ph - 30) break;
-    }
-
-    ly = py + ph - 24;
-    drawTextCentered(ctx, r.totalWon + ' / ' + r.quota, W / 2, ly, PAL.gold, 1);
-    if (r.passed && r.shopCoins > 0) {
-      drawTextCentered(ctx, '+' + r.shopCoins + ' COINS', W / 2, ly + 10, PAL.green, 1);
-    }
-  }
-
-  // ── Choices overlay ──
-  _drawChoices(ctx) {
-    const run = this.game.getState().run;
-    const choices = run.currentChoices;
-    this._drawDim(ctx);
-
-    drawTextCentered(ctx, 'CHOOSE UPGRADE', W / 2, 18, PAL.gold, 2);
-
-    this._choiceCards = [];
-    const cardW = 100, cardH = 100, gap = 12;
-    const totalW = choices.length * cardW + (choices.length - 1) * gap;
-    const startX = Math.floor(W / 2 - totalW / 2);
-
-    for (let i = 0; i < choices.length; i++) {
-      const c = choices[i];
-      const cx = startX + i * (cardW + gap);
-      const cy = 42;
-
-      this._choiceCards.push({ x: cx, y: cy, w: cardW, h: cardH });
-      this._drawPanel(ctx, cx, cy, cardW, cardH);
-
-      // Sprite for symbol choices
-      if (c.payload && c.payload.symbolId) {
-        drawSpriteCentered(ctx, c.payload.symbolId, cx + cardW / 2, cy + 16, 2);
-      }
-
-      // Name
-      drawTextCentered(ctx, c.name.toUpperCase().substring(0, 14), cx + cardW / 2, cy + 34, PAL.gold, 1);
-
-      // Description (wrapped)
-      drawTextWrapped(ctx, c.description, cx + 4, cy + 46, cardW - 8, PAL.lightGray, 1);
-    }
-  }
-
-  // ── Shop overlay ──
-  _drawShop(ctx) {
-    const run = this.game.getState().run;
-    this._drawDim(ctx);
-
-    drawTextCentered(ctx, 'THE FORGE', W / 2, 10, PAL.gold, 2);
-    drawTextCentered(ctx, 'COINS: ' + run.shopCurrency, W / 2, 28, PAL.green, 1);
-
-    this._shopCards = [];
-    const offerings = run.shopOfferings;
-    const cardW = 100, cardH = 100, gap = 12;
-    const totalW = offerings.length * cardW + (offerings.length - 1) * gap;
-    const startX = Math.floor(W / 2 - totalW / 2);
-
-    for (let i = 0; i < offerings.length; i++) {
-      const o = offerings[i];
-      const cx = startX + i * (cardW + gap);
-      const cy = 42;
-      const afford = run.shopCurrency >= o.finalCost;
-
-      this._shopCards.push({ x: cx, y: cy, w: cardW, h: cardH });
-      this._drawPanel(ctx, cx, cy, cardW, cardH);
-
-      if (!afford) {
-        // Dim locked card with scanlines
-        for (let sy = cy + 1; sy < cy + cardH - 1; sy += 2) {
-          ctx.fillStyle = PAL.black;
-          ctx.fillRect(cx + 1, sy, cardW - 2, 1);
-        }
-      }
-
-      // Name
-      drawTextCentered(ctx, o.name.toUpperCase().substring(0, 14), cx + cardW / 2, cy + 8, afford ? PAL.gold : PAL.midGray, 1);
-
-      // Description
-      drawTextWrapped(ctx, o.description, cx + 4, cy + 22, cardW - 8, afford ? PAL.lightGray : PAL.midGray, 1);
-
-      // Cost
-      const costStr = o.finalCost + ' COINS';
-      drawTextCentered(ctx, costStr, cx + cardW / 2, cy + cardH - 12, afford ? PAL.green : PAL.red, 1);
-    }
-  }
-
-  // ── Game over / Victory ──
-  _drawGameOver(ctx) {
-    const run = this.game.getState().run;
-    const meta = this.game.getMeta();
-    this._drawDim(ctx);
-
-    const pw = 160, ph = 80;
-    const px = W / 2 - pw / 2, py = 60;
-    this._drawPanel(ctx, px, py, pw, ph);
-
-    drawTextCentered(ctx, 'GAME OVER', W / 2, py + 10, PAL.red, 2);
-    drawTextCentered(ctx, 'ROUND ' + run.round + '  SCORE ' + run.score, W / 2, py + 34, PAL.white, 1);
-    drawTextCentered(ctx, 'STARS ' + meta.totalStars, W / 2, py + 50, PAL.gold, 1);
-  }
-
-  _drawVictory(ctx) {
-    const run = this.game.getState().run;
-    const meta = this.game.getMeta();
-    this._drawDim(ctx);
-
-    const pw = 160, ph = 80;
-    const px = W / 2 - pw / 2, py = 60;
-    this._drawPanel(ctx, px, py, pw, ph);
-
-    drawTextCentered(ctx, 'VICTORY!', W / 2, py + 10, PAL.gold, 2);
-    drawTextCentered(ctx, 'SCORE ' + run.score, W / 2, py + 34, PAL.white, 1);
-    drawTextCentered(ctx, 'STARS ' + meta.totalStars, W / 2, py + 50, PAL.gold, 1);
   }
 
   // ── Audio ──
@@ -644,21 +434,6 @@ class App {
     this._spinOsc = null;
     this._spinOsc2 = null;
     this._spinGain = null;
-  }
-
-  _playWinFanfare() {
-    [523, 659, 784, 1047].forEach((f, i) => {
-      setTimeout(() => {
-        this._tone(f, 0.3, 'square', 0.08);
-        this._tone(f * 0.5, 0.3, 'triangle', 0.04);
-      }, i * 120);
-    });
-  }
-
-  _playLose() {
-    [220, 196, 175, 165].forEach((f, i) => {
-      setTimeout(() => this._tone(f, 0.25, 'sawtooth', 0.06), i * 150);
-    });
   }
 
   _playCoin() {
