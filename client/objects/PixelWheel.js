@@ -718,21 +718,24 @@ export class PixelWheel {
     const filled = this._slots && this._slots[idx];
     const locked = idx >= 2; // only top-left pair (0,1) unlocked
 
-    // Arc fill (same dark color for all)
+    // Arc fill (black background)
     ctx.beginPath();
     ctx.arc(cx, cy, outer, a0, a1);
     ctx.arc(cx, cy, inner, a1, a0, true);
     ctx.closePath();
-    ctx.fillStyle = SEG_A;
+    ctx.fillStyle = PAL.black;
     ctx.fill();
 
-    // Radial dividers
+    // Gray border arcs + radial dividers
+    ctx.strokeStyle = PAL.midGray; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, outer, a0, a1); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, inner, a0, a1); ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(a0) * inner, cy + Math.sin(a0) * inner);
     ctx.lineTo(cx + Math.cos(a0) * outer, cy + Math.sin(a0) * outer);
     ctx.moveTo(cx + Math.cos(a1) * inner, cy + Math.sin(a1) * inner);
     ctx.lineTo(cx + Math.cos(a1) * outer, cy + Math.sin(a1) * outer);
-    ctx.strokeStyle = DIVIDER_COLOR; ctx.lineWidth = 1; ctx.stroke();
+    ctx.stroke();
 
     // Content
     const midAngle = (a0 + a1) / 2;
