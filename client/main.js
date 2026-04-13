@@ -294,11 +294,13 @@ class App {
 
   // ── Hub button (round, drawn on top of everything) ──
   _drawHubBtn(ctx, wox, woy) {
-    const label = 'SPIN';
     const r = this.wheel.hubRadius || 42;
     const tilt = this.wheel.tilt || 0.65;
     const t = this._time;
     const pressed = this._spinning;
+    const run = this.game.getState().run;
+    const quota = run ? getQuota(run.round) : 0;
+    const score = run ? run.score : 0;
 
     ctx.save();
     ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
@@ -339,8 +341,16 @@ class App {
       }
     }
 
-    // Label (bigger, gold)
-    drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H), pressed ? PAL.midGray : PAL.gold, 2);
+    if (pressed) {
+      // During spin: show score / quota
+      const scoreCol = score >= quota ? PAL.green : PAL.gold;
+      drawTextCentered(ctx, String(score), 0, -Math.floor(CHAR_H * 1.5), scoreCol, 2);
+      drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 0.5), PAL.midGray, 1);
+    } else {
+      // Idle: SPIN label + quota below
+      drawTextCentered(ctx, 'SPIN', 0, -Math.floor(CHAR_H * 1.5), PAL.gold, 2);
+      drawTextCentered(ctx, String(quota), 0, Math.floor(CHAR_H * 0.5), PAL.midGray, 1);
+    }
 
     ctx.restore();
   }
