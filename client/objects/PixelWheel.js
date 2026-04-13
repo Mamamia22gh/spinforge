@@ -395,9 +395,6 @@ export class PixelWheel {
     ctx.fillStyle = HUB_BG; ctx.fill();
     ctx.strokeStyle = HUB_BORDER; ctx.lineWidth = 1; ctx.stroke();
 
-    // ── Hub Screen (rotates with wheel) ──
-    this._drawHubScreen(ctx, 0, 0);
-
     ctx.restore(); // end rotation
 
     // ── Active balls (world space) ──
@@ -405,6 +402,9 @@ export class PixelWheel {
       if (b.settled) continue;
       this._drawPixelBall(ctx, cx + b.x, cy + b.y, false);
     }
+
+    // ── Hub Screen (fixed, screen coords) ──
+    this._drawHubScreen(ctx, cx, cy);
   }
 
   _drawPixelBall(ctx, bx, by, settled) {
