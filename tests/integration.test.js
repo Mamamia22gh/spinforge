@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createGame, PHASE } from '../src/index.js';
+import { createGame, PHASE, BALANCE } from '../src/index.js';
 import { resetUid } from '../src/core/GameState.js';
 
 describe('Integration — Full game flow (balls only, no betting)', () => {
@@ -28,18 +28,17 @@ describe('Integration — Full game flow (balls only, no betting)', () => {
     expect(result).not.toBeNull();
     expect(result.result.symbol).toBeDefined();
     expect(result.value).toBeGreaterThanOrEqual(0);
-    expect(state.run.ballsLeft).toBe(4);
+    expect(state.run.ballsLeft).toBe(BALANCE.BALLS_PER_ROUND - 1);
   });
 
   it('can play through multiple spins and end round', () => {
     game.startRun();
     const state = game.getState();
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < BALANCE.BALLS_PER_ROUND; i++) {
       game.spin();
     }
 
-    // After 5 spins, should be in RESULTS or GAME_OVER
     expect(state.run.ballsLeft).toBe(0);
     expect(['RESULTS', 'GAME_OVER']).toContain(state.phase);
   });
@@ -49,7 +48,7 @@ describe('Integration — Full game flow (balls only, no betting)', () => {
     const state = game.getState();
 
     // Play through round 1
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < BALANCE.BALLS_PER_ROUND; i++) {
       game.spin();
     }
 
@@ -82,7 +81,7 @@ describe('Integration — Full game flow (balls only, no betting)', () => {
     const state = game.getState();
 
     let totalValue = 0;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < BALANCE.BALLS_PER_ROUND; i++) {
       const r = game.spin();
       if (r) totalValue += r.value;
     }
@@ -94,11 +93,11 @@ describe('Integration — Full game flow (balls only, no betting)', () => {
     game.startRun();
     const state = game.getState();
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < BALANCE.BALLS_PER_ROUND; i++) {
       game.spin();
     }
 
-    if (!state.run.lastRoundResult.passed) {
+    if (!state.run.lastRoundResult?.passed) {
       expect(state.phase).toBe('GAME_OVER');
       expect(state.meta.totalStars).toBeGreaterThan(0);
     }

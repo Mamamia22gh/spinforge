@@ -4,7 +4,7 @@
 export const BALANCE = Object.freeze({
   // Run structure
   ROUNDS_PER_RUN: 12,
-  BALLS_PER_ROUND: 5,
+  BALLS_PER_ROUND: 15,
 
   // Starting wheel — 40 segments
   INITIAL_WHEEL: [

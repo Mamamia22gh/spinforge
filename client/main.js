@@ -155,8 +155,9 @@ class App {
 
     const run = this.game.getState().run;
     this.wheel.placeBalls(run.ballsLeft);
+    await this._delay(run.ballsLeft * 50 + 500); // wait for drop cascade
     this._playSpin();
-    await this._delay(400);
+    await this._delay(200);
     const results = await this.wheel.spin();
     this._stopSpin();
 

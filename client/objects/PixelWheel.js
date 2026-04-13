@@ -34,7 +34,19 @@ const GRAVITY_BOOST_THRESHOLD = 2.5;
 const GRAVITY_BOOST_MAX = 6;
 
 // ── 3D perspective tilt ──
-const TILT_Y = 0.65;  // vertical compression (1 = flat, 0.4 = ~66°)
+const TILT_Y = 0.65;
+
+// ── Drop animation ──
+const DROP_STAGGER = 0.05;   // seconds between each ball
+const DROP_DURATION = 0.40;  // seconds per ball drop
+const DROP_HEIGHT = 130;     // pixels above final position
+
+function _bounce(t) {
+  if (t < 1 / 2.75) return 7.5625 * t * t;
+  if (t < 2 / 2.75) return 7.5625 * (t -= 1.5 / 2.75) * t + 0.75;
+  if (t < 2.5 / 2.75) return 7.5625 * (t -= 2.25 / 2.75) * t + 0.9375;
+  return 7.5625 * (t -= 2.625 / 2.75) * t + 0.984375;
+}  // vertical compression (1 = flat, 0.4 = ~66°)
 
 export class PixelWheel {
   constructor() {
@@ -55,6 +67,8 @@ export class PixelWheel {
     this.onPegHit = null;
     this._lastPeg = 0;
     this._slots = [];  // external slot data (8 entries, null = empty)
+    this._dropClock = 0;
+    this._dropping = false;
 
     // Hub screen state
     this._hub = {
@@ -89,10 +103,17 @@ export class PixelWheel {
     this._placedBalls = [];
     this._balls = [];
     this._results = [];
+    this._dropClock = 0;
+    this._dropping = true;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
       const r = LABEL_OUTER + 2 + Math.random() * (RIM_R - LABEL_OUTER - BALL_RADIUS * 2 - 3);
-      this._placedBalls.push({ localX: Math.cos(a) * r, localY: Math.sin(a) * r });
+      this._placedBalls.push({
+        localX: Math.cos(a) * r,
+        localY: Math.sin(a) * r,
+        dropDelay: i * DROP_STAGGER,
+        dropDur: DROP_DURATION,
+      });
     }
   }
 
@@ -149,6 +170,16 @@ export class PixelWheel {
     }
     this._hub.valueFade = Math.max(0, this._hub.valueFade - dt);
     this._hub.messageFade = Math.max(0, this._hub.messageFade - dt);
+
+    // Drop animation clock
+    if (this._dropping) {
+      this._dropClock += dt;
+      const last = this._placedBalls[this._placedBalls.length - 1];
+      if (last && this._dropClock >= last.dropDelay + last.dropDur) {
+        this._dropping = false;
+      }
+    }
+
     this._acc += dt;
     while (this._acc >= PHYSICS_DT) { this._step(PHYSICS_DT); this._acc -= PHYSICS_DT; }
   }
@@ -384,8 +415,12 @@ export class PixelWheel {
       off += angle;
     }
 
-    // ── Placed balls (rotate with wheel) ──
-    for (const pb of this._placedBalls) this._drawPixelBall(ctx, pb.localX, pb.localY, false);
+    // ── Placed balls that finished dropping (rotate with wheel) ──
+    for (const pb of this._placedBalls) {
+      const elapsed = this._dropClock - pb.dropDelay;
+      if (elapsed < pb.dropDur) continue; // still dropping or not started
+      this._drawPixelBall(ctx, pb.localX, pb.localY, false);
+    }
 
     // ── Settled balls (rotate with wheel) ──
     for (const b of this._balls) {
@@ -399,6 +434,30 @@ export class PixelWheel {
     ctx.strokeStyle = HUB_BORDER; ctx.lineWidth = 1; ctx.stroke();
 
     ctx.restore(); // end rotation
+
+    // ── Dropping balls (screen-space fall, inside tilt) ──
+    for (const pb of this._placedBalls) {
+      const elapsed = this._dropClock - pb.dropDelay;
+      if (elapsed < 0 || elapsed >= pb.dropDur) continue;
+      const t = Math.min(1, elapsed / pb.dropDur);
+      const eased = _bounce(t);
+
+      // Convert local → world (apply rotation manually)
+      const cos = Math.cos(this._angle), sin = Math.sin(this._angle);
+      const wx = cos * pb.localX - sin * pb.localY;
+      const wy = sin * pb.localX + cos * pb.localY;
+
+      // Shadow at landing spot (grows with progress)
+      ctx.fillStyle = PAL.darkGold;
+      ctx.globalAlpha = eased * 0.4;
+      ctx.fillRect(Math.round(cx + wx) - 1, Math.round(cy + wy), 3, 1);
+      ctx.globalAlpha = 1;
+
+      // Ball drops from above
+      const bx = cx + wx;
+      const by = cy + wy - DROP_HEIGHT * (1 - eased);
+      this._drawPixelBall(ctx, bx, by, false);
+    }
 
     // ── Active balls (world space) ──
     for (const b of this._balls) {
