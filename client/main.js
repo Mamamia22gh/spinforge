@@ -2,8 +2,8 @@ import { createGame } from '../src/index.js';
 import { BALANCE, getQuota } from '../src/data/balance.js';
 import { PixelWheel } from './objects/PixelWheel.js';
 import { PAL, SYM_COLORS } from './gfx/PaletteDB.js';
-import { drawText, drawTextCentered, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
-import { drawSpriteCentered, drawAnimSpriteCentered, SPRITE_SIZE } from './gfx/PixelSprites.js';
+import { drawText, drawTextCentered, drawTextCenteredOutlined, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
+import { drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { getSymbol } from '../src/data/symbols.js';
 import { PostFXGL } from './gfx/PostFXGL.js';
 
@@ -294,6 +294,9 @@ class App {
 
     this._drawPops(ctx);
 
+    // Debug: animated sprite frames
+    this._drawDebugSprites(ctx);
+
     // Hub button (always on top of everything)
     this._drawHubBtn(ctx, wheelOx, wheelOy);
 
@@ -427,22 +430,36 @@ class App {
 
     if (pressed) {
       if (quotaReached) {
-        // Quota reached: BONUS + surplus
+        // Quota reached: BONUS + surplus with coin on right (scale 2)
         const surplus = score - quota;
         drawTextCentered(ctx, 'BONUS', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 1);
-        drawAnimSpriteCentered(ctx, 'coin', -12, Math.floor(CHAR_H * 0.8), 1, t, 8);
-        drawTextCentered(ctx, '+' + surplus, 4, Math.floor(CHAR_H * 0.5), PAL.gold, 2);
+        const bStr = '+' + surplus;
+        const bW = bStr.length * CHAR_W * 2;
+        const bY = Math.floor(CHAR_H * 0.5);
+        const bCoinW = SPRITE_SIZE * 2;
+        const bOx = Math.round(-(2 + bCoinW) / 2);
+        drawTextCentered(ctx, bStr, bOx, bY, PAL.gold, 2);
+        drawAnimSpriteCentered(ctx, 'coin', Math.round(bOx + bW / 2 + 2 + SPRITE_SIZE), bY + CHAR_H, 2, t, 8);
       } else {
-        // During spin: show score / quota with coin icon
-        drawAnimSpriteCentered(ctx, 'coin', -16, -Math.floor(CHAR_H * 0.5), 1, t, 8);
-        drawTextCentered(ctx, String(score), 4, -Math.floor(CHAR_H * 1.5), PAL.gold, 2);
-        drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
+        // During spin: score with coin (scale 2), /quota below without coin
+        const sStr = String(score);
+        const sW = sStr.length * CHAR_W * 2;
+        const sY = -Math.floor(CHAR_H * 1.5);
+        drawTextCentered(ctx, sStr, 0, sY, PAL.gold, 2);
+        drawAnimSpriteCentered(ctx, 'coin', Math.round(sW / 2 + 2 + SPRITE_SIZE), sY + CHAR_H, 2, t, 8);
+        drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 1.5), PAL.darkGray, 2);
       }
     } else {
-      // Idle: SPIN label + quota with coin icon
+      // Idle: SPIN label + quota with coin on right
       drawTextCentered(ctx, 'SPIN', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 2);
-      drawAnimSpriteCentered(ctx, 'coin', -20, Math.floor(CHAR_H * 0.8), 1, t, 4);
-      drawTextCentered(ctx, 'QUOTA ' + quota, 4, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
+      const qStr = 'QUOTA ' + quota;
+      const qW = qStr.length * CHAR_W;
+      const qY = Math.floor(CHAR_H * 0.5);
+      const coinSz = SPRITE_SIZE;
+      const qGap = 1;
+      const qOx = Math.round(-(qGap + coinSz) / 2);
+      drawTextCentered(ctx, qStr, qOx, qY, PAL.darkGray, 1);
+      drawAnimSpriteCentered(ctx, 'coin', Math.round(qOx + qW / 2 + qGap + coinSz / 2) + 2, qY + Math.floor(CHAR_H / 2) - 1, 1, t, 4);
     }
 
     ctx.restore();
@@ -452,7 +469,42 @@ class App {
   _drawPops(ctx) {
     for (const p of this._pops) {
       const col = p.age < 1.0 ? PAL.gold : PAL.darkGold;
-      drawTextCentered(ctx, p.text, Math.round(p.x), Math.round(p.y), col, 1);
+      const px = Math.round(p.x);
+      const py = Math.round(p.y);
+      const textW = p.text.length * CHAR_W;
+      const coinSz = SPRITE_SIZE;
+      const totalW = coinSz + 2 + textW;
+      const alpha = p.age < 1.0 ? 1 : Math.max(0, 1 - (p.age - 1.0) / 0.5);
+      ctx.globalAlpha = alpha;
+      drawTextCenteredOutlined(ctx, p.text, Math.round(px - totalW / 2 + textW / 2), py, col, 1);
+      drawAnimSpriteCentered(ctx, 'coin', Math.round(px - totalW / 2 + textW + 2 + coinSz / 2), py + Math.floor(CHAR_H / 2), 1, this._time, 6);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ── Debug sprite viewer ──
+  _drawDebugSprites(ctx) {
+    const scale = 4;
+    const sz = SPRITE_SIZE * scale;
+    const gap = 4;
+    const labelH = 8;
+    let startY = 4;
+
+    for (const id of ['coin', 'diamond']) {
+      const count = getAnimFrameCount(id);
+      drawText(ctx, id.toUpperCase(), 4, startY, PAL.white, 1);
+      startY += labelH + 2;
+      for (let f = 0; f < count; f++) {
+        const x = 4 + f * (sz + gap) + sz / 2;
+        const y = startY + sz / 2;
+        drawAnimFrameCentered(ctx, id, f, x, y, scale);
+        drawTextCentered(ctx, String(f), x, startY + sz + 2, PAL.midGray, 1);
+      }
+      // Animated preview after the frames
+      const animX = 4 + count * (sz + gap) + sz / 2;
+      drawAnimSpriteCentered(ctx, id, animX, startY + sz / 2, scale, this._time, 6);
+      drawTextCentered(ctx, 'ANIM', animX, startY + sz + 2, PAL.gold, 1);
+      startY += sz + labelH + 6;
     }
   }
 

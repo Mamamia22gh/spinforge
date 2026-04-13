@@ -23,6 +23,8 @@ export const PAL = {
   darkPurple: '#441a66',
 
   neonPink:   '#ff44aa',
+  cyan:       '#00e5ff',
+  darkCyan:   '#0088bb',
 };
 
 // Same palette as uint32 ABGR (for ImageData manipulation)

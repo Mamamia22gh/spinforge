@@ -1,6 +1,6 @@
 import { PAL, SEG_A, SEG_B, DIVIDER_COLOR, HUB_BG, HUB_BORDER, RIM_COLOR } from '../gfx/PaletteDB.js';
 import { drawTextCentered, CHAR_H } from '../gfx/BitmapFont.js';
-import { drawSpriteCentered, SPRITE_SIZE } from '../gfx/PixelSprites.js';
+import { drawSpriteCentered, drawAnimSpriteCentered, SPRITE_SIZE } from '../gfx/PixelSprites.js';
 
 // ── Layout (proportional to wheel radius R) ──
 const HUB_P = 0.28;
@@ -605,8 +605,13 @@ export class PixelWheel {
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.clip();
 
-    // Score
-    drawTextCentered(ctx, String(h.score), cx, Math.round(cy - r * 0.25), PAL.gold, 1);
+    // Score with coin icon (coin on right)
+    const scoreStr = String(h.score);
+    const scoreW = scoreStr.length * CHAR_H;
+    const coinSz = SPRITE_SIZE;
+    const totalW = scoreW + 2 + coinSz;
+    drawTextCentered(ctx, scoreStr, Math.round(cx - totalW / 2 + scoreW / 2), Math.round(cy - r * 0.25), PAL.gold, 1);
+    drawAnimSpriteCentered(ctx, 'coin', Math.round(cx - totalW / 2 + scoreW + 2 + coinSz / 2), Math.round(cy - r * 0.25 + CHAR_H / 2), 1, this._time, 6);
 
     // Last symbol sprite
     if (h.lastSymbolId && h.valueFade > 0) {
@@ -638,10 +643,15 @@ export class PixelWheel {
       drawTextCentered(ctx, 'FEVER', cx, Math.round(cy - r * 0.6), col, 1);
     }
 
-    // Value flash
+    // Value flash with coin icon (coin on right)
     if (h.valueFade > 0) {
       ctx.globalAlpha = Math.min(1, h.valueFade);
-      drawTextCentered(ctx, '+' + h.lastValue, cx, Math.round(cy + r * 0.05), PAL.green, 1);
+      const valStr = '+' + h.lastValue;
+      const valW2 = valStr.length * CHAR_H;
+      const coinSz2 = SPRITE_SIZE;
+      const tw2 = valW2 + 2 + coinSz2;
+      drawTextCentered(ctx, valStr, Math.round(cx - tw2 / 2 + valW2 / 2), Math.round(cy + r * 0.05), PAL.green, 1);
+      drawAnimSpriteCentered(ctx, 'coin', Math.round(cx - tw2 / 2 + valW2 + 2 + coinSz2 / 2), Math.round(cy + r * 0.05 + CHAR_H / 2), 1, this._time, 6);
       ctx.globalAlpha = 1;
     }
 
