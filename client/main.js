@@ -203,15 +203,17 @@ class App {
     // ── Parallax offsets ──
     const px = this._mx;   // -1..1
     const py = this._my;
-    const wheelOx = px * 3;    // wheel: 3px max
-    const wheelOy = py * 2;
-    const hudOx = px * 6;      // HUD: 6px max
-    const hudOy = py * 4;
+    const wheelOx = px * 1.5;    // wheel: 1.5px max
+    const wheelOy = py * 1;
+    const periOx = px * 3;       // gauge + slots: 3px max (faster than wheel)
+    const periOy = py * 2;
+    const hudOx = px * 4.5;      // HUD: 4.5px max (fastest)
+    const hudOy = py * 3;
 
-    // Wheel (parallax layer 1)
-    this.wheel.draw(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
+    // Wheel (parallax layer 1) + peripherals (layer 2)
+    this.wheel.draw(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy, periOx - wheelOx, periOy - wheelOy);
 
-    // Title (parallax layer 2 — moves more)
+    // Title (parallax layer 3 — moves most)
     drawTextCentered(ctx, 'SPINFORGE', W / 2 + hudOx, 6 + hudOy, PAL.gold, 3);
 
     // Commit hash (bottom right)

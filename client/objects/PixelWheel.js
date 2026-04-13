@@ -401,8 +401,11 @@ export class PixelWheel {
   //  PIXEL ART RENDERING — direct on context
   // ═══════════════════════════════════════════
 
-  /** Draw the wheel centered at (cx, cy) on the given context. */
-  draw(ctx, cx, cy) {
+  /** Draw the wheel centered at (cx, cy) on the given context.
+   *  @param {number} pox  peripheral offset X (gauge + slots parallax)
+   *  @param {number} poy  peripheral offset Y
+   */
+  draw(ctx, cx, cy, pox = 0, poy = 0) {
     const data = this._data;
     if (!data.length) return;
     const tw = data.reduce((s, w) => s + w.weight, 0);
@@ -547,7 +550,7 @@ export class PixelWheel {
     ctx.restore(); // end rotation
 
     // ── Gauge (ball magazine) ──
-    this._drawGauge(ctx, cx, cy);
+    this._drawGauge(ctx, cx + pox, cy + poy);
 
     // ── Active balls (world space) ──
     for (const b of this._balls) {
@@ -560,7 +563,7 @@ export class PixelWheel {
     }
 
     // ── Relic slots orbiting outside rim ──
-    this._drawOrbitSlots(ctx, cx, cy);
+    this._drawOrbitSlots(ctx, cx + pox, cy + poy);
 
     ctx.restore(); // end tilt
   }
