@@ -402,7 +402,7 @@ class App {
     ctx.fillStyle = PAL.darkGray; ctx.fill();
 
     // Border
-    ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.strokeStyle = PAL.midGray; ctx.lineWidth = 2;
     ctx.stroke();
 
     // Highlight pixel (top edge, 3D bevel)
