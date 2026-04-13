@@ -23,7 +23,7 @@ export const PAL = {
   darkPurple: '#441a66',
 
   neonPink:   '#ff44aa',
-  cyan:       '#66ccff',
+  cyan:       '#44aadd',
   darkCyan:   '#0088bb',
 
   // Diamond shadow tones
