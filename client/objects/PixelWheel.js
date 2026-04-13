@@ -181,6 +181,11 @@ export class PixelWheel {
   highlight(idx) { this._highlights.push({ idx, t: 0 }); }
   get spinning() { return this._angVel > 0.05 || this._balls.some(b => !b.settled); }
   get speed() { return Math.abs(this._angVel); }
+  get gaugeBallCount() {
+    if (this._inGauge) return this._placedBalls.length;
+    if (this._ejecting) return this._ejectQueue.length;
+    return 0;
+  }
   get hubRadius() { return HUB_R; }
   get tilt() { return TILT_Y; }
   get lights() { return this._frameLights; }
@@ -700,12 +705,6 @@ export class PixelWheel {
         r: 6, color: PAL.white, a: 0.06,
       });
     }
-
-    // Counter (right of gauge midpoint)
-    const counterR = OUTER + 10;
-    const counterX = Math.round(cx + counterR);
-    const counterY = Math.round(cy);
-    drawTextCentered(ctx, String(remaining), counterX, counterY - Math.floor(CHAR_H / 2), PAL.white, 1);
   }
 
   _drawOrbitSlots(ctx, cx, cy) {

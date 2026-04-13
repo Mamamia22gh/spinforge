@@ -466,7 +466,7 @@ class App {
     const RING_R = 115;
     const run = this.game.getState().run;
     const score = run ? run.score : 0;
-    const balls = run ? run.ballsLeft : 0;
+    const balls = this.wheel.gaugeBallCount;
 
     // Ring outline
     ctx.beginPath();
@@ -475,11 +475,11 @@ class App {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // 3 items along the right arc
+    // 3 items along the right arc (tighter spacing)
     const items = [
-      { angle: -0.55, sprite: 'coin', anim: true, val: score, col: PAL.gold },
+      { angle: -0.35, sprite: 'coin', anim: true, val: score, col: PAL.gold },
       { angle:  0,    sprite: 'star', anim: false, val: this._diamonds, col: PAL.green },
-      { angle:  0.55, sprite: 'ball', anim: false, val: balls, col: PAL.white },
+      { angle:  0.35, sprite: 'ball', anim: false, val: balls, col: PAL.white },
     ];
 
     for (const it of items) {
@@ -492,6 +492,9 @@ class App {
       }
       drawText(ctx, String(it.val), ix + 7, iy - Math.floor(CHAR_H / 2), it.col, 1);
     }
+
+    // Debug: ball sprite (large, top-left)
+    drawSpriteCentered(ctx, 'ball', 30, 30, 4);
   }
 
   // ── Popups ──
