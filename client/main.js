@@ -314,22 +314,24 @@ class App {
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fillStyle = PAL.gold; ctx.fill();
 
-    // Glass sweep (white band every ~3.5s, BEFORE pressed overlay)
-    const SWEEP_INTERVAL = 3.5;
-    const SWEEP_DUR = 0.25;
-    const sweepT = t % SWEEP_INTERVAL;
-    if (sweepT < SWEEP_DUR) {
-      const p = sweepT / SWEEP_DUR;
-      const sx = -r + p * r * 2;
-      ctx.save();
-      ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
-      ctx.fillStyle = PAL.white;
-      ctx.globalAlpha = 0.45;
-      for (let dy = -r; dy <= r; dy += 1) {
-        ctx.fillRect(Math.round(sx + dy * 0.4), dy, 3, 1);
+    // Glass sweep (idle only, BEFORE pressed overlay)
+    if (!pressed) {
+      const SWEEP_INTERVAL = 3.5;
+      const SWEEP_DUR = 0.25;
+      const sweepT = t % SWEEP_INTERVAL;
+      if (sweepT < SWEEP_DUR) {
+        const p = sweepT / SWEEP_DUR;
+        const sx = -r + p * r * 2;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.clip();
+        ctx.fillStyle = PAL.white;
+        ctx.globalAlpha = 0.65;
+        for (let dy = -r; dy <= r; dy += 1) {
+          ctx.fillRect(Math.round(sx + dy * 0.4), dy, 3, 1);
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
       }
-      ctx.globalAlpha = 1;
-      ctx.restore();
     }
 
     // Pressed overlay (darken)
