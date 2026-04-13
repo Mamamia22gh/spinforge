@@ -5,6 +5,7 @@ import { PAL, SYM_COLORS } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
 import { drawSpriteCentered, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { getSymbol } from '../src/data/symbols.js';
+import { CRTFilter } from './gfx/CRTFilter.js';
 
 // ── Canvas resolution (CSS scales this to viewport with nearest-neighbor) ──
 const W = 480, H = 270;
@@ -39,6 +40,9 @@ class App {
 
     // Dim pattern (checkerboard for overlay dimming)
     this._dimPattern = this._createDimPattern();
+
+    // CRT post-process (barrel distortion + chroma + scanlines + vignette)
+    this._crt = new CRTFilter(W, H);
 
     // Audio
     this._audioCtx = null;
@@ -232,6 +236,9 @@ class App {
 
       this._drawActionBtn(ctx);
     }
+
+    // ── CRT post-process (always last) ──
+    this._crt.apply(ctx);
   }
 
   // ── Drawing helpers ──
