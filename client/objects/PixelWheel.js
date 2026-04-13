@@ -643,49 +643,65 @@ export class PixelWheel {
   _drawOrbitSlots(ctx, cx, cy) {
     const INNER = RIM_R + 3;           // small gap outside rim
     const OUTER = RIM_R + 14;          // slot band thickness
-    const COUNT = 8;
-    const SLOT_FRAC = 0.55;            // each slot fills 55% of its 45° sector
-    const SECTOR = Math.PI * 2 / COUNT;
-    const HALF_ARC = SECTOR * SLOT_FRAC / 2;
+    const SLOT_ARC = 0.28;             // ~16° per slot
+    const PAIR_GAP = 0.06;             // gap between two slots of a pair
 
-    for (let i = 0; i < COUNT; i++) {
-      const center = i * SECTOR - Math.PI / 2; // start from top
-      const a0 = center - HALF_ARC;
-      const a1 = center + HALF_ARC;
-      const dark = i % 2 === 0;
-      const filled = this._slots && this._slots[i];
+    // 4 diagonal corners, 2 slots each
+    const corners = [
+      -Math.PI * 3 / 4,  // top-left
+      -Math.PI / 4,       // top-right
+       Math.PI / 4,       // bottom-right
+       Math.PI * 3 / 4,  // bottom-left
+    ];
 
-      // Arc fill (pocket style)
-      ctx.beginPath();
-      ctx.arc(cx, cy, OUTER, a0, a1);
-      ctx.arc(cx, cy, INNER, a1, a0, true);
-      ctx.closePath();
-      ctx.fillStyle = dark ? SEG_A : SEG_B;
-      ctx.fill();
+    let idx = 0;
+    for (const center of corners) {
+      // Slot A (left of center)
+      const a0A = center - PAIR_GAP / 2 - SLOT_ARC;
+      const a1A = center - PAIR_GAP / 2;
+      this._drawOneSlot(ctx, cx, cy, INNER, OUTER, a0A, a1A, idx++);
 
-      // Radial dividers (black)
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(a0) * INNER, cy + Math.sin(a0) * INNER);
-      ctx.lineTo(cx + Math.cos(a0) * OUTER, cy + Math.sin(a0) * OUTER);
-      ctx.moveTo(cx + Math.cos(a1) * INNER, cy + Math.sin(a1) * INNER);
-      ctx.lineTo(cx + Math.cos(a1) * OUTER, cy + Math.sin(a1) * OUTER);
-      ctx.strokeStyle = DIVIDER_COLOR; ctx.lineWidth = 1; ctx.stroke();
+      // Slot B (right of center)
+      const a0B = center + PAIR_GAP / 2;
+      const a1B = center + PAIR_GAP / 2 + SLOT_ARC;
+      this._drawOneSlot(ctx, cx, cy, INNER, OUTER, a0B, a1B, idx++);
+    }
+  }
 
-      // Content
-      const midR = (INNER + OUTER) / 2;
-      const mx = Math.round(cx + Math.cos(center) * midR);
-      const my = Math.round(cy + Math.sin(center) * midR);
+  _drawOneSlot(ctx, cx, cy, inner, outer, a0, a1, idx) {
+    const filled = this._slots && this._slots[idx];
 
-      if (filled) {
-        try {
-          drawSpriteCentered(ctx, filled.id || 'diamond', mx, my, 1);
-        } catch {
-          drawTextCentered(ctx, '?', mx, my - Math.floor(CHAR_H / 2), PAL.gold, 1);
-        }
-      } else {
-        ctx.fillStyle = PAL.midGray;
-        ctx.fillRect(mx, my, 1, 1);
+    // Arc fill (same color for all)
+    ctx.beginPath();
+    ctx.arc(cx, cy, outer, a0, a1);
+    ctx.arc(cx, cy, inner, a1, a0, true);
+    ctx.closePath();
+    ctx.fillStyle = SEG_A;
+    ctx.fill();
+
+    // Radial dividers
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a0) * inner, cy + Math.sin(a0) * inner);
+    ctx.lineTo(cx + Math.cos(a0) * outer, cy + Math.sin(a0) * outer);
+    ctx.moveTo(cx + Math.cos(a1) * inner, cy + Math.sin(a1) * inner);
+    ctx.lineTo(cx + Math.cos(a1) * outer, cy + Math.sin(a1) * outer);
+    ctx.strokeStyle = DIVIDER_COLOR; ctx.lineWidth = 1; ctx.stroke();
+
+    // Content
+    const midAngle = (a0 + a1) / 2;
+    const midR = (inner + outer) / 2;
+    const mx = Math.round(cx + Math.cos(midAngle) * midR);
+    const my = Math.round(cy + Math.sin(midAngle) * midR);
+
+    if (filled) {
+      try {
+        drawSpriteCentered(ctx, filled.id || 'diamond', mx, my, 1);
+      } catch {
+        drawTextCentered(ctx, '?', mx, my - Math.floor(CHAR_H / 2), PAL.gold, 1);
       }
+    } else {
+      ctx.fillStyle = PAL.midGray;
+      ctx.fillRect(mx, my, 1, 1);
     }
   }
 }
