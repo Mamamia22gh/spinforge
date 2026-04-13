@@ -329,20 +329,6 @@ class App {
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fillStyle = PAL.darkGold; ctx.fill();
 
-    // Bevel: inner ring highlight (top half = gold, bottom half = black)
-    ctx.save();
-    ctx.beginPath(); ctx.arc(0, 0, r - 1, 0, Math.PI * 2); ctx.clip();
-
-    // Top highlight ring
-    ctx.strokeStyle = PAL.gold; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(0, 0, r - 2, Math.PI, 0); ctx.stroke();
-
-    // Bottom shadow ring
-    ctx.strokeStyle = PAL.black; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI); ctx.stroke();
-
-    ctx.restore();
-
     // ── Glass sweep (white band every ~4s) ──
     const SWEEP_INTERVAL = 3.5;
     const SWEEP_DUR = 0.25;
