@@ -767,7 +767,7 @@ export class PixelWheel {
 
     if (filled) {
       try {
-        drawSpriteCentered(ctx, filled.id || 'diamond', mx, my, 1);
+        drawSpriteCentered(ctx, filled.id || 'star', mx, my, 1);
       } catch {
         drawTextCentered(ctx, '?', mx, my - Math.floor(CHAR_H / 2), PAL.gold, 1);
       }

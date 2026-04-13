@@ -26,9 +26,8 @@ export const SYMBOLS = [
   { id: 'bell',     name: 'Cloche',    emoji: '🔔', color: 'gold',   baseValue: 22,  rarity: 'uncommon',  startsUnlocked: false, specialEffect: 'extra_chips' },
 
   // ── Rares ──
-  { id: 'diamond',  name: 'Diamant',   emoji: '💎', color: 'white',  baseValue: 30,  rarity: 'rare',      startsUnlocked: false, specialEffect: 'multiply_all' },
   { id: 'seven',    name: 'Sept',      emoji: '7️⃣', color: 'red',    baseValue: 35,  rarity: 'rare',      startsUnlocked: false, specialEffect: 'jackpot' },
-  { id: 'star',     name: 'Étoile',    emoji: '⭐', color: 'gold',   baseValue: 25,  rarity: 'rare',      startsUnlocked: false, specialEffect: 'wildcard' },
+  { id: 'star',     name: 'Étoile',    emoji: '⭐', color: 'gold',   baseValue: 25,  rarity: 'rare',      startsUnlocked: false, specialEffect: 'multiply_all' },
 
   // ── Legendaries ──
   { id: 'void',     name: 'Void',      emoji: '🌀', color: 'void',   baseValue: 0,   rarity: 'legendary', startsUnlocked: false, specialEffect: 'void_burst' },

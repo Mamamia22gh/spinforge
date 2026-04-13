@@ -285,7 +285,7 @@ class App {
 
     // Diamond counter (top-right, parallax layer 3)
     if (this._diamonds > 0) {
-      drawAnimSpriteCentered(ctx, 'diamond', W - 30 + hudOx, 10 + hudOy, 2, this._time, 4);
+      drawSpriteCentered(ctx, 'star', W - 30 + hudOx, 10 + hudOy, 2);
       drawText(ctx, String(this._diamonds), W - 20 + hudOx, 6 + hudOy, PAL.white, 1);
     }
 
@@ -490,7 +490,7 @@ class App {
     const labelH = 8;
     let startY = 4;
 
-    for (const id of ['coin', 'diamond']) {
+    for (const id of ['coin']) {
       const count = getAnimFrameCount(id);
       drawText(ctx, id.toUpperCase(), 4, startY, PAL.white, 1);
       startY += labelH + 2;

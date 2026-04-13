@@ -110,17 +110,6 @@ const SPRITES = {
   ],
 
   // ── Rares ──
-  diamond: [ // cut gem (cyan)
-    '.........',
-    '...bBC...',
-    '..bBBBC..',
-    '.bbBBBCC.',
-    '..12223..',
-    '...123...',
-    '....2....',
-    '.........',
-    '.........',
-  ],
   seven: [ // lucky 7
     '.RRRRRRR.',
     '.RRRRRRR.',
@@ -284,41 +273,6 @@ const ANIM_SPRITES = {
       '.........',
     ],
   ],
-  diamond: [
-    [ // Frame 0: faces b|B|C
-      '.........',
-      '...bBC...',
-      '..bBBBC..',
-      '.bbBBBCC.',
-      '..12223..',
-      '...123...',
-      '....2....',
-      '.........',
-      '.........',
-    ],
-    [ // Frame 1: faces B|C|b
-      '.........',
-      '...BCb...',
-      '..BCCCb..',
-      '.BBCCCbb.',
-      '..23331..',
-      '...231...',
-      '....3....',
-      '.........',
-      '.........',
-    ],
-    [ // Frame 2: faces C|b|B
-      '.........',
-      '...CbB...',
-      '..CbbbB..',
-      '.CCbbbBB.',
-      '..31112..',
-      '...312...',
-      '....1....',
-      '.........',
-      '.........',
-    ],
-  ],
 };
 
 const _animCache = new Map();
@@ -349,7 +303,7 @@ function _renderAnimFrame(id, frame) {
 
 /**
  * Draw an animated sprite centered at (cx, cy).
- * @param {string} id  'coin' or 'diamond'
+ * @param {string} id  'coin'
  * @param {number} time  game time in seconds (picks frame)
  * @param {number} fps  animation speed (default 6)
  */
