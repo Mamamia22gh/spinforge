@@ -358,9 +358,19 @@ class App {
     // Raised by default, flush when pressed
     if (!pressed) ctx.translate(0, -2);
 
-    // Fill (bright gold)
+    // Fill (blinks gold/darkGold at 4Hz when quota reached during spin)
+    const run = this.game.getState().run;
+    const quota = run ? getQuota(run.round) : 0;
+    const score = run ? run.score : 0;
+    const quotaReached = pressed && score >= quota;
+
+    if (quotaReached) {
+      ctx.fillStyle = Math.sin(t * 8 * Math.PI) > 0 ? PAL.gold : PAL.darkGold;
+    } else {
+      ctx.fillStyle = PAL.gold;
+    }
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fillStyle = PAL.gold; ctx.fill();
+    ctx.fill();
 
     // Glass sweep (idle only, BEFORE pressed overlay)
     if (!pressed) {
@@ -382,8 +392,8 @@ class App {
       }
     }
 
-    // Pressed overlay (darken)
-    if (pressed) {
+    // Pressed overlay (darken, only if quota NOT yet reached)
+    if (pressed && !quotaReached) {
       ctx.fillStyle = PAL.black;
       ctx.globalAlpha = 0.3;
       ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -392,9 +402,16 @@ class App {
     }
 
     if (pressed) {
-      // During spin: show score / quota
-      drawTextCentered(ctx, String(score), 0, -Math.floor(CHAR_H * 1.5), PAL.gold, 2);
-      drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
+      if (quotaReached) {
+        // Quota reached: BONUS + surplus
+        const surplus = score - quota;
+        drawTextCentered(ctx, 'BONUS', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 1);
+        drawTextCentered(ctx, '+' + surplus, 0, Math.floor(CHAR_H * 0.5), PAL.gold, 2);
+      } else {
+        // During spin: show score / quota
+        drawTextCentered(ctx, String(score), 0, -Math.floor(CHAR_H * 1.5), PAL.gold, 2);
+        drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 0.5), PAL.darkGray, 1);
+      }
     } else {
       // Idle: SPIN label + quota below
       drawTextCentered(ctx, 'SPIN', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 2);
