@@ -333,17 +333,7 @@ export class PixelWheel {
   }
 
   _collideLabelWall(b) {
-    // Inner wall at pocket outer edge — balls can't enter number ring
-    const d = Math.sqrt(b.x * b.x + b.y * b.y);
-    const wall = POCKET_OUTER - BALL_RADIUS;
-    if (d <= wall) return;
-    const nx = b.x / d, ny = b.y / d;
-    b.x = nx * wall; b.y = ny * wall;
-    const dot = b.vx * nx + b.vy * ny;
-    if (dot > 0) {
-      b.vx -= 2 * dot * nx; b.vy -= 2 * dot * ny;
-      b.vx *= RESTITUTION; b.vy *= RESTITUTION;
-    }
+    // Disabled — gravity boost handles settling through number ring
   }
 
   _collideDividers(b) {
