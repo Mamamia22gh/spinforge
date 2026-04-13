@@ -4,15 +4,15 @@ import { drawTextCentered, CHAR_H } from '../gfx/BitmapFont.js';
 import { drawSpriteCentered, SPRITE_SIZE } from '../gfx/PixelSprites.js';
 
 // ── Layout (proportional to wheel radius R) ──
-const HUB_P = 0.28;           // hub radius (big, black)
-const POCKET_INNER_P = 0.30;  // pocket start
-const POCKET_OUTER_P = 0.37;  // pocket end (thinner)
-const LABEL_P = 0.425;        // number ring center
-const LABEL_INNER_P = 0.38;   // number ring inner
-const LABEL_OUTER_P = 0.48;   // number ring outer
-const RIM_P = 0.55;           // outer rim
+const HUB_P = 0.28;
+const POCKET_INNER_P = 0.30;
+const POCKET_OUTER_P = 0.37;
+const LABEL_P = 0.425;
+const LABEL_INNER_P = 0.38;
+const LABEL_OUTER_P = 0.48;
+const RIM_P = 0.55;
 
-// ── Physics (in absolute px, set from R on first draw) ──
+// ── Physics (absolute px, set from R) ──
 let HUB_R, POCKET_INNER, POCKET_OUTER, LABEL_INNER, LABEL_OUTER, RIM_R;
 
 const BALL_RADIUS_P = 0.008;
@@ -30,18 +30,14 @@ const PHYSICS_DT = 1 / 120;
 const SPIN_MIN = 14;
 const SPIN_MAX = 20;
 const SPIN_DECEL = 0.9975;
-const GRAVITY_BOOST_THRESHOLD = 2.5; // below this wheel speed, gravity ramps up
-const GRAVITY_BOOST_MAX = 6;          // max gravity multiplier when wheel nearly stopped
+const GRAVITY_BOOST_THRESHOLD = 2.5;
+const GRAVITY_BOOST_MAX = 6;
 
 export class PixelWheel {
-  constructor(canvas) {
-    this._canvas = canvas;
-    this._ctx = canvas.getContext('2d');
-    this.R = 0;
-
-    // Low-res offscreen buffer for pixel art crunch
-    this._lo = document.createElement('canvas');
-    this._loCtx = this._lo.getContext('2d');
+  constructor() {
+    // Fixed physics radius — independent of canvas
+    this.R = 150;
+    this._updateRadii();
 
     this._data = [];
     this._angle = 0;
@@ -56,11 +52,11 @@ export class PixelWheel {
     this.onPegHit = null;
     this._lastPeg = 0;
 
-    // Hub screen state (set by main.js)
+    // Hub screen state
     this._hub = {
       lastSymbolId: '', lastValue: 0, valueFade: 0,
       streak: 0, multi: 1, fever: false,
-      history: [],   // last N symbolIds
+      history: [],
       message: '', messageFade: 0,
       score: 0, scoreTarget: 0,
     };
@@ -86,7 +82,6 @@ export class PixelWheel {
   }
 
   placeBalls(n) {
-    if (!this.R) return;
     this._placedBalls = [];
     this._balls = [];
     this._results = [];
@@ -109,8 +104,6 @@ export class PixelWheel {
         return { x: wx, y: wy, vx: -wy * this._angVel * 0.7, vy: wx * this._angVel * 0.7, settled: false, timer: 0 };
       });
       this._placedBalls = [];
-
-      // Safety timeout — force settle after 8s
       this._spinTimeout = setTimeout(() => {
         if (!this._onDone) return;
         for (const b of this._balls) {
@@ -144,7 +137,6 @@ export class PixelWheel {
       this._highlights[i].t += dt;
       if (this._highlights[i].t > 1.5) this._highlights.splice(i, 1);
     }
-    // Hub score tick
     if (this._hub.score < this._hub.scoreTarget) {
       const diff = this._hub.scoreTarget - this._hub.score;
       this._hub.score += Math.max(1, Math.ceil(diff * 0.12));
@@ -152,7 +144,6 @@ export class PixelWheel {
     }
     this._hub.valueFade = Math.max(0, this._hub.valueFade - dt);
     this._hub.messageFade = Math.max(0, this._hub.messageFade - dt);
-
     this._acc += dt;
     while (this._acc >= PHYSICS_DT) { this._step(PHYSICS_DT); this._acc -= PHYSICS_DT; }
   }
@@ -171,7 +162,6 @@ export class PixelWheel {
     for (const b of this._balls) {
       if (b.settled) continue;
       const d = Math.sqrt(b.x * b.x + b.y * b.y);
-      // Bowl gravity — ramps up when wheel slows (ball drops into pockets)
       const gravMul = Math.abs(this._angVel) < GRAVITY_BOOST_THRESHOLD
         ? 1 + (GRAVITY_BOOST_MAX - 1) * (1 - Math.abs(this._angVel) / GRAVITY_BOOST_THRESHOLD)
         : 1;
@@ -304,43 +294,17 @@ export class PixelWheel {
   }
 
   // ═══════════════════════════════════════════
-  //  PIXEL ART RENDERING — low-res + scale up
+  //  PIXEL ART RENDERING — direct on context
   // ═══════════════════════════════════════════
 
-  draw() {
-    const mainCtx = this._ctx;
-    const W = this._canvas.width, H = this._canvas.height;
-
-    // Resize lo canvas (half resolution → 240×160)
-    const loW = W >> 1;
-    const loH = H >> 1;
-    if (this._lo.width !== loW) this._lo.width = loW;
-    if (this._lo.height !== loH) this._lo.height = loH;
-    const S = loW / W; // 0.5
-
-    const ctx = this._loCtx;
-    const cx = loW >> 1;
-    const cy = loH >> 1;
-
-    const newR = Math.min(W, H) * 0.48;
-    if (Math.abs(newR - this.R) > 1) {
-      this.R = newR;
-      this._updateRadii();
-    }
-
+  /** Draw the wheel centered at (cx, cy) on the given context. */
+  draw(ctx, cx, cy) {
     const data = this._data;
-    ctx.fillStyle = PAL.black;
-    ctx.fillRect(0, 0, loW, loH);
-    if (!data.length || !this.R) {
-      mainCtx.imageSmoothingEnabled = false;
-      mainCtx.drawImage(this._lo, 0, 0, loW, loH, 0, 0, W, H);
-      return;
-    }
-
+    if (!data.length) return;
     const tw = data.reduce((s, w) => s + w.weight, 0);
 
     // ── Rim ──
-    ctx.beginPath(); ctx.arc(cx, cy, RIM_R * S, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(cx, cy, RIM_R, 0, Math.PI * 2);
     ctx.strokeStyle = RIM_COLOR; ctx.lineWidth = 1; ctx.stroke();
 
     // ── Rotated wheel ──
@@ -354,22 +318,22 @@ export class PixelWheel {
       const sym = getSymbol(seg.symbolId);
       const symCol = SYM_COLORS[sym.color] || { fg: PAL.lightGray, bg: PAL.midGray };
       const dark = i % 2 === 0;
+      const mid = off + angle / 2;
 
-      // ── Pocket (flat fill — no gradient) ──
+      // ── Pocket (flat fill) ──
       ctx.beginPath();
-      ctx.arc(0, 0, POCKET_OUTER * S, off, off + angle);
-      ctx.arc(0, 0, POCKET_INNER * S, off + angle, off, true);
+      ctx.arc(0, 0, POCKET_OUTER, off, off + angle);
+      ctx.arc(0, 0, POCKET_INNER, off + angle, off, true);
       ctx.closePath();
       ctx.fillStyle = dark ? SEG_A : SEG_B;
       ctx.fill();
 
       // Color pip in pocket center
-      const mid = off + angle / 2;
-      const pipR = (POCKET_INNER + POCKET_OUTER) * 0.5 * S;
+      const pipR = (POCKET_INNER + POCKET_OUTER) * 0.5;
       const pipX = Math.round(Math.cos(mid) * pipR);
       const pipY = Math.round(Math.sin(mid) * pipR);
       ctx.fillStyle = symCol.fg;
-      ctx.fillRect(pipX - 1, pipY - 1, 2, 2);
+      ctx.fillRect(pipX - 1, pipY - 1, 3, 3);
 
       // Highlight flash
       const hl = this._highlights.find(h => h.idx === i);
@@ -380,28 +344,26 @@ export class PixelWheel {
         else { a = Math.max(0, 1 - (hl.t - 0.4) / 1.1) * 0.5; fillCol = symCol.fg; }
         ctx.fillStyle = fillCol;
         ctx.globalAlpha = a;
-        // Flash pocket
         ctx.fill();
-        // Flash number ring
         ctx.beginPath();
-        ctx.arc(0, 0, LABEL_OUTER * S, off, off + angle);
-        ctx.arc(0, 0, LABEL_INNER * S, off + angle, off, true);
+        ctx.arc(0, 0, LABEL_OUTER, off, off + angle);
+        ctx.arc(0, 0, LABEL_INNER, off + angle, off, true);
         ctx.closePath();
         ctx.fill();
         ctx.globalAlpha = 1;
       }
 
-      // ── Number ring (casino red/black — flat) ──
+      // ── Number ring (casino red/black) ──
       ctx.beginPath();
-      ctx.arc(0, 0, LABEL_OUTER * S, off, off + angle);
-      ctx.arc(0, 0, LABEL_INNER * S, off + angle, off, true);
+      ctx.arc(0, 0, LABEL_OUTER, off, off + angle);
+      ctx.arc(0, 0, LABEL_INNER, off + angle, off, true);
       ctx.closePath();
       ctx.fillStyle = dark ? PAL.darkRed : PAL.black;
       ctx.fill();
       ctx.strokeStyle = PAL.black; ctx.lineWidth = 0.5; ctx.stroke();
 
       // Number (bitmap font)
-      const numR = this.R * LABEL_P * S;
+      const numR = this.R * LABEL_P;
       ctx.save();
       ctx.translate(Math.cos(mid) * numR, Math.sin(mid) * numR);
       ctx.rotate(mid + Math.PI / 2);
@@ -411,26 +373,24 @@ export class PixelWheel {
       // ── Divider (gold 1px) ──
       const dcos = Math.cos(off), dsin = Math.sin(off);
       ctx.beginPath();
-      ctx.moveTo(dcos * POCKET_INNER * S, dsin * POCKET_INNER * S);
-      ctx.lineTo(dcos * LABEL_OUTER * S, dsin * LABEL_OUTER * S);
+      ctx.moveTo(dcos * POCKET_INNER, dsin * POCKET_INNER);
+      ctx.lineTo(dcos * LABEL_OUTER, dsin * LABEL_OUTER);
       ctx.strokeStyle = DIVIDER_COLOR; ctx.lineWidth = 1; ctx.stroke();
 
       off += angle;
     }
 
     // ── Placed balls (rotate with wheel) ──
-    for (const pb of this._placedBalls) {
-      this._drawPixelBall(ctx, pb.localX * S, pb.localY * S, false);
-    }
+    for (const pb of this._placedBalls) this._drawPixelBall(ctx, pb.localX, pb.localY, false);
 
     // ── Settled balls (rotate with wheel) ──
     for (const b of this._balls) {
       if (!b.settled || b.localX === undefined) continue;
-      this._drawPixelBall(ctx, b.localX * S, b.localY * S, true);
+      this._drawPixelBall(ctx, b.localX, b.localY, true);
     }
 
-    // ── Hub circle (flat black + gold border) ──
-    ctx.beginPath(); ctx.arc(0, 0, HUB_R * S, 0, Math.PI * 2);
+    // ── Hub circle ──
+    ctx.beginPath(); ctx.arc(0, 0, HUB_R, 0, Math.PI * 2);
     ctx.fillStyle = HUB_BG; ctx.fill();
     ctx.strokeStyle = HUB_BORDER; ctx.lineWidth = 1; ctx.stroke();
 
@@ -439,44 +399,31 @@ export class PixelWheel {
     // ── Active balls (world space) ──
     for (const b of this._balls) {
       if (b.settled) continue;
-      this._drawPixelBall(ctx, cx + b.x * S, cy + b.y * S, false);
+      this._drawPixelBall(ctx, cx + b.x, cy + b.y, false);
     }
 
-    // ── Hub Screen (non-rotating, screen coords) ──
-    this._drawHubScreen(ctx, cx, cy, S);
-
-    // ── Scale up to main canvas (nearest-neighbor) ──
-    mainCtx.imageSmoothingEnabled = false;
-    mainCtx.drawImage(this._lo, 0, 0, loW, loH, 0, 0, W, H);
+    // ── Hub Screen (non-rotating) ──
+    this._drawHubScreen(ctx, cx, cy);
   }
 
   _drawPixelBall(ctx, bx, by, settled) {
     const px = Math.round(bx);
     const py = Math.round(by);
     const col = settled ? PAL.gold : PAL.white;
-    const hi = PAL.white;
     const sh = settled ? PAL.darkGold : PAL.lightGray;
-
-    // 3×3 diamond:  .X.
-    //               XXX
-    //               .X.
     ctx.fillStyle = col;
     ctx.fillRect(px, py - 1, 1, 1);
     ctx.fillRect(px - 1, py, 3, 1);
     ctx.fillRect(px, py + 1, 1, 1);
-
-    // Highlight pixel (top-left)
-    ctx.fillStyle = hi;
+    ctx.fillStyle = PAL.white;
     ctx.fillRect(px - 1, py - 1, 1, 1);
-
-    // Shadow pixel (bottom-right)
     ctx.fillStyle = sh;
     ctx.fillRect(px + 1, py + 1, 1, 1);
   }
 
-  _drawHubScreen(ctx, cx, cy, S) {
+  _drawHubScreen(ctx, cx, cy) {
     const h = this._hub;
-    const r = HUB_R * S - 2;
+    const r = HUB_R - 3;
     if (r < 5) return;
 
     ctx.save();
@@ -484,20 +431,20 @@ export class PixelWheel {
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.clip();
 
-    // Score (gold, centered)
-    drawTextCentered(ctx, String(h.score), cx, Math.round(cy - r * 0.3), PAL.gold, 1);
+    // Score
+    drawTextCentered(ctx, String(h.score), cx, Math.round(cy - r * 0.25), PAL.gold, 1);
 
-    // Last symbol sprite (on value flash)
+    // Last symbol sprite
     if (h.lastSymbolId && h.valueFade > 0) {
       ctx.globalAlpha = Math.min(1, h.valueFade);
-      drawSpriteCentered(ctx, h.lastSymbolId, cx, Math.round(cy + 1), 1);
+      drawSpriteCentered(ctx, h.lastSymbolId, cx, Math.round(cy + 2), 2);
       ctx.globalAlpha = 1;
     }
 
     // History row (colored pips)
     if (h.history.length > 0) {
       const total = h.history.length;
-      const spacing = Math.min(4, Math.floor((r * 1.4) / total));
+      const spacing = Math.min(6, Math.floor((r * 1.4) / total));
       const startX = Math.round(cx - ((total - 1) * spacing) / 2);
       const histY = Math.round(cy + r * 0.55);
       for (let i = 0; i < total; i++) {
@@ -506,7 +453,7 @@ export class PixelWheel {
           const col = SYM_COLORS[sym.color] || { fg: PAL.lightGray };
           ctx.fillStyle = col.fg;
         } catch { ctx.fillStyle = PAL.lightGray; }
-        ctx.fillRect(startX + i * spacing, histY, 2, 2);
+        ctx.fillRect(startX + i * spacing, histY, 3, 3);
       }
     }
 
@@ -518,7 +465,7 @@ export class PixelWheel {
     // Fever
     if (h.fever) {
       const col = Math.sin(this._time * 8) > 0 ? PAL.red : PAL.gold;
-      drawTextCentered(ctx, 'FEVER', cx, Math.round(cy - r * 0.65), col, 1);
+      drawTextCentered(ctx, 'FEVER', cx, Math.round(cy - r * 0.6), col, 1);
     }
 
     // Value flash
@@ -531,7 +478,7 @@ export class PixelWheel {
     // Message flash
     if (h.messageFade > 0) {
       ctx.globalAlpha = Math.min(1, h.messageFade);
-      drawTextCentered(ctx, h.message, cx, Math.round(cy - r * 0.5), PAL.gold, 1);
+      drawTextCentered(ctx, h.message, cx, Math.round(cy - r * 0.45), PAL.gold, 1);
       ctx.globalAlpha = 1;
     }
 

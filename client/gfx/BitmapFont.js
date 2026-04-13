@@ -108,5 +108,28 @@ export function drawTextCentered(ctx, text, cx, y, color, scale = 1) {
   drawText(ctx, text, Math.round(cx - w / 2), y, color, scale);
 }
 
+/**
+ * Draw text with word-wrap inside maxW pixels.
+ * Returns total height used.
+ */
+export function drawTextWrapped(ctx, text, x, y, maxW, color, scale = 1) {
+  const str = text.toUpperCase();
+  const words = str.split(' ');
+  let line = '';
+  let ly = y;
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (measureText(test) * scale > maxW && line) {
+      drawText(ctx, line, x, ly, color, scale);
+      ly += (H + 2) * scale;
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) drawText(ctx, line, x, ly, color, scale);
+  return ly + H * scale - y;
+}
+
 export const CHAR_W = W;
 export const CHAR_H = H;

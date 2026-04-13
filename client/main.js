@@ -1,118 +1,121 @@
 import { createGame } from '../src/index.js';
 import { BALANCE, getQuota } from '../src/data/balance.js';
 import { PixelWheel } from './objects/PixelWheel.js';
+import { PAL, SYM_COLORS } from './gfx/PaletteDB.js';
+import { drawText, drawTextCentered, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
+import { drawSpriteCentered, SPRITE_SIZE } from './gfx/PixelSprites.js';
+import { getSymbol } from '../src/data/symbols.js';
+
+// ── Canvas resolution (CSS scales this to viewport with nearest-neighbor) ──
+const W = 480, H = 270;
+const WHEEL_CX = 240, WHEEL_CY = 125;
 
 class App {
   constructor() {
+    this._canvas = document.getElementById('game');
+    this._canvas.width = W;
+    this._canvas.height = H;
+    this._ctx = this._canvas.getContext('2d');
+
     this.game = createGame({ seed: Date.now() });
-    this.wheel = new PixelWheel(document.getElementById('wheel-canvas'));
+    this.wheel = new PixelWheel();
     this._spinning = false;
+    this._showTitle = true;
+    this._time = 0;
+    this._pops = [];
 
-    // DOM refs
-    this._titleScreen = document.getElementById('title-screen');
-    this._titleStars = document.getElementById('title-stars');
-    this._titleBest = document.getElementById('title-best');
-    this._hudLeft = document.getElementById('hud-left');
-    this._hudRight = document.getElementById('hud-right');
-    this._hudRound = document.getElementById('hud-round');
-    this._hudQuota = document.getElementById('hud-quota');
-    this._hudBalls = document.getElementById('hud-balls');
-    this._hudScore = document.getElementById('hud-score');
-    this._btn = document.getElementById('btn-action');
-    this._hint = document.getElementById('hint-text');
-    this._overlay = document.getElementById('overlay');
-    this._winNotif = document.getElementById('win-notif');
-    this._bottomBar = document.getElementById('bottom-bar');
-
-    this._modSlotsEl = document.getElementById('mod-slots');
-    this._modSlotCount = 8; // 8 orbital slots
-    this._modSlotEls = [];
-    this._buildModSlots();
+    // Clickable regions (computed each frame)
+    this._btnStart = null;
+    this._btnAction = null;
+    this._choiceCards = null;
+    this._shopCards = null;
 
     // Init default wheel
     const defaultWheel = BALANCE.INITIAL_WHEEL.map((id, i) => ({
       id: 'seg_' + i, symbolId: id, weight: 1, modifiers: [],
     }));
     this.wheel.setWheel(defaultWheel);
+    this.wheel.placeBalls(BALANCE.BALLS_PER_ROUND);
+
+    // Dim pattern (checkerboard for overlay dimming)
+    this._dimPattern = this._createDimPattern();
 
     // Audio
     this._audioCtx = null;
     this.wheel.onPegHit = () => this._tick();
 
-    // Events
-    document.getElementById('btn-start').addEventListener('click', () => this._startGame());
-    this._btn.addEventListener('click', () => this._onAction());
-
-    // Resize canvas to viewport
-    this._resize();
-    window.addEventListener('resize', () => this._resize());
-
-    // Show title meta
-    this._updateTitle();
+    // Input
+    this._canvas.addEventListener('click', e => this._handleClick(e));
 
     // Render loop
     this._lastTime = 0;
     requestAnimationFrame(t => this._loop(t));
   }
 
-  _resize() {
-    const c = this.wheel._canvas;
-    c.width = 480;
-    c.height = 320;
-    this.wheel.R = Math.min(c.width, c.height) * 0.48;
-    this.wheel._updateRadii();
-    const state = this.game.getState();
-    const ballCount = state.run ? state.run.ballsLeft : BALANCE.BALLS_PER_ROUND;
-    this.wheel.placeBalls(ballCount);
+  // ── Input ──
+  _mapCoords(e) {
+    const rect = this._canvas.getBoundingClientRect();
+    return {
+      x: Math.floor((e.clientX - rect.left) / rect.width * W),
+      y: Math.floor((e.clientY - rect.top) / rect.height * H),
+    };
   }
 
-  _updateTitle() {
-    const meta = this.game.getMeta();
-    this._titleStars.textContent = meta.totalStars;
-    this._titleBest.textContent = meta.bestRound;
+  _hitBtn(btn, x, y) {
+    return btn && x >= btn.x && x < btn.x + btn.w && y >= btn.y && y < btn.y + btn.h;
   }
 
-  _startGame() {
+  _handleClick(e) {
     this._initAudio();
-    this._titleScreen.classList.add('hidden');
-    this._hudLeft.style.display = '';
-    this._hudRight.style.display = '';
-    this._bottomBar.style.display = '';
+    const { x, y } = this._mapCoords(e);
 
+    if (this._showTitle) {
+      if (this._hitBtn(this._btnStart, x, y)) this._startGame();
+      return;
+    }
+
+    const phase = this.game.getPhase();
+
+    // Choice cards
+    if (phase === 'CHOICE' && this._choiceCards) {
+      for (let i = 0; i < this._choiceCards.length; i++) {
+        if (this._hitBtn(this._choiceCards[i], x, y)) {
+          const run = this.game.getState().run;
+          const c = run.currentChoices[i];
+          if (c.type === 'add_symbol' || c.type === 'upgrade') this.game.makeChoice(i);
+          else this.game.makeChoice(i, 0);
+          this._playSelect();
+          this._syncWheel();
+          return;
+        }
+      }
+    }
+
+    // Shop cards
+    if (phase === 'SHOP' && this._shopCards) {
+      for (let i = 0; i < this._shopCards.length; i++) {
+        if (this._hitBtn(this._shopCards[i], x, y)) {
+          const run = this.game.getState().run;
+          if (run.shopCurrency >= run.shopOfferings[i].finalCost) {
+            this.game.shopBuyRelic(i);
+            this._playCoin();
+          }
+          return;
+        }
+      }
+    }
+
+    // Action button
+    if (this._hitBtn(this._btnAction, x, y)) {
+      this._onAction();
+    }
+  }
+
+  // ── Game flow ──
+  _startGame() {
+    this._showTitle = false;
     this.game.startRun();
     this._syncWheel();
-    this._updateUI();
-  }
-
-  _onAction() {
-    this._initAudio();
-    const phase = this.game.getPhase();
-    const state = this.game.getState();
-
-    if (phase === 'IDLE' && !this._spinning) {
-      this._doSpin();
-    } else if (phase === 'RESULTS') {
-      this._overlay.classList.remove('active');
-      this.game.continueFromResults();
-      this._updateUI();
-    } else if (phase === 'CHOICE') {
-      this.game.skipChoice();
-      this._updateUI();
-    } else if (phase === 'SHOP') {
-      const run = state.run;
-      const idx = run.shopOfferings.findIndex(o => run.shopCurrency >= o.finalCost);
-      if (idx >= 0) this.game.shopBuyRelic(idx);
-      else this.game.endShop();
-      if (this.game.getPhase() === 'IDLE') this._syncWheel();
-      this._updateUI();
-    } else if (phase === 'GAME_OVER' || phase === 'VICTORY') {
-      this._overlay.classList.remove('active');
-      this._hudLeft.style.display = 'none';
-      this._hudRight.style.display = 'none';
-      this._bottomBar.style.display = 'none';
-      this._titleScreen.classList.remove('hidden');
-      this._updateTitle();
-    }
   }
 
   _syncWheel() {
@@ -123,17 +126,28 @@ class App {
     }
   }
 
+  _onAction() {
+    const phase = this.game.getPhase();
+    if (phase === 'IDLE' && !this._spinning) {
+      this._doSpin();
+    } else if (phase === 'RESULTS') {
+      this.game.continueFromResults();
+    } else if (phase === 'CHOICE') {
+      this.game.skipChoice();
+    } else if (phase === 'SHOP') {
+      this.game.endShop();
+      this._syncWheel();
+    } else if (phase === 'GAME_OVER' || phase === 'VICTORY') {
+      this._showTitle = true;
+    }
+  }
+
   async _doSpin() {
     if (this._spinning) return;
     this._spinning = true;
-    this._overlay.classList.remove('active');
 
     const run = this.game.getState().run;
-    this._updateHUD(run);
     this.wheel.placeBalls(run.ballsLeft);
-    this._btn.disabled = true;
-    this._btn.textContent = '...';
-
     this._playSpin();
     await this._delay(400);
     const results = await this.wheel.spin();
@@ -152,227 +166,320 @@ class App {
       this.wheel.hubSetFever(run2.fever?.active ?? false);
 
       if (run2.colorStreak >= 2) {
-        this.wheel.hubMessage(`STREAK ×${run2.colorStreak}`);
+        this.wheel.hubMessage('STREAK X' + run2.colorStreak);
         this._playStreak(run2.colorStreak);
       }
 
       this._playReveal(i, results.length);
-      this._pop(`+${result.value}`, result.result.symbol.emoji);
-      this._flash(`${result.result.symbol.emoji} +${result.value}`);
-      this._updateHUD(this.game.getState().run);
+      this._pop('+' + result.value);
       await this._delay(450);
     }
 
     this._spinning = false;
-    this._updateUI();
   }
 
-  // ── Mod Slots ──
-  _buildModSlots() {
-    this._modSlotsEl.innerHTML = '';
-    this._modSlotEls = [];
-    for (let i = 0; i < this._modSlotCount; i++) {
-      const el = document.createElement('div');
-      el.className = 'mod-slot locked';
-      el.innerHTML = '🔒';
-      const label = document.createElement('div');
-      label.className = 'slot-label';
-      label.textContent = `SLOT ${i + 1}`;
-      el.appendChild(label);
-      this._modSlotsEl.appendChild(el);
-      this._modSlotEls.push(el);
+  _pop(text) {
+    this._pops.push({
+      text,
+      x: WHEEL_CX + (Math.random() - 0.5) * 60,
+      y: WHEEL_CY - 50 - Math.random() * 20,
+      age: 0,
+    });
+  }
+
+  // ── Render loop ──
+  _loop(time) {
+    requestAnimationFrame(t => this._loop(t));
+    const dt = Math.min((time - this._lastTime) / 1000, 0.05);
+    this._lastTime = time;
+    this._time += dt;
+
+    this.wheel.update(dt);
+
+    // Update pops
+    for (let i = this._pops.length - 1; i >= 0; i--) {
+      this._pops[i].age += dt;
+      this._pops[i].y -= dt * 25;
+      if (this._pops[i].age > 1.5) this._pops.splice(i, 1);
+    }
+
+    this._render();
+  }
+
+  _render() {
+    const ctx = this._ctx;
+    ctx.imageSmoothingEnabled = false;
+
+    // Clear
+    ctx.fillStyle = PAL.black;
+    ctx.fillRect(0, 0, W, H);
+
+    // Wheel always visible
+    this.wheel.draw(ctx, WHEEL_CX, WHEEL_CY);
+
+    if (this._showTitle) {
+      this._drawTitle(ctx);
+    } else {
+      this._drawHUD(ctx);
+      this._drawPops(ctx);
+
+      const phase = this.game.getPhase();
+      if (phase === 'RESULTS') this._drawResults(ctx);
+      else if (phase === 'CHOICE') this._drawChoices(ctx);
+      else if (phase === 'SHOP') this._drawShop(ctx);
+      else if (phase === 'GAME_OVER') this._drawGameOver(ctx);
+      else if (phase === 'VICTORY') this._drawVictory(ctx);
+
+      this._drawActionBtn(ctx);
     }
   }
 
-  _updateModSlots() {
-    const state = this.game.getState();
-    const run = state.run;
-    const relics = run ? run.relics : [];
+  // ── Drawing helpers ──
+  _createDimPattern() {
+    const c = document.createElement('canvas');
+    c.width = 2; c.height = 2;
+    const x = c.getContext('2d');
+    x.fillStyle = PAL.black;
+    x.fillRect(0, 0, 1, 1);
+    x.fillRect(1, 1, 1, 1);
+    return this._ctx.createPattern(c, 'repeat');
+  }
 
-    // First 3 slots unlocked from start, rest unlock at round 3, 5, 7, 9, 11
-    const unlockRounds = [1, 1, 1, 3, 5, 7, 9, 11];
-    const round = run ? run.round : 0;
+  _drawDim(ctx) {
+    ctx.fillStyle = this._dimPattern;
+    ctx.fillRect(0, 0, W, H);
+  }
 
-    for (let i = 0; i < this._modSlotCount; i++) {
-      const el = this._modSlotEls[i];
-      const label = el.querySelector('.slot-label');
-      const unlocked = round >= unlockRounds[i];
-      const relic = relics[i];
+  _drawPanel(ctx, x, y, w, h) {
+    ctx.fillStyle = PAL.darkGray;
+    ctx.fillRect(x, y, w, h);
+    // Gold 1px border
+    ctx.fillStyle = PAL.gold;
+    ctx.fillRect(x, y, w, 1);
+    ctx.fillRect(x, y + h - 1, w, 1);
+    ctx.fillRect(x, y, 1, h);
+    ctx.fillRect(x + w - 1, y, 1, h);
+  }
 
-      if (!unlocked) {
-        el.className = 'mod-slot locked';
-        el.innerHTML = '🔒';
-        el.appendChild(label);
-        label.textContent = `RND ${unlockRounds[i]}`;
-      } else if (relic) {
-        el.className = 'mod-slot active';
-        el.innerHTML = relic.emoji;
-        el.appendChild(label);
-        label.textContent = relic.name;
-        el.title = relic.description;
-      } else {
-        el.className = 'mod-slot empty';
-        el.innerHTML = '+';
-        el.appendChild(label);
-        label.textContent = `SLOT ${i + 1}`;
-      }
+  _drawBtn(ctx, label, x, y, w, h, borderColor) {
+    ctx.fillStyle = PAL.darkGray;
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = borderColor;
+    ctx.fillRect(x, y, w, 1);
+    ctx.fillRect(x, y + h - 1, w, 1);
+    ctx.fillRect(x, y, 1, h);
+    ctx.fillRect(x + w - 1, y, 1, h);
+    drawTextCentered(ctx, label, x + Math.floor(w / 2), y + Math.floor((h - CHAR_H) / 2), PAL.white, 1);
+  }
+
+  _makeBtn(label, cx, y, padX, h) {
+    const tw = measureText(label);
+    const w = tw + padX * 2;
+    const x = Math.floor(cx - w / 2);
+    return { x, y, w, h, label };
+  }
+
+  // ── Title screen ──
+  _drawTitle(ctx) {
+    this._drawDim(ctx);
+
+    drawTextCentered(ctx, 'SPINFORGE', W / 2, 50, PAL.gold, 3);
+    drawTextCentered(ctx, 'MYSTIC ROULETTE ROGUELIKE', W / 2, 78, PAL.midGray, 1);
+
+    const b = this._makeBtn('NEW RUN', W / 2, 120, 12, 14);
+    this._btnStart = b;
+    this._drawBtn(ctx, b.label, b.x, b.y, b.w, b.h, PAL.green);
+
+    const meta = this.game.getMeta();
+    drawTextCentered(ctx, 'STARS ' + meta.totalStars, W / 2, 160, PAL.gold, 1);
+    drawTextCentered(ctx, 'BEST ROUND ' + meta.bestRound, W / 2, 172, PAL.midGray, 1);
+  }
+
+  // ── HUD ──
+  _drawHUD(ctx) {
+    const run = this.game.getState().run;
+    if (!run) return;
+
+    // Top left
+    drawText(ctx, 'RND ' + run.round + '/' + BALANCE.ROUNDS_PER_RUN, 4, 4, PAL.green, 1);
+    drawText(ctx, 'QUOTA ' + getQuota(run.round), 4, 14, PAL.midGray, 1);
+
+    // Top right — score
+    const scoreStr = String(run.score);
+    const sw = measureText(scoreStr) * 2;
+    drawText(ctx, scoreStr, W - 4 - sw, 4, PAL.gold, 2);
+
+    // Balls
+    for (let i = 0; i < BALANCE.BALLS_PER_ROUND; i++) {
+      const bx = W - 4 - (BALANCE.BALLS_PER_ROUND - i) * 6;
+      ctx.fillStyle = i < run.ballsLeft ? PAL.red : PAL.darkRed;
+      ctx.fillRect(bx, 20, 4, 4);
     }
   }
 
-  _positionModSlots() {
-    // Position slots in a circle around the wheel center
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    const cx = W / 2;
-    const cy = H / 2;
-    // Orbit radius = slightly bigger than wheel visual radius
-    const canvasR = Math.min(480, 320) * 0.48; // internal canvas R
-    const scaleX = W / 480;
-    const scaleY = H / 320;
-    const orbitR = canvasR * Math.min(scaleX, scaleY) * 0.75;
-
-    for (let i = 0; i < this._modSlotCount; i++) {
-      const angle = (i / this._modSlotCount) * Math.PI * 2 - Math.PI / 2;
-      const x = cx + Math.cos(angle) * orbitR;
-      const y = cy + Math.sin(angle) * orbitR;
-      this._modSlotEls[i].style.left = x + 'px';
-      this._modSlotEls[i].style.top = y + 'px';
-    }
-  }
-
-  // ── UI ──
-  _updateUI() {
-    const state = this.game.getState();
-    const phase = state.phase;
-    const run = state.run;
-
-    if (run) this._updateHUD(run);
-    this._btn.disabled = false;
-
+  // ── Action button ──
+  _drawActionBtn(ctx) {
+    if (this._spinning) { this._btnAction = null; return; }
+    const phase = this.game.getPhase();
+    let label, color;
     switch (phase) {
-      case 'IDLE':
-        this._btn.textContent = 'SPIN';
-        this._btn.className = 'nes-btn is-primary';
-        this._hint.textContent = '';
-        this._overlay.classList.remove('active');
-        break;
-      case 'RESULTS':
-        this._showResults(run);
-        this._btn.textContent = 'CONTINUE';
-        this._btn.className = 'nes-btn is-success';
-        this._hint.textContent = '';
-        break;
-      case 'CHOICE':
-        this._showChoices(run);
-        this._btn.textContent = 'SKIP';
-        this._btn.className = 'nes-btn is-warning';
-        this._hint.textContent = '';
-        break;
-      case 'SHOP':
-        this._showShop(run);
-        this._btn.textContent = 'LEAVE';
-        this._btn.className = 'nes-btn';
-        this._hint.textContent = '';
-        break;
-      case 'GAME_OVER':
-        this._showGameOver(run, state);
-        this._btn.textContent = 'MENU';
-        this._btn.className = 'nes-btn is-error';
-        this._hint.textContent = '';
-        break;
-      case 'VICTORY':
-        this._showVictory(run, state);
-        this._btn.textContent = 'MENU';
-        this._btn.className = 'nes-btn is-success';
-        this._hint.textContent = '';
-        break;
+      case 'IDLE': label = 'SPIN'; color = PAL.green; break;
+      case 'RESULTS': label = 'CONTINUE'; color = PAL.green; break;
+      case 'CHOICE': label = 'SKIP'; color = PAL.gold; break;
+      case 'SHOP': label = 'LEAVE SHOP'; color = PAL.midGray; break;
+      case 'GAME_OVER': label = 'MENU'; color = PAL.red; break;
+      case 'VICTORY': label = 'MENU'; color = PAL.gold; break;
+      default: this._btnAction = null; return;
+    }
+    const b = this._makeBtn(label, W / 2, H - 18, 12, 14);
+    this._btnAction = b;
+    this._drawBtn(ctx, label, b.x, b.y, b.w, b.h, color);
+  }
+
+  // ── Popups ──
+  _drawPops(ctx) {
+    for (const p of this._pops) {
+      const col = p.age < 1.0 ? PAL.gold : PAL.darkGold;
+      drawTextCentered(ctx, p.text, Math.round(p.x), Math.round(p.y), col, 1);
     }
   }
 
-  _updateHUD(run) {
-    this._hudRound.textContent = `${run.round}/${BALANCE.ROUNDS_PER_RUN}`;
-    this._hudQuota.textContent = String(getQuota(run.round));
-    this._hudScore.textContent = String(run.score);
-    const filled = '<i class="nes-icon is-small heart"></i>'.repeat(run.ballsLeft);
-    const empty = '<i class="nes-icon is-small heart is-empty"></i>'.repeat(BALANCE.BALLS_PER_ROUND - run.ballsLeft);
-    this._hudBalls.innerHTML = filled + empty;
-  }
-
-  _flash(text) {
-    this._winNotif.textContent = text;
-    this._winNotif.classList.add('active');
-    clearTimeout(this._flashTimeout);
-    this._flashTimeout = setTimeout(() => this._winNotif.classList.remove('active'), 1200);
-  }
-
-  _showResults(run) {
+  // ── Results overlay ──
+  _drawResults(ctx) {
+    const run = this.game.getState().run;
     const r = run.lastRoundResult;
-    let html = `<h2 class="${r.passed ? '' : 'fail'}">${r.passed ? '✓ ROUND PASSED' : '✕ QUOTA FAILED'}</h2>`;
+    this._drawDim(ctx);
+
+    const pw = 180, ph = 150;
+    const px = W / 2 - pw / 2, py = 20;
+    this._drawPanel(ctx, px, py, pw, ph);
+
+    const titleCol = r.passed ? PAL.green : PAL.red;
+    drawTextCentered(ctx, r.passed ? 'ROUND PASSED!' : 'QUOTA FAILED!', W / 2, py + 6, titleCol, 1);
+
+    let ly = py + 22;
     for (const sr of run.spinResults) {
-      html += `<div class="result-row"><span class="emoji">${sr.symbol.emoji}</span><span>${sr.symbol.name}</span><span class="val">+${sr.value}</span></div>`;
+      const sym = sr.symbol;
+      drawSpriteCentered(ctx, sym.id, px + 12, ly + 3, 1);
+      drawText(ctx, sym.name.toUpperCase().substring(0, 8), px + 22, ly, PAL.white, 1);
+      const valStr = '+' + sr.value;
+      const vw = measureText(valStr);
+      drawText(ctx, valStr, px + pw - 6 - vw, ly, PAL.gold, 1);
+      ly += 10;
+      if (ly > py + ph - 30) break;
     }
-    html += `<div class="summary">TOTAL <span class="gold">${r.totalWon}</span> / QUOTA <span class="gold">${r.quota}</span>${r.passed && r.shopCoins > 0 ? `<br>+${r.shopCoins} 💵` : ''}</div>`;
-    this._overlay.innerHTML = html;
-    this._overlay.classList.add('active');
 
-    if (r.passed) this._playWinFanfare(); else this._playLose();
+    ly = py + ph - 24;
+    drawTextCentered(ctx, r.totalWon + ' / ' + r.quota, W / 2, ly, PAL.gold, 1);
+    if (r.passed && r.shopCoins > 0) {
+      drawTextCentered(ctx, '+' + r.shopCoins + ' COINS', W / 2, ly + 10, PAL.green, 1);
+    }
   }
 
-  _showChoices(run) {
-    let html = '<h2 class="gold">CHOOSE UPGRADE</h2><div class="card-row">';
-    run.currentChoices.forEach((c, i) => {
-      html += `<div class="nes-container is-dark game-card" data-idx="${i}"><div class="emoji">${c.emoji}</div><div class="name">${c.name}</div><div class="desc">${c.description}</div></div>`;
-    });
-    html += '</div>';
-    this._overlay.innerHTML = html;
-    this._overlay.classList.add('active');
-    this._overlay.querySelectorAll('.game-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const idx = parseInt(card.dataset.idx);
-        const c = run.currentChoices[idx];
-        if (c.type === 'add_symbol' || c.type === 'upgrade') this.game.makeChoice(idx);
-        else this.game.makeChoice(idx, 0);
-        this._playSelect();
-        this._updateUI();
-      });
-    });
+  // ── Choices overlay ──
+  _drawChoices(ctx) {
+    const run = this.game.getState().run;
+    const choices = run.currentChoices;
+    this._drawDim(ctx);
+
+    drawTextCentered(ctx, 'CHOOSE UPGRADE', W / 2, 18, PAL.gold, 2);
+
+    this._choiceCards = [];
+    const cardW = 100, cardH = 100, gap = 12;
+    const totalW = choices.length * cardW + (choices.length - 1) * gap;
+    const startX = Math.floor(W / 2 - totalW / 2);
+
+    for (let i = 0; i < choices.length; i++) {
+      const c = choices[i];
+      const cx = startX + i * (cardW + gap);
+      const cy = 42;
+
+      this._choiceCards.push({ x: cx, y: cy, w: cardW, h: cardH });
+      this._drawPanel(ctx, cx, cy, cardW, cardH);
+
+      // Sprite for symbol choices
+      if (c.payload && c.payload.symbolId) {
+        drawSpriteCentered(ctx, c.payload.symbolId, cx + cardW / 2, cy + 16, 2);
+      }
+
+      // Name
+      drawTextCentered(ctx, c.name.toUpperCase().substring(0, 14), cx + cardW / 2, cy + 34, PAL.gold, 1);
+
+      // Description (wrapped)
+      drawTextWrapped(ctx, c.description, cx + 4, cy + 46, cardW - 8, PAL.lightGray, 1);
+    }
   }
 
-  _showShop(run) {
-    let html = `<h2 class="gold">⚒ THE FORGE ⚒</h2><p style="font-size:9px;color:#92cc41">💵 ${run.shopCurrency} available</p><div class="card-row">`;
-    run.shopOfferings.forEach((o, i) => {
+  // ── Shop overlay ──
+  _drawShop(ctx) {
+    const run = this.game.getState().run;
+    this._drawDim(ctx);
+
+    drawTextCentered(ctx, 'THE FORGE', W / 2, 10, PAL.gold, 2);
+    drawTextCentered(ctx, 'COINS: ' + run.shopCurrency, W / 2, 28, PAL.green, 1);
+
+    this._shopCards = [];
+    const offerings = run.shopOfferings;
+    const cardW = 100, cardH = 100, gap = 12;
+    const totalW = offerings.length * cardW + (offerings.length - 1) * gap;
+    const startX = Math.floor(W / 2 - totalW / 2);
+
+    for (let i = 0; i < offerings.length; i++) {
+      const o = offerings[i];
+      const cx = startX + i * (cardW + gap);
+      const cy = 42;
       const afford = run.shopCurrency >= o.finalCost;
-      html += `<div class="nes-container is-dark game-card ${afford ? '' : 'locked'}" data-idx="${i}"><div class="emoji">${o.emoji}</div><div class="name">${o.name}</div><div class="desc">${o.description}</div><div class="cost">${o.finalCost} 💵</div></div>`;
-    });
-    html += '</div>';
-    this._overlay.innerHTML = html;
-    this._overlay.classList.add('active');
-    this._overlay.querySelectorAll('.game-card:not(.locked)').forEach(card => {
-      card.addEventListener('click', () => {
-        this.game.shopBuyRelic(parseInt(card.dataset.idx));
-        this._playCoin();
-        this._showShop(this.game.getState().run);
-      });
-    });
+
+      this._shopCards.push({ x: cx, y: cy, w: cardW, h: cardH });
+      this._drawPanel(ctx, cx, cy, cardW, cardH);
+
+      if (!afford) {
+        // Dim locked card with scanlines
+        for (let sy = cy + 1; sy < cy + cardH - 1; sy += 2) {
+          ctx.fillStyle = PAL.black;
+          ctx.fillRect(cx + 1, sy, cardW - 2, 1);
+        }
+      }
+
+      // Name
+      drawTextCentered(ctx, o.name.toUpperCase().substring(0, 14), cx + cardW / 2, cy + 8, afford ? PAL.gold : PAL.midGray, 1);
+
+      // Description
+      drawTextWrapped(ctx, o.description, cx + 4, cy + 22, cardW - 8, afford ? PAL.lightGray : PAL.midGray, 1);
+
+      // Cost
+      const costStr = o.finalCost + ' COINS';
+      drawTextCentered(ctx, costStr, cx + cardW / 2, cy + cardH - 12, afford ? PAL.green : PAL.red, 1);
+    }
   }
 
-  _showGameOver(run, state) {
-    this._overlay.innerHTML = `<h2 class="fail">GAME OVER</h2><p style="font-size:9px">Round ${run.round} — Score ${run.score}</p><p style="font-size:9px;color:#f7d51d">⭐ ${state.meta.totalStars} stars</p>`;
-    this._overlay.classList.add('active');
+  // ── Game over / Victory ──
+  _drawGameOver(ctx) {
+    const run = this.game.getState().run;
+    const meta = this.game.getMeta();
+    this._drawDim(ctx);
+
+    const pw = 160, ph = 80;
+    const px = W / 2 - pw / 2, py = 60;
+    this._drawPanel(ctx, px, py, pw, ph);
+
+    drawTextCentered(ctx, 'GAME OVER', W / 2, py + 10, PAL.red, 2);
+    drawTextCentered(ctx, 'ROUND ' + run.round + '  SCORE ' + run.score, W / 2, py + 34, PAL.white, 1);
+    drawTextCentered(ctx, 'STARS ' + meta.totalStars, W / 2, py + 50, PAL.gold, 1);
   }
 
-  _showVictory(run, state) {
-    this._overlay.innerHTML = `<h2 class="gold">🏆 VICTORY 🏆</h2><p style="font-size:9px">Score ${run.score}</p><p style="font-size:9px;color:#f7d51d">⭐ ${state.meta.totalStars} stars</p>`;
-    this._overlay.classList.add('active');
-  }
+  _drawVictory(ctx) {
+    const run = this.game.getState().run;
+    const meta = this.game.getMeta();
+    this._drawDim(ctx);
 
-  _pop(text, emoji) {
-    const el = document.createElement('div');
-    el.className = 'pop'; el.innerHTML = `${emoji} ${text}`;
-    el.style.left = (window.innerWidth / 2 + (Math.random() - 0.5) * 100) + 'px';
-    el.style.top = '40%';
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), 1500);
+    const pw = 160, ph = 80;
+    const px = W / 2 - pw / 2, py = 60;
+    this._drawPanel(ctx, px, py, pw, ph);
+
+    drawTextCentered(ctx, 'VICTORY!', W / 2, py + 10, PAL.gold, 2);
+    drawTextCentered(ctx, 'SCORE ' + run.score, W / 2, py + 34, PAL.white, 1);
+    drawTextCentered(ctx, 'STARS ' + meta.totalStars, W / 2, py + 50, PAL.gold, 1);
   }
 
   // ── Audio ──
@@ -406,7 +513,6 @@ class App {
   _playSpin() {
     if (!this._audioCtx) return;
     this._killSpin();
-
     this._spinOsc = this._audioCtx.createOscillator();
     this._spinOsc2 = this._audioCtx.createOscillator();
     this._spinGain = this._audioCtx.createGain();
@@ -434,7 +540,6 @@ class App {
       this._spinGain.gain.setValueAtTime(this._spinGain.gain.value, this._audioCtx.currentTime);
       this._spinGain.gain.exponentialRampToValueAtTime(0.001, this._audioCtx.currentTime + 0.3);
     } catch {}
-    // Force kill after fade
     setTimeout(() => this._killSpin(), 350);
   }
 
@@ -472,14 +577,6 @@ class App {
   }
 
   _delay(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-  _loop(time) {
-    requestAnimationFrame(t => this._loop(t));
-    const dt = Math.min((time - this._lastTime) / 1000, 0.05);
-    this._lastTime = time;
-    this.wheel.update(dt);
-    this.wheel.draw();
-  }
 }
 
 window.addEventListener('DOMContentLoaded', () => new App());
