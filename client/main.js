@@ -205,7 +205,7 @@ class App {
     const py = this._my;
     const wheelOx = px * 1.5;    // wheel: 1.5px max
     const wheelOy = py * 1;
-    const periOx = px * 3;       // gauge + slots: 3px max (faster than wheel)
+    const periOx = px * 2;       // gauge + slots: 2px max
     const periOy = py * 2;
     const hudOx = px * 4.5;      // HUD: 4.5px max (fastest)
     const hudOy = py * 3;
