@@ -5,8 +5,7 @@ import { PAL, SYM_COLORS } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
 import { drawSpriteCentered, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { getSymbol } from '../src/data/symbols.js';
-import { CRTFilter } from './gfx/CRTFilter.js';
-import { quantize } from './gfx/PaletteQuantizer.js';
+import { PostFXGL } from './gfx/PostFXGL.js';
 
 // ── Canvas resolution (CSS scales this to viewport with nearest-neighbor) ──
 const W = 480, H = 270;
@@ -16,10 +15,15 @@ const WHEEL_CX = 240, WHEEL_CY = 140;
 
 class App {
   constructor() {
-    this._canvas = document.getElementById('game');
+    this._canvas = document.createElement('canvas');
     this._canvas.width = CW;
     this._canvas.height = CH;
     this._ctx = this._canvas.getContext('2d');
+
+    // Display canvas (WebGL post-FX)
+    this._display = document.getElementById('game');
+    this._display.width = CW;
+    this._display.height = CH;
 
     this.game = createGame({ seed: Date.now() });
     this.wheel = new PixelWheel();
@@ -41,16 +45,16 @@ class App {
     this.game.startRun();
     this._syncWheel();
 
-    // CRT post-process (barrel distortion + chroma + scanlines + vignette)
-    this._crt = new CRTFilter(CW, CH);
+    // GPU post-process (replaces CPU quantizer + CRT filter)
+    this._postfx = new PostFXGL(this._display);
 
     // Audio
     this._audioCtx = null;
     this.wheel.onPegHit = () => this._tick();
 
-    // Input
-    this._canvas.addEventListener('click', e => this._handleClick(e));
-    this._canvas.addEventListener('mousemove', e => this._handleMouse(e));
+    // Input (on display canvas)
+    this._display.addEventListener('click', e => this._handleClick(e));
+    this._display.addEventListener('mousemove', e => this._handleMouse(e));
 
     // Render loop
     this._lastTime = 0;
@@ -59,7 +63,7 @@ class App {
 
   // ── Input ──
   _mapCoords(e) {
-    const rect = this._canvas.getBoundingClientRect();
+    const rect = this._display.getBoundingClientRect();
     return {
       x: Math.floor((e.clientX - rect.left) / rect.width * W),
       y: Math.floor((e.clientY - rect.top) / rect.height * H),
@@ -67,7 +71,7 @@ class App {
   }
 
   _handleMouse(e) {
-    const rect = this._canvas.getBoundingClientRect();
+    const rect = this._display.getBoundingClientRect();
     this._mx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;   // -1..1
     this._my = ((e.clientY - rect.top) / rect.height - 0.5) * 2;   // -1..1
   }
@@ -226,10 +230,9 @@ class App {
 
     ctx.restore(); // end PX scale
 
-    // ── Palette quantize (kill AA fringes) then light map then CRT ──
-    quantize(ctx, CW, CH);
+    // ── Palette quantize + scanlines + vignette (GPU) ──
     this._drawLights(ctx, wheelOx, wheelOy);
-    this._crt.apply(ctx);
+    this._postfx.apply(this._canvas);
   }
 
   // ── Light map (screen-mode glow, after quantize for smooth gradients) ──
