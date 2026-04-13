@@ -111,8 +111,8 @@ const SPRITES = {
   // ── Rares ──
   diamond: [ // cut gem (cyan)
     '.........',
+    '.........',
     '...cCc...',
-    '..CCCCC..',
     '.ccccccc.',
     '..CCCCC..',
     '...CCC...',
@@ -286,8 +286,8 @@ const ANIM_SPRITES = {
   diamond: [
     [ // Frame 0: Sparkle top
       '.........',
+      '.........',
       '...cCc...',
-      '..CCCCC..',
       '.ccccccc.',
       '..CCCCC..',
       '...CCC...',
@@ -297,8 +297,8 @@ const ANIM_SPRITES = {
     ],
     [ // Frame 1: Sparkle right
       '.........',
+      '.........',
       '...cCc...',
-      '..CCCCC..',
       '.ccccccc.',
       '..CCCCC..',
       '...CCC...',
@@ -308,8 +308,8 @@ const ANIM_SPRITES = {
     ],
     [ // Frame 2: Sparkle bottom
       '.........',
+      '.........',
       '...cCc...',
-      '..CCCCC..',
       '.ccccccc.',
       '..CCCCC..',
       '...CCC...',
@@ -319,8 +319,8 @@ const ANIM_SPRITES = {
     ],
     [ // Frame 3: Sparkle left
       '.........',
+      '.........',
       '...cCc...',
-      '..CCCCC..',
       '.ccccccc.',
       '..CCCCC..',
       '...CCC...',
