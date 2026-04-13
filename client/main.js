@@ -390,7 +390,7 @@ class App {
 
     const r = this.wheel.hubRadius || 42;
     const tilt = this.wheel.tilt || 0.65;
-    const exciting = (label === 'SPIN' || label === 'PLAY');
+    const exciting = true; // glass sweep + glow on all states
     const t = this._time;
 
     ctx.save();
