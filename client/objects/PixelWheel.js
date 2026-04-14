@@ -451,9 +451,16 @@ export class PixelWheel {
     if (!data.length) return;
     const tw = data.reduce((s, w) => s + w.weight, 0);
 
-    // ── 3D perspective tilt (compress Y) ──
+    // ── 3D perspective tilt (compress Y — hub-to-rim only) ──
     const TILT_Y = Math.abs(this._tilt);
-    if (TILT_Y < 0.01) { ctx.restore(); return; } // edge-on, skip
+    this._frameLights = [];
+
+    if (TILT_Y < 0.01) {
+      // Edge-on (mid-flip): skip wheel, still draw orbit slots
+      this._drawOrbitSlots(ctx, cx + pox, cy + poy);
+      return;
+    }
+
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(1, TILT_Y);
@@ -461,17 +468,16 @@ export class PixelWheel {
 
     // ── Flipped: draw shop face ──
     if (this._tilt < 0) {
-      this._frameLights = [];
       ctx.beginPath(); ctx.arc(cx, cy, RIM_R, 0, Math.PI * 2);
       ctx.fillStyle = PAL.darkGray; ctx.fill();
       ctx.strokeStyle = PAL.gold; ctx.lineWidth = 2; ctx.stroke();
       drawTextCentered(ctx, 'SHOP', cx, cy - Math.floor(CHAR_H), PAL.gold, 2);
       ctx.restore(); // end tilt
+      this._drawOrbitSlots(ctx, cx + pox, cy + poy);
       return;
     }
 
     // ── Rim ──
-    this._frameLights = [];  // reset light sources each frame
     ctx.beginPath(); ctx.arc(cx, cy, RIM_R, 0, Math.PI * 2);
     ctx.strokeStyle = RIM_COLOR; ctx.lineWidth = 1; ctx.stroke();
 
@@ -624,10 +630,10 @@ export class PixelWheel {
       });
     }
 
-    // ── Relic slots orbiting outside rim ──
-    this._drawOrbitSlots(ctx, cx + pox, cy + poy);
-
     ctx.restore(); // end tilt
+
+    // ── Relic slots orbiting outside rim (not affected by flip) ──
+    this._drawOrbitSlots(ctx, cx + pox, cy + poy);
   }
 
   _drawPixelBall(ctx, bx, by, settled) {
