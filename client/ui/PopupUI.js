@@ -1,4 +1,5 @@
 import { BALANCE, getQuota } from '../../src/data/balance.js';
+import '../styles/popup.css';
 
 /**
  * Casino-style HTML popup UI — all game info as satisfying animated overlays.

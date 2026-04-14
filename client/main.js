@@ -12,8 +12,8 @@ const W = 480, H = 270;
 const PX = 2;                          // pixel scale — each art pixel = PX×PX canvas pixels
 const CW = W * PX, CH = H * PX;       // canvas resolution (960×540)
 const WHEEL_CX = 240, WHEEL_CY = 140;
-const IND_ARC_R = 86;             // indicator arc radius (between rim 82 and ring 115)
-const IND_ARC_STEP = Math.PI / 8;  // 22.5° between each indicator
+const IND_ARC_R = 92;             // indicator arc radius (between rim 82 and ring 115)
+const IND_ARC_STEP = Math.PI / 11; // ~16.4° between each indicator
 const BG_PAD = 4;                      // background oversize for parallax shift
 
 class App {

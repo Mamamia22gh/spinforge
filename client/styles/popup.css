@@ -201,7 +201,7 @@
   pointer-events: none;
   background:
     repeating-conic-gradient(
-      #0c0a18 0% 25%, #08060e 0% 50%
+      #1e1640 0% 25%, #0c0a18 0% 50%
     ) 0 0 / 24px 24px;
   mask-image: radial-gradient(
     ellipse 54% 48% at 50% 50%,
@@ -218,7 +218,7 @@
   content: ''; position: absolute; inset: 0;
   background: radial-gradient(
     ellipse at 50% 50%,
-    rgba(176, 64, 255, 0.04) 0%,
+    rgba(176, 64, 255, 0.18) 0%,
     transparent 70%
   );
 }
