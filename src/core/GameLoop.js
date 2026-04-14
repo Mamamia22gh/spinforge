@@ -210,6 +210,14 @@ export class GameLoop {
 
     run.shopCurrency += shopCoins + moneyBonus;
 
+    // Award tickets for passing the round
+    if (passed) {
+      const earned = BALANCE.TICKETS_PER_ROUND;
+      this.state.meta.tickets += earned;
+      this.state.meta.totalTickets += earned;
+      this.events.emit('tickets:earned', { amount: earned, total: this.state.meta.tickets });
+    }
+
     this.#setPhase(PHASE.RESULTS);
     this.events.emit('round:ended', run.lastRoundResult);
 
@@ -272,19 +280,19 @@ export class GameLoop {
     run.rerollCount = 0;
 
     this.#setPhase(PHASE.SHOP);
-    this.events.emit('shop:opened', { currency: run.shopCurrency, offerings: run.shopOfferings });
+    this.events.emit('shop:opened', { tickets: this.state.meta.tickets, offerings: run.shopOfferings });
   }
 
   // ─── Shop ───
 
   shopBuyRelic(offeringIndex) {
     if (this.state.phase !== PHASE.SHOP) return this.#error('Not in SHOP');
-    return this.shop.buyRelic(this.state.run, offeringIndex);
+    return this.shop.buyRelic(this.state.run, this.state.meta, offeringIndex);
   }
 
   shopReroll() {
     if (this.state.phase !== PHASE.SHOP) return this.#error('Not in SHOP');
-    return this.shop.reroll(this.state.run, this.rng);
+    return this.shop.reroll(this.state.run, this.state.meta, this.rng);
   }
 
   endShop() {
@@ -319,13 +327,11 @@ export class GameLoop {
 
   #gameOver() {
     const run = this.state.run;
-    const stars = this.meta.calculateStars(run, false);
-    this.#applyStars(stars, run);
+    this.#applyRunStats(run);
 
     this.#setPhase(PHASE.GAME_OVER);
     this.events.emit('game:over', {
       round: run.round,
-      stars,
       score: run.score,
       quota: getQuota(run.round),
       totalWon: run.lastRoundResult?.totalWon ?? 0,
@@ -334,16 +340,16 @@ export class GameLoop {
 
   #victory() {
     const run = this.state.run;
-    const stars = this.meta.calculateStars(run, true);
-    this.#applyStars(stars, run);
+    const bonus = BALANCE.TICKETS_BONUS_WIN;
+    this.state.meta.tickets += bonus;
+    this.state.meta.totalTickets += bonus;
+    this.#applyRunStats(run);
 
     this.#setPhase(PHASE.VICTORY);
-    this.events.emit('game:won', { round: run.round, stars, score: run.score });
+    this.events.emit('game:won', { round: run.round, tickets: bonus, score: run.score });
   }
 
-  #applyStars(stars, run) {
-    this.state.meta.stars += stars;
-    this.state.meta.totalStars += stars;
+  #applyRunStats(run) {
     this.state.meta.runsCompleted++;
     this.state.meta.bestRound = Math.max(this.state.meta.bestRound, run.round);
   }

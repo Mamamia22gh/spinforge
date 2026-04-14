@@ -4,7 +4,7 @@
 export const BALANCE = Object.freeze({
   // Run structure
   ROUNDS_PER_RUN: 12,
-  BALLS_PER_ROUND: 15,
+  BALLS_PER_ROUND: 5,
 
   // Starting wheel — 40 segments, 4 gold
   INITIAL_WHEEL: [
@@ -40,10 +40,10 @@ export const BALANCE = Object.freeze({
   SHOP_REROLL_INCREMENT: 10,
   SHOP_PRICE_SCALING: 0.5,
 
-  // Stars
-  STARS_PER_ROUND: 1,
-  STARS_BONUS_WIN: 10,
-  STARS_BONUS_PERFECT: 5,
+  // Tickets (meta-progression currency)
+  TICKETS_PER_ROUND: 1,
+  TICKETS_BONUS_WIN: 10,
+  TICKETS_BONUS_PERFECT: 5,
 
   // Coins visual
   MAX_COIN_DROP: 40,

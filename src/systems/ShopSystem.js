@@ -55,26 +55,26 @@ export class ShopSystem {
    * @param {number} offeringIndex
    * @returns {boolean}
    */
-  buyRelic(run, offeringIndex) {
+  buyRelic(run, meta, offeringIndex) {
     const offering = run.shopOfferings[offeringIndex];
     if (!offering) {
       this.#events.emit('shop:invalid_offering', { offeringIndex });
       return false;
     }
 
-    if (run.shopCurrency < offering.finalCost) {
-      this.#events.emit('shop:insufficient_funds', { cost: offering.finalCost, available: run.shopCurrency });
+    if (meta.tickets < offering.finalCost) {
+      this.#events.emit('shop:insufficient_funds', { cost: offering.finalCost, available: meta.tickets });
       return false;
     }
 
-    run.shopCurrency -= offering.finalCost;
+    meta.tickets -= offering.finalCost;
     run.relics.push(offering);
     run.shopOfferings.splice(offeringIndex, 1);
 
     this.#events.emit('shop:relic_bought', {
       relic: offering,
       cost: offering.finalCost,
-      remaining: run.shopCurrency,
+      remaining: meta.tickets,
     });
     return true;
   }
@@ -85,15 +85,15 @@ export class ShopSystem {
    * @param {import('../core/RNG.js').RNG} rng
    * @returns {boolean}
    */
-  reroll(run, rng) {
+  reroll(run, meta, rng) {
     const cost = BALANCE.SHOP_REROLL_BASE + run.rerollCount * BALANCE.SHOP_REROLL_INCREMENT;
 
-    if (run.shopCurrency < cost) {
-      this.#events.emit('shop:insufficient_funds', { cost, available: run.shopCurrency });
+    if (meta.tickets < cost) {
+      this.#events.emit('shop:insufficient_funds', { cost, available: meta.tickets });
       return false;
     }
 
-    run.shopCurrency -= cost;
+    meta.tickets -= cost;
     run.rerollCount++;
     run.shopOfferings = this.generateOfferings(run, rng);
 

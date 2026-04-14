@@ -261,14 +261,15 @@ export class GameUI {
     title.textContent = '⚒️ LA FORGE';
     screen.appendChild(title);
 
+    const meta = this.game.getState().meta;
     const currency = this._el('div', 'shop-currency');
-    currency.textContent = `💵 ${run.shopCurrency} disponible`;
+    currency.textContent = `🎟️ ${meta.tickets} tickets disponibles`;
     screen.appendChild(currency);
 
     // Offerings
     const offerings = this._el('div', 'shop-offerings');
     run.shopOfferings.forEach((o, i) => {
-      const tooExpensive = run.shopCurrency < o.finalCost;
+      const tooExpensive = this.game.getState().meta.tickets < o.finalCost;
       const card = this._el('div', 'relic-card' + (tooExpensive ? ' too-expensive' : ''));
       card.innerHTML = `
         <div class="emoji">${o.emoji}</div>
@@ -296,7 +297,7 @@ export class GameUI {
       this.audio.play('click');
       this.game.shopReroll();
     };
-    if (run.shopCurrency < rerollCost) reroll.style.opacity = '0.4';
+    if (this.game.getState().meta.tickets < rerollCost) reroll.style.opacity = '0.4';
     actions.appendChild(reroll);
 
     const leave = this._el('button', 'btn-leave');
@@ -317,11 +318,11 @@ export class GameUI {
     const card = this._el('div', 'endgame-card');
 
     const run = state.run;
-    const stars = state.meta.totalStars;
+    const tickets = state.meta.totalTickets;
 
     card.innerHTML = `
       <h1 class="${won ? 'victory' : 'gameover'}">${won ? '🏆 VICTOIRE' : '💀 GAME OVER'}</h1>
-      <div class="stars">${'⭐'.repeat(Math.min(stars, 20))}</div>
+      <div class="stars">${'🎟️'.repeat(Math.min(tickets, 20))}</div>
       <div class="final-score">Score: ${run?.score ?? 0} — Round ${run?.round ?? 0} / ${BALANCE.ROUNDS_PER_RUN}</div>
     `;
 

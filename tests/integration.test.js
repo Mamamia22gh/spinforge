@@ -89,17 +89,21 @@ describe('Integration — Full game flow (balls only, no betting)', () => {
     expect(state.run.score).toBe(totalValue);
   });
 
-  it('meta system: stars are awarded on game over', () => {
+  it('meta system: tickets are earned per round passed', () => {
     game.startRun();
     const state = game.getState();
+    const initialTickets = state.meta.totalTickets;
 
     for (let i = 0; i < BALANCE.BALLS_PER_ROUND; i++) {
       game.spin();
     }
 
-    if (!state.run.lastRoundResult?.passed) {
+    if (state.run.lastRoundResult?.passed) {
+      expect(state.meta.totalTickets).toBe(initialTickets + BALANCE.TICKETS_PER_ROUND);
+    } else {
       expect(state.phase).toBe('GAME_OVER');
-      expect(state.meta.totalStars).toBeGreaterThan(0);
+      // No tickets awarded for failed round
+      expect(state.meta.totalTickets).toBe(initialTickets);
     }
   });
 

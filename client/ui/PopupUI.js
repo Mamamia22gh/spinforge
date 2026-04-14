@@ -188,20 +188,28 @@ export class PopupUI {
 
   // ── Shop ──
 
-  showShop(run) {
+  showShop(run, tickets) {
+    this._clearShopBackdrop();
     this._center.innerHTML = '';
+    this._center.classList.add('shop-mode');
+
+    // Full-screen checkerboard backdrop
+    this._shopBg = document.createElement('div');
+    this._shopBg.className = 'shop-backdrop';
+    this._container.insertBefore(this._shopBg, this._center);
+
     const title = this._el('div', 'pop-title pop-purple');
     title.textContent = '⚒ THE FORGE ⚒';
     this._center.appendChild(title);
 
     const currency = this._el('div', 'pop-subtitle');
-    currency.innerHTML = `💵 <span class="gold">${run.shopCurrency}</span> available`;
+    currency.innerHTML = `🎟️ <span class="gold">${tickets}</span> available`;
     this._center.appendChild(currency);
 
     const row = this._el('div', 'shop-row');
     run.shopOfferings.forEach((o, i) => {
       setTimeout(() => {
-        const afford = run.shopCurrency >= o.finalCost;
+        const afford = tickets >= o.finalCost;
         const card = this._el('div', 'shop-card' + (afford ? '' : ' shop-locked'));
         card.innerHTML = `
           <div class="shop-emoji">${o.emoji}</div>
@@ -220,6 +228,12 @@ export class PopupUI {
   }
 
   clearCenter() {
+    this._clearShopBackdrop();
     this._center.innerHTML = '';
+  }
+
+  _clearShopBackdrop() {
+    this._center.classList.remove('shop-mode');
+    if (this._shopBg) { this._shopBg.remove(); this._shopBg = null; }
   }
 }

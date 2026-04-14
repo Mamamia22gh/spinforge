@@ -42,9 +42,16 @@ const DROP_DURATION = 0.50;  // seconds per ball drop (total)
 const DROP_HEIGHT = 130;     // pixels above final position
 const GAUGE_TRAVEL = 0.15;   // seconds for phase 1 (slide to gauge exit)
 
-// ── Gauge (ball magazine, right side) ──
-const GAUGE_START = -0.40;   // ~-23° from right (fits between slot pairs)
-const GAUGE_END = 0.40;      // ~+23° from right
+// ── Gauge (ball magazine) ──
+const GAUGE_SPAN = 0.80;     // total arc per gauge (~46°)
+const GAUGE_CONFIGS = [
+  { center: 0,              start: -0.40,               end: 0.40 },               // right (default)
+  { center: -Math.PI / 2,   start: -Math.PI / 2 - 0.40, end: -Math.PI / 2 + 0.40 }, // top
+  { center:  Math.PI / 2,   start:  Math.PI / 2 - 0.40, end:  Math.PI / 2 + 0.40 }, // bottom
+  { center:  Math.PI,       start:  Math.PI - 0.40,     end:  Math.PI + 0.40 },     // left
+];
+const MAX_BALLS_PER_GAUGE = 20;
+const GAUGE_BALL_SPACING = 0.04; // radians between ball centers
 
 function _bounce(t) {
   if (t < 1 / 2.75) return 7.5625 * t * t;
@@ -81,6 +88,7 @@ export class PixelWheel {
     this._ejectClock = 0;
     this._frameLights = [];
     this._bonusMode = false;
+    this._gaugeUnlocks = [true, false, false, false]; // gauge 0 always unlocked
 
     this._tilt = 1.0;
     this._flip = null;
@@ -94,6 +102,16 @@ export class PixelWheel {
       history: [],
       message: '', messageFade: 0,
       score: 0, scoreTarget: 0,
+    };
+
+    // Forge shop state
+    this._shop = {
+      offerings: [],
+      currency: 0,
+      rerollCost: 0,
+      hoverIdx: -1,
+      buyFlash: -1,
+      buyFlashTimer: 0,
     };
   }
 
@@ -116,6 +134,10 @@ export class PixelWheel {
     this._highlights = [];
   }
 
+  setGaugeUnlocks(unlocks) {
+    this._gaugeUnlocks = unlocks;
+  }
+
   placeBalls(n) {
     this._placedBalls = [];
     this._balls = [];
@@ -125,23 +147,46 @@ export class PixelWheel {
     this._inGauge = true;
 
     const GAUGE_MID = (RIM_R + 20 + RIM_R + 26) / 2;
-    const BALL_SPACING = 0.04; // radians between ball centers (tight stack)
 
+    // Collect unlocked gauges
+    const activeGauges = [];
+    for (let g = 0; g < GAUGE_CONFIGS.length; g++) {
+      if (this._gaugeUnlocks[g]) activeGauges.push(g);
+    }
+
+    // Distribute balls round-robin, capped at MAX_BALLS_PER_GAUGE
+    const perGauge = activeGauges.map(() => []);
     for (let i = 0; i < n; i++) {
-      // Target position on wheel
-      const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
-      const r = LABEL_OUTER + 2 + Math.random() * (RIM_R - LABEL_OUTER - BALL_RADIUS * 2 - 3);
-      // Gauge: stack from bottom (GAUGE_END) upward, tightly packed
-      const ga = GAUGE_END - i * BALL_SPACING;
-      this._placedBalls.push({
-        localX: Math.cos(a) * r,
-        localY: Math.sin(a) * r,
-        gaugeX: Math.cos(ga) * GAUGE_MID,
-        gaugeY: Math.sin(ga) * GAUGE_MID,
-        gaugeAngle: ga,
-        dropDelay: (n - 1 - i) * DROP_STAGGER, // top of stack ejects first
-        dropDur: DROP_DURATION,
-      });
+      const slot = i % activeGauges.length;
+      if (perGauge[slot].length < MAX_BALLS_PER_GAUGE) {
+        perGauge[slot].push(i);
+      }
+    }
+
+    let globalIdx = 0;
+    for (let gi = 0; gi < activeGauges.length; gi++) {
+      const gIdx = activeGauges[gi];
+      const cfg = GAUGE_CONFIGS[gIdx];
+      const indices = perGauge[gi];
+      for (let j = 0; j < indices.length; j++) {
+        const i = indices[j];
+        // Target position on wheel
+        const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+        const r = LABEL_OUTER + 2 + Math.random() * (RIM_R - LABEL_OUTER - BALL_RADIUS * 2 - 3);
+        // Gauge: stack from end toward start, tightly packed
+        const ga = cfg.end - j * GAUGE_BALL_SPACING;
+        this._placedBalls.push({
+          localX: Math.cos(a) * r,
+          localY: Math.sin(a) * r,
+          gaugeX: Math.cos(ga) * GAUGE_MID,
+          gaugeY: Math.sin(ga) * GAUGE_MID,
+          gaugeAngle: ga,
+          gaugeIdx: gIdx,
+          dropDelay: (indices.length - 1 - j) * DROP_STAGGER, // top of stack ejects first
+          dropDur: DROP_DURATION,
+        });
+        globalIdx++;
+      }
     }
   }
 
@@ -194,6 +239,70 @@ export class PixelWheel {
   get hubRadius() { return HUB_R; }
   get tilt() { return Math.abs(this._tilt); }
   get lights() { return this._frameLights; }
+
+  // ── Forge shop API ──
+  setShop(offerings, currency, rerollCost) {
+    this._shop.offerings = offerings || [];
+    this._shop.currency = currency;
+    this._shop.rerollCost = rerollCost;
+    this._shop.hoverIdx = -1;
+    this._shop.buyFlash = -1;
+    this._shop.buyFlashTimer = 0;
+  }
+
+  shopUpdateCurrency(currency) {
+    this._shop.currency = currency;
+  }
+
+  shopRemoveOffering(idx) {
+    this._shop.buyFlash = idx;
+    this._shop.buyFlashTimer = 0.4;
+  }
+
+  shopSetOfferings(offerings) {
+    this._shop.offerings = offerings || [];
+  }
+
+  /**
+   * Hit-test the forge shop face.
+   */
+  shopHitTest(x, y, cx, cy) {
+    if (!this.flipped) return null;
+    const TILT_Y = Math.abs(this._tilt);
+    if (TILT_Y < 0.05) return null;
+
+    const dx = x - cx;
+    const dy = (y - cy) / TILT_Y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+
+    // Hub area: top half = reroll, bottom half = leave
+    if (dist < HUB_R) {
+      if (dy < 0) return { type: 'reroll' };
+      return { type: 'leave' };
+    }
+
+    // Offerings ring
+    if (dist >= HUB_R && dist <= RIM_R) {
+      const n = this._shop.offerings.length;
+      if (n === 0) return null;
+      const segAngle = (Math.PI * 2) / n;
+      let a = angle + Math.PI / 2;
+      if (a < 0) a += Math.PI * 2;
+      const idx = Math.floor(a / segAngle) % n;
+      return { type: 'offering', index: idx };
+    }
+
+    return null;
+  }
+
+  shopSetHover(hoverResult) {
+    if (!hoverResult) { this._shop.hoverIdx = -1; return; }
+    if (hoverResult.type === 'offering') this._shop.hoverIdx = hoverResult.index;
+    else if (hoverResult.type === 'reroll') this._shop.hoverIdx = 'reroll';
+    else if (hoverResult.type === 'leave') this._shop.hoverIdx = 'leave';
+    else this._shop.hoverIdx = -1;
+  }
 
   get flipped() { return this._tilt < 0; }
 
@@ -265,11 +374,12 @@ export class PixelWheel {
     if (this._ejecting) {
       this._ejectClock += dt;
       while (this._ejectQueue.length > 0 && this._ejectClock >= this._ejectQueue[0].dropDelay) {
-        this._ejectQueue.shift();
+        const pb = this._ejectQueue.shift();
 
         // Spawn physics ball just inside rim — spread entry angle across gauge
-        const spread = GAUGE_END - GAUGE_START;
-        const entryAngle = GAUGE_START + Math.random() * spread;
+        const cfg = GAUGE_CONFIGS[pb.gaugeIdx] || GAUGE_CONFIGS[0];
+        const spread = cfg.end - cfg.start;
+        const entryAngle = cfg.start + Math.random() * spread;
         const entryR = RIM_R - 4;
         const x = Math.cos(entryAngle) * entryR;
         const y = Math.sin(entryAngle) * entryR;
@@ -446,7 +556,7 @@ export class PixelWheel {
    *  @param {number} pox  peripheral offset X (gauge + slots parallax)
    *  @param {number} poy  peripheral offset Y
    */
-  draw(ctx, cx, cy, pox = 0, poy = 0) {
+  draw(ctx, cx, cy, pox = 0, poy = 0, layers = null) {
     const data = this._data;
     if (!data.length) return;
     const tw = data.reduce((s, w) => s + w.weight, 0);
@@ -466,24 +576,37 @@ export class PixelWheel {
     ctx.scale(1, TILT_Y);
     ctx.translate(-cx, -cy);
 
-    // ── Flipped: draw shop face ──
+    // ── Flipped: draw forge shop face ──
     if (this._tilt < 0) {
-      ctx.beginPath(); ctx.arc(cx, cy, RIM_R, 0, Math.PI * 2);
-      ctx.fillStyle = PAL.darkGray; ctx.fill();
-      ctx.strokeStyle = PAL.gold; ctx.lineWidth = 2; ctx.stroke();
-      drawTextCentered(ctx, 'SHOP', cx, cy - Math.floor(CHAR_H), PAL.gold, 2);
+      this._drawForgeFace(ctx, cx, cy);
       ctx.restore(); // end tilt
       this._drawOrbitSlots(ctx, cx + pox, cy + poy);
+      this._drawGauges(ctx, cx + pox, cy + poy);
       return;
     }
 
-    // ── Rim ──
-    ctx.beginPath(); ctx.arc(cx, cy, RIM_R, 0, Math.PI * 2);
-    ctx.strokeStyle = RIM_COLOR; ctx.lineWidth = 1; ctx.stroke();
+    // ── Layer parallax offsets (relative to wheel center) ──
+    const pkOx = layers ? layers.pocket.x : 0;
+    const pkOy = layers ? layers.pocket.y : 0;
+    const lbOx = layers ? layers.label.x : 0;
+    const lbOy = layers ? layers.label.y : 0;
+    const rmOx = layers ? layers.rim.x : 0;
+    const rmOy = layers ? layers.rim.y : 0;
 
-    // ── Rotated wheel ──
+    // Precompute shared state for highlights / chase
+    const isIdle = Math.abs(this._angVel) < 0.1
+      && !this._balls.some(b => !b.settled)
+      && this._highlights.length === 0;
+    const showChase = isIdle || this._bonusMode;
+    const chaseTrail = this._bonusMode ? 6 : 4;
+    const chaseSpeed = this._bonusMode ? 18 : 6;
+    const RAINBOW = [PAL.red, PAL.gold, PAL.green, PAL.blue, PAL.purple, PAL.neonPink];
+    const chasePos = this._time * chaseSpeed;
+    const chaseIdx = Math.floor(chasePos) % data.length;
+
+    // ═══ PASS 1: Pockets — slowest parallax ═══
     ctx.save();
-    ctx.translate(cx, cy);
+    ctx.translate(cx + pkOx, cy + pkOy);
     ctx.rotate(this._angle);
 
     let off = 0;
@@ -493,7 +616,7 @@ export class PixelWheel {
       const dark = i % 2 === 0;
       const mid = off + angle / 2;
 
-      // ── Pocket (flat fill — gold or default) ──
+      // Pocket fill
       ctx.beginPath();
       ctx.arc(0, 0, POCKET_OUTER, off, off + angle);
       ctx.arc(0, 0, POCKET_INNER, off + angle, off, true);
@@ -501,11 +624,8 @@ export class PixelWheel {
       ctx.fillStyle = isGold ? PAL.darkGold : (dark ? SEG_A : SEG_B);
       ctx.fill();
 
-      // Highlight flash
+      // Pocket highlight flash
       const hl = this._highlights.find(h => h.idx === i);
-      const isIdle = Math.abs(this._angVel) < 0.1 && !this._balls.some(b => !b.settled) && this._highlights.length === 0;
-      const showChase = isIdle || this._bonusMode;
-
       if (hl) {
         const hlColor = isGold ? PAL.gold : PAL.white;
         let a;
@@ -515,39 +635,28 @@ export class PixelWheel {
         ctx.fillStyle = hlColor;
         ctx.globalAlpha = a;
         ctx.fill();
-        ctx.beginPath();
-        ctx.arc(0, 0, LABEL_OUTER, off, off + angle);
-        ctx.arc(0, 0, LABEL_INNER, off + angle, off, true);
-        ctx.closePath();
-        ctx.fill();
         ctx.globalAlpha = 1;
 
         // Light source for glow
         const worldA = this._angle + mid;
         const hlR = (POCKET_INNER + POCKET_OUTER) / 2;
         this._frameLights.push({
-          x: cx + Math.cos(worldA) * hlR,
-          y: cy + Math.sin(worldA) * hlR * TILT_Y,
+          x: (cx + pkOx) + Math.cos(worldA) * hlR,
+          y: (cy + pkOy) + Math.sin(worldA) * hlR * TILT_Y,
           r: 25, color: hlColor,
           a: Math.max(0, 1 - hl.t / 1.5) * 0.35,
         });
       } else if (showChase) {
-        // Chase: fast rainbow in bonus mode, slow white/gold in idle
-        const TRAIL = this._bonusMode ? 6 : 4;
-        const speed = this._bonusMode ? 18 : 6;
-        const RAINBOW = [PAL.red, PAL.gold, PAL.green, PAL.blue, PAL.purple, PAL.neonPink];
-        const chasePos = this._time * speed;
-        const idleIdx = Math.floor(chasePos) % data.length;
-        for (let t = 0; t < TRAIL; t++) {
-          const ti = ((idleIdx - t) % data.length + data.length) % data.length;
+        for (let t = 0; t < chaseTrail; t++) {
+          const ti = ((chaseIdx - t) % data.length + data.length) % data.length;
           if (ti === i) {
             let hlColor;
             if (this._bonusMode) {
               hlColor = RAINBOW[(Math.floor(chasePos) + t) % RAINBOW.length];
             } else {
-              hlColor = (data[ti].symbolId === 'gold') ? PAL.gold : PAL.white;
+              hlColor = isGold ? PAL.gold : PAL.white;
             }
-            const fade = 1 - t / TRAIL;
+            const fade = 1 - t / chaseTrail;
             ctx.fillStyle = hlColor;
             ctx.globalAlpha = 0.35 * fade * fade;
             ctx.fill();
@@ -557,8 +666,8 @@ export class PixelWheel {
               const worldA = this._angle + mid;
               const hlR = (POCKET_INNER + POCKET_OUTER) / 2;
               this._frameLights.push({
-                x: cx + Math.cos(worldA) * hlR,
-                y: cy + Math.sin(worldA) * hlR * TILT_Y,
+                x: (cx + pkOx) + Math.cos(worldA) * hlR,
+                y: (cy + pkOy) + Math.sin(worldA) * hlR * TILT_Y,
                 r: 18, color: hlColor, a: this._bonusMode ? 0.3 : 0.2,
               });
             }
@@ -566,7 +675,23 @@ export class PixelWheel {
         }
       }
 
-      // ── Number ring (casino red/black) ──
+      off += angle;
+    }
+
+    ctx.restore(); // end pocket pass
+
+    // ═══ PASS 2: Number ring + dividers — medium parallax ═══
+    ctx.save();
+    ctx.translate(cx + lbOx, cy + lbOy);
+    ctx.rotate(this._angle);
+
+    off = 0;
+    for (let i = 0; i < data.length; i++) {
+      const seg = data[i], angle = (seg.weight / tw) * Math.PI * 2;
+      const dark = i % 2 === 0;
+      const mid = off + angle / 2;
+
+      // Label ring fill (casino red/black)
       ctx.beginPath();
       ctx.arc(0, 0, LABEL_OUTER, off, off + angle);
       ctx.arc(0, 0, LABEL_INNER, off + angle, off, true);
@@ -574,6 +699,25 @@ export class PixelWheel {
       ctx.fillStyle = dark ? PAL.darkRed : PAL.black;
       ctx.fill();
       ctx.strokeStyle = PAL.black; ctx.lineWidth = 0.5; ctx.stroke();
+
+      // Label highlight flash (drawn AFTER fill so it's visible)
+      const hl = this._highlights.find(h => h.idx === i);
+      if (hl) {
+        const isGold = seg.symbolId === 'gold';
+        const hlColor = isGold ? PAL.gold : PAL.white;
+        let a;
+        if (hl.t < 0.15) a = 0.9;
+        else if (hl.t < 0.4) a = 0.7;
+        else a = Math.max(0, 1 - (hl.t - 0.4) / 1.1) * 0.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, LABEL_OUTER, off, off + angle);
+        ctx.arc(0, 0, LABEL_INNER, off + angle, off, true);
+        ctx.closePath();
+        ctx.fillStyle = hlColor;
+        ctx.globalAlpha = a;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
 
       // Number (bitmap font)
       const numR = this.R * LABEL_P;
@@ -583,7 +727,7 @@ export class PixelWheel {
       drawTextCentered(ctx, String(i + 1), 0, -Math.floor(CHAR_H / 2), PAL.white, 1);
       ctx.restore();
 
-      // ── Divider (gold 1px) ──
+      // Divider (gold 1px)
       const dcos = Math.cos(off), dsin = Math.sin(off);
       ctx.beginPath();
       ctx.moveTo(dcos * POCKET_INNER, dsin * POCKET_INNER);
@@ -592,6 +736,17 @@ export class PixelWheel {
 
       off += angle;
     }
+
+    ctx.restore(); // end label pass
+
+    // ═══ PASS 3: Rim border — fastest wheel parallax ═══
+    ctx.beginPath(); ctx.arc(cx + rmOx, cy + rmOy, RIM_R, 0, Math.PI * 2);
+    ctx.strokeStyle = RIM_COLOR; ctx.lineWidth = 1; ctx.stroke();
+
+    // ═══ PASS 4: Balls + Hub — base wheel position ═══
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(this._angle);
 
     // ── Placed balls that finished dropping (rotate with wheel) ──
     if (!this._inGauge) {
@@ -615,10 +770,12 @@ export class PixelWheel {
     ctx.fillStyle = HUB_BG; ctx.fill();
     ctx.strokeStyle = HUB_BORDER; ctx.lineWidth = 1; ctx.stroke();
 
-    ctx.restore(); // end rotation
+    this._drawHubScreen(ctx, 0, 0);
+
+    ctx.restore(); // end base pass
 
     // ── Gauge (ball magazine) ──
-    this._drawGauge(ctx, cx + pox, cy + poy);
+    this._drawGauges(ctx, cx + pox, cy + poy);
 
     // ── Active balls (world space) ──
     for (const b of this._balls) {
@@ -635,6 +792,231 @@ export class PixelWheel {
     // ── Relic slots orbiting outside rim (not affected by flip) ──
     this._drawOrbitSlots(ctx, cx + pox, cy + poy);
   }
+
+  // ═══ Forge Shop Face (back of wheel) ═══
+
+  static RARITY_COLORS = {
+    common:    { fg: PAL.lightGray, bg: PAL.midGray,    border: PAL.lightGray, sprite: 'relic_common' },
+    uncommon:  { fg: PAL.green,     bg: PAL.darkGreen,  border: PAL.green,     sprite: 'relic_uncommon' },
+    rare:      { fg: PAL.blue,      bg: PAL.darkBlue,   border: PAL.cyan,      sprite: 'relic_rare' },
+    legendary: { fg: PAL.neonPink,  bg: PAL.darkPurple, border: PAL.gold,      sprite: 'relic_legendary' },
+  };
+
+  _drawForgeFace(ctx, cx, cy) {
+    const shop = this._shop;
+    const offerings = shop.offerings;
+    const n = offerings.length;
+
+    // Buy flash timer
+    if (shop.buyFlashTimer > 0) {
+      shop.buyFlashTimer -= 1 / 60;
+    }
+
+    // ── Background: dark forge disc ──
+    ctx.beginPath(); ctx.arc(cx, cy, RIM_R, 0, Math.PI * 2);
+    ctx.fillStyle = PAL.black; ctx.fill();
+
+    // ── Rim: golden metallic border (forge identity) ──
+    ctx.strokeStyle = PAL.gold; ctx.lineWidth = 2; ctx.stroke();
+    // Inner rim glow
+    ctx.beginPath(); ctx.arc(cx, cy, RIM_R - 2, 0, Math.PI * 2);
+    ctx.strokeStyle = PAL.darkGold; ctx.lineWidth = 1; ctx.stroke();
+
+    // ── Offering segments (radial) ──
+    if (n > 0) {
+      const segAngle = (Math.PI * 2) / n;
+      const startOffset = -Math.PI / 2; // top
+
+      for (let i = 0; i < n; i++) {
+        const o = offerings[i];
+        const rarity = PixelWheel.RARITY_COLORS[o.rarity] || PixelWheel.RARITY_COLORS.common;
+        const a0 = startOffset + i * segAngle;
+        const a1 = a0 + segAngle;
+        const mid = a0 + segAngle / 2;
+        const isHover = shop.hoverIdx === i;
+        const isBuyFlash = shop.buyFlash === i && shop.buyFlashTimer > 0;
+        const tooExpensive = shop.currency < o.finalCost;
+
+        // ── Outer ring (names): RIM→LABEL_OUTER ──
+        ctx.beginPath();
+        ctx.arc(cx, cy, RIM_R - 3, a0, a1);
+        ctx.arc(cx, cy, LABEL_OUTER, a1, a0, true);
+        ctx.closePath();
+        ctx.fillStyle = rarity.bg;
+        ctx.fill();
+
+        // Name text along the mid-radius
+        const nameR = (RIM_R - 3 + LABEL_OUTER) / 2;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(mid);
+        const name = (o.name || o.id).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+        const nameW = name.length * (4 + 1);
+        // Draw along the arc direction
+        ctx.save();
+        ctx.translate(nameR, 0);
+        ctx.rotate(Math.PI / 2);
+        drawTextCentered(ctx, name, 0, -Math.floor(CHAR_H / 2), rarity.fg, 1);
+        ctx.restore();
+        ctx.restore();
+
+        // ── Mid ring (sprites): LABEL_OUTER→LABEL_INNER ──
+        ctx.beginPath();
+        ctx.arc(cx, cy, LABEL_OUTER, a0, a1);
+        ctx.arc(cx, cy, LABEL_INNER, a1, a0, true);
+        ctx.closePath();
+        ctx.fillStyle = isHover ? rarity.bg : PAL.darkGray;
+        ctx.fill();
+
+        // Sprite
+        const spriteR = (LABEL_OUTER + LABEL_INNER) / 2;
+        const sx = cx + Math.cos(mid) * spriteR;
+        const sy = cy + Math.sin(mid) * spriteR;
+        const spriteId = rarity.sprite;
+        if (isBuyFlash) {
+          ctx.globalAlpha = Math.min(1, shop.buyFlashTimer / 0.2);
+        } else if (tooExpensive) {
+          ctx.globalAlpha = 0.35;
+        }
+        drawSpriteCentered(ctx, spriteId, Math.round(sx), Math.round(sy), 2);
+        ctx.globalAlpha = 1;
+
+        // ── Inner ring (price + rarity): LABEL_INNER→HUB_R ──
+        ctx.beginPath();
+        ctx.arc(cx, cy, LABEL_INNER, a0, a1);
+        ctx.arc(cx, cy, HUB_R, a1, a0, true);
+        ctx.closePath();
+        ctx.fillStyle = PAL.black;
+        ctx.fill();
+
+        // Price text
+        const priceR = (LABEL_INNER + HUB_R) / 2;
+        const px = cx + Math.cos(mid) * priceR;
+        const py = cy + Math.sin(mid) * priceR;
+        const priceStr = String(o.finalCost);
+        const priceColor = tooExpensive ? PAL.darkRed : PAL.gold;
+        drawTextCentered(ctx, priceStr, Math.round(px), Math.round(py) - Math.floor(CHAR_H / 2), priceColor, 1);
+        // Coin icon next to price
+        const coinX = Math.round(px) + (priceStr.length * 5) / 2 + 5;
+        drawAnimSpriteCentered(ctx, 'coin', coinX, Math.round(py), 1, this._time, 6);
+
+        // ── Rarity pip (colored dot under price) ──
+        const pipR = priceR - 5;
+        const pipX = cx + Math.cos(mid) * pipR;
+        const pipY = cy + Math.sin(mid) * pipR;
+        ctx.fillStyle = rarity.fg;
+        ctx.fillRect(Math.round(pipX) - 1, Math.round(pipY) + 3, 3, 2);
+
+        // ── Dividers between segments ──
+        const dcos = Math.cos(a0), dsin = Math.sin(a0);
+        ctx.beginPath();
+        ctx.moveTo(cx + dcos * HUB_R, cy + dsin * HUB_R);
+        ctx.lineTo(cx + dcos * (RIM_R - 3), cy + dsin * (RIM_R - 3));
+        ctx.strokeStyle = PAL.darkGold; ctx.lineWidth = 1; ctx.stroke();
+
+        // ── Hover highlight ──
+        if (isHover && !tooExpensive) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, RIM_R - 3, a0, a1);
+          ctx.arc(cx, cy, HUB_R, a1, a0, true);
+          ctx.closePath();
+          ctx.fillStyle = PAL.white;
+          ctx.globalAlpha = 0.1;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+
+          // Glow light
+          this._frameLights.push({
+            x: cx + Math.cos(mid) * spriteR,
+            y: cy + Math.sin(mid) * spriteR * Math.abs(this._tilt),
+            r: 20, color: rarity.fg, a: 0.25,
+          });
+        }
+
+        // ── Buy flash (white burst) ──
+        if (isBuyFlash) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, RIM_R - 3, a0, a1);
+          ctx.arc(cx, cy, HUB_R, a1, a0, true);
+          ctx.closePath();
+          ctx.fillStyle = PAL.gold;
+          ctx.globalAlpha = shop.buyFlashTimer / 0.4 * 0.6;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+
+          this._frameLights.push({
+            x: cx + Math.cos(mid) * spriteR,
+            y: cy + Math.sin(mid) * spriteR * Math.abs(this._tilt),
+            r: 40, color: PAL.gold, a: shop.buyFlashTimer / 0.4 * 0.5,
+          });
+        }
+      }
+    } else {
+      // No offerings: "SOLD OUT"
+      drawTextCentered(ctx, 'SOLD OUT', cx, cy - CHAR_H, PAL.midGray, 2);
+    }
+
+    // ── Hub circle (forge center) ──
+    ctx.beginPath(); ctx.arc(cx, cy, HUB_R, 0, Math.PI * 2);
+    ctx.fillStyle = PAL.black; ctx.fill();
+    ctx.strokeStyle = PAL.gold; ctx.lineWidth = 1; ctx.stroke();
+
+    // Anvil icon + title
+    drawSpriteCentered(ctx, 'anvil', cx, Math.round(cy - HUB_R * 0.35), 1);
+    drawTextCentered(ctx, 'LA FORGE', cx, Math.round(cy - HUB_R * 0.65), PAL.gold, 1);
+
+    // Currency display (center)
+    const curStr = String(shop.currency);
+    const curW = curStr.length * (4 + 1);
+    const curY = Math.round(cy + 2);
+    drawTextCentered(ctx, curStr, cx - 4, curY, PAL.gold, 1);
+    drawAnimSpriteCentered(ctx, 'coin', Math.round(cx + curW / 2 + 1), curY + Math.floor(CHAR_H / 2), 1, this._time, 6);
+
+    // Dividing line in hub
+    ctx.beginPath();
+    ctx.moveTo(cx - HUB_R + 4, cy);
+    ctx.lineTo(cx + HUB_R - 4, cy);
+    ctx.strokeStyle = PAL.darkGold; ctx.lineWidth = 0.5; ctx.stroke();
+
+    // Top half: reroll button
+    const rerollHover = shop.hoverIdx === 'reroll';
+    const rerollY = Math.round(cy - HUB_R * 0.17);
+    if (rerollHover) {
+      ctx.beginPath(); ctx.arc(cx, cy, HUB_R - 2, -Math.PI, 0);
+      ctx.lineTo(cx + HUB_R - 2, cy); ctx.lineTo(cx - HUB_R + 2, cy);
+      ctx.closePath();
+      ctx.fillStyle = PAL.darkGold; ctx.globalAlpha = 0.3; ctx.fill(); ctx.globalAlpha = 1;
+    }
+
+    // Bottom half: leave button
+    const leaveHover = shop.hoverIdx === 'leave';
+    const leaveY = Math.round(cy + HUB_R * 0.45);
+    if (leaveHover) {
+      ctx.beginPath(); ctx.arc(cx, cy, HUB_R - 2, 0, Math.PI);
+      ctx.lineTo(cx - HUB_R + 2, cy);
+      ctx.closePath();
+      ctx.fillStyle = PAL.darkGold; ctx.globalAlpha = 0.3; ctx.fill(); ctx.globalAlpha = 1;
+    }
+
+    // Reroll label
+    const rerollColor = shop.currency >= shop.rerollCost ? PAL.white : PAL.midGray;
+    drawTextCentered(ctx, 'REROLL ' + shop.rerollCost, cx, rerollY, rerollColor, 1);
+
+    // Leave label
+    drawTextCentered(ctx, 'GO!', cx, leaveY, PAL.gold, 1);
+
+    // Animated forge glow at rim
+    const glowAngle = this._time * 1.5;
+    for (let i = 0; i < 4; i++) {
+      const ga = glowAngle + i * Math.PI / 2;
+      this._frameLights.push({
+        x: cx + Math.cos(ga) * RIM_R,
+        y: cy + Math.sin(ga) * RIM_R * Math.abs(this._tilt),
+        r: 12, color: PAL.gold, a: 0.08 + Math.sin(this._time * 4 + i) * 0.04,
+      });
+    }
+  }
+
 
   _drawPixelBall(ctx, bx, by, settled) {
     drawSpriteCentered(ctx, 'ball', Math.round(bx), Math.round(by), 1);
@@ -710,36 +1092,58 @@ export class PixelWheel {
     ctx.restore();
   }
 
-  _drawGauge(ctx, cx, cy) {
+  _drawGauges(ctx, cx, cy) {
+    for (let g = 0; g < GAUGE_CONFIGS.length; g++) {
+      this._drawOneGauge(ctx, cx, cy, g);
+    }
+  }
+
+  _drawOneGauge(ctx, cx, cy, gaugeIdx) {
+    const cfg = GAUGE_CONFIGS[gaugeIdx];
+    const unlocked = this._gaugeUnlocks[gaugeIdx];
     const INNER = RIM_R + 20;
     const OUTER = RIM_R + 26;
 
     // Channel fill
     ctx.beginPath();
-    ctx.arc(cx, cy, OUTER, GAUGE_START, GAUGE_END);
-    ctx.arc(cx, cy, INNER, GAUGE_END, GAUGE_START, true);
+    ctx.arc(cx, cy, OUTER, cfg.start, cfg.end);
+    ctx.arc(cx, cy, INNER, cfg.end, cfg.start, true);
     ctx.closePath();
-    ctx.fillStyle = SEG_B;
+    ctx.fillStyle = unlocked ? SEG_B : PAL.black;
     ctx.fill();
 
-    // Borders (inner, outer arcs + end caps)
-    ctx.strokeStyle = RIM_COLOR; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(cx, cy, OUTER, GAUGE_START, GAUGE_END); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, INNER, GAUGE_START, GAUGE_END); ctx.stroke();
-    for (const a of [GAUGE_START, GAUGE_END]) {
+    // Borders
+    ctx.strokeStyle = unlocked ? RIM_COLOR : PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, OUTER, cfg.start, cfg.end); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, INNER, cfg.start, cfg.end); ctx.stroke();
+    for (const a of [cfg.start, cfg.end]) {
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(a) * INNER, cy + Math.sin(a) * INNER);
       ctx.lineTo(cx + Math.cos(a) * OUTER, cy + Math.sin(a) * OUTER);
       ctx.stroke();
     }
 
-    // Balls still in gauge
-    let remaining = 0;
+    if (!unlocked) {
+      // Lock indicator (X) at center of gauge arc
+      const midA = (cfg.start + cfg.end) / 2;
+      const midR = (INNER + OUTER) / 2;
+      const lx = Math.round(cx + Math.cos(midA) * midR);
+      const ly = Math.round(cy + Math.sin(midA) * midR);
+      ctx.fillStyle = PAL.midGray;
+      ctx.fillRect(lx - 1, ly - 1, 1, 1);
+      ctx.fillRect(lx + 1, ly - 1, 1, 1);
+      ctx.fillRect(lx, ly, 1, 1);
+      ctx.fillRect(lx - 1, ly + 1, 1, 1);
+      ctx.fillRect(lx + 1, ly + 1, 1, 1);
+      return;
+    }
+
+    // Balls still in this gauge
     const gaugeBalls = this._inGauge ? this._placedBalls :
                        this._ejecting ? this._ejectQueue : [];
     for (const pb of gaugeBalls) {
-      remaining++;
-      // Shadow behind each ball for stacking visibility
+      if (pb.gaugeIdx !== gaugeIdx) continue;
       const bx = Math.round(cx + pb.gaugeX);
       const by = Math.round(cy + pb.gaugeY);
       ctx.fillStyle = PAL.black;
@@ -811,7 +1215,7 @@ export class PixelWheel {
 
     if (filled) {
       try {
-        drawSpriteCentered(ctx, filled.id || 'star', mx, my, 1);
+        drawSpriteCentered(ctx, filled.id || 'ticket', mx, my, 1);
       } catch {
         drawTextCentered(ctx, '?', mx, my - Math.floor(CHAR_H / 2), PAL.gold, 1);
       }

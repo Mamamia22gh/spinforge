@@ -16,7 +16,7 @@ export const META_UNLOCKS = [
   { id: 'unlock_purple',   name: 'Symbole Violet',    description: 'Segments Violet dans les choix',     cost: 3,  category: 'symbol' },
   { id: 'unlock_cherry',   name: 'Cerise',            description: 'Cerise (double payout) dans choix',  cost: 5,  category: 'symbol' },
   { id: 'unlock_bell',     name: 'Cloche',            description: 'Cloche (+chips) dans les choix',     cost: 5,  category: 'symbol' },
-  { id: 'unlock_star',    name: 'Étoile',           description: 'Étoile (multi all) dans les choix',  cost: 10, category: 'symbol' },
+  { id: 'unlock_ticket',  name: 'Ticket',           description: 'Ticket (multi all) dans les choix',  cost: 10, category: 'symbol' },
   { id: 'unlock_seven',    name: 'Sept',              description: 'Sept (jackpot) dans les choix',      cost: 10, category: 'symbol' },
   { id: 'unlock_void',     name: 'Void',              description: 'Void (burst) dans les choix',        cost: 15, category: 'symbol' },
   { id: 'unlock_joker',    name: 'Joker',             description: 'Joker (wildcard) dans les choix',    cost: 12, category: 'symbol' },
@@ -30,6 +30,11 @@ export const META_UNLOCKS = [
   // General
   { id: 'unlock_extra_bet',name: 'Pari Bonus',        description: '+1 pari max par spin',               cost: 8,  category: 'upgrade' },
   { id: 'unlock_16_seg',   name: 'Grande Roue',       description: 'Roue extensible à 16 segments',      cost: 12, category: 'upgrade' },
+
+  // Gauges
+  { id: 'unlock_gauge_2',  name: 'Chargeur Supérieur', description: 'Débloque le 2e chargeur de billes',  cost: 8,  category: 'upgrade' },
+  { id: 'unlock_gauge_3',  name: 'Chargeur Inférieur', description: 'Débloque le 3e chargeur de billes',  cost: 15, category: 'upgrade' },
+  { id: 'unlock_gauge_4',  name: 'Chargeur Gauche',    description: 'Débloque le 4e chargeur de billes',  cost: 25, category: 'upgrade' },
 ];
 
 export const UNLOCK_MAP = new Map(META_UNLOCKS.map(u => [u.id, u]));
@@ -44,10 +49,10 @@ export class MetaSystem {
     this.#events = events;
   }
 
-  calculateStars(run, won = false) {
-    let stars = run.round * BALANCE.STARS_PER_ROUND;
-    if (won) stars += BALANCE.STARS_BONUS_WIN;
-    return stars;
+  calculateTickets(run, won = false) {
+    let tickets = run.round * BALANCE.TICKETS_PER_ROUND;
+    if (won) tickets += BALANCE.TICKETS_BONUS_WIN;
+    return tickets;
   }
 
   unlock(meta, unlockId) {
@@ -60,14 +65,14 @@ export class MetaSystem {
       this.#events.emit('meta:already_unlocked', { unlockId });
       return false;
     }
-    if (meta.stars < def.cost) {
-      this.#events.emit('meta:insufficient_stars', { unlockId, cost: def.cost, available: meta.stars });
+    if (meta.tickets < def.cost) {
+      this.#events.emit('meta:insufficient_tickets', { unlockId, cost: def.cost, available: meta.tickets });
       return false;
     }
 
-    meta.stars -= def.cost;
+    meta.tickets -= def.cost;
     meta.unlocks.push(unlockId);
-    this.#events.emit('meta:unlocked', { unlockId, name: def.name, remainingStars: meta.stars });
+    this.#events.emit('meta:unlocked', { unlockId, name: def.name, remainingTickets: meta.tickets });
     return true;
   }
 
@@ -79,7 +84,7 @@ export class MetaSystem {
     return META_UNLOCKS.map(u => ({
       ...u,
       unlocked: meta.unlocks.includes(u.id),
-      affordable: meta.stars >= u.cost,
+      affordable: meta.tickets >= u.cost,
     }));
   }
 }

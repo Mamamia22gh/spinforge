@@ -25,8 +25,8 @@ export function createGameState(seed) {
 
 export function createMetaState() {
   return {
-    stars: 0,
-    totalStars: 0,
+    tickets: 0,
+    totalTickets: 0,
     runsCompleted: 0,
     bestRound: 0,
     unlocks: [],

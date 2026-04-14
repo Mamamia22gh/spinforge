@@ -1,9 +1,9 @@
 import { createGame } from '../src/index.js';
 import { BALANCE, getQuota } from '../src/data/balance.js';
 import { PixelWheel } from './objects/PixelWheel.js';
-import { PAL, SYM_COLORS } from './gfx/PaletteDB.js';
+import { PAL, PAL32, SYM_COLORS } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextCenteredOutlined, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
-import { drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, SPRITE_SIZE } from './gfx/PixelSprites.js';
+import { drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, SPRITE_SIZE, getTicketVariants, getActiveTicketIdx, setActiveTicket, drawTicketVariantCentered, TICKET_W, TICKET_H } from './gfx/PixelSprites.js';
 import { getSymbol } from '../src/data/symbols.js';
 import { PostFXGL } from './gfx/PostFXGL.js';
 
@@ -12,6 +12,9 @@ const W = 480, H = 270;
 const PX = 2;                          // pixel scale — each art pixel = PX×PX canvas pixels
 const CW = W * PX, CH = H * PX;       // canvas resolution (960×540)
 const WHEEL_CX = 240, WHEEL_CY = 140;
+const IND_ARC_R = 86;             // indicator arc radius (between rim 82 and ring 115)
+const IND_ARC_STEP = Math.PI / 8;  // 22.5° between each indicator
+const BG_PAD = 4;                      // background oversize for parallax shift
 
 class App {
   constructor() {
@@ -29,21 +32,20 @@ class App {
     this.wheel = new PixelWheel();
     this._spinning = false;
     this.wheel.setBonusMode(false);
+    this._updateGaugeUnlocks();
 
-    // Convert surplus gold to diamonds
-    const endRun = this.game.getState().run;
-    if (endRun) {
-      const endQuota = getQuota(endRun.round);
-      const surplus = Math.max(0, endRun.score - endQuota);
-      const earned = Math.floor(surplus / 5);
-      if (earned > 0) this._diamonds += earned;
-    }
     this._time = 0;
     this._pops = [];
     this._shake = { x: 0, y: 0, intensity: 0, decay: 0, time: 0 };
     this._flash = 0;
-    this._diamonds = 0;
     this._goldDisplay = 0; // animated gold counter // invert flash timer (>0 = active)
+    this._inShop = false;
+    this._shopResolve = null;
+    this._inSpriteSelect = false;
+    this._spriteSelectScroll = 0;
+    this._spriteHoverIdx = -1;
+
+    this._initBackground();
 
     // Mouse tracking (normalized -1..1 from center)
     this._mx = 0;
@@ -102,9 +104,23 @@ class App {
     this._mx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;   // -1..1
     this._my = ((e.clientY - rect.top) / rect.height - 0.5) * 2;   // -1..1
 
-    // Hub hover detection
     const x = Math.floor((e.clientX - rect.left) / rect.width * W);
     const y = Math.floor((e.clientY - rect.top) / rect.height * H);
+
+    // Sprite select hover
+    if (this._inSpriteSelect) {
+      this._spriteHoverIdx = this._spriteSelectHitTest(x, y);
+      this._display.style.cursor = this._spriteHoverIdx >= 0 || (x < 50 && y < 20) ? 'pointer' : 'default';
+      return;
+    }
+    if (this._inShop && this.wheel.flipped) {
+      const hit = this.wheel.shopHitTest(x, y, WHEEL_CX, WHEEL_CY);
+      this.wheel.shopSetHover(hit);
+      this._display.style.cursor = hit ? 'pointer' : 'default';
+      return;
+    }
+
+    // Hub hover detection
     const dx = x - WHEEL_CX;
     const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
     const wasHover = this._hubHover;
@@ -119,6 +135,43 @@ class App {
     this._initAudio();
     const { x, y } = this._mapCoords(e);
 
+    // ── Sprite select click ──
+    if (this._inSpriteSelect) {
+      const hit = this._spriteSelectHitTest(x, y);
+      if (hit >= 0) {
+        setActiveTicket(hit);
+        this._playSelect();
+      }
+      if (x < 50 && y < 20) {
+        this._inSpriteSelect = false;
+        this._display.style.cursor = 'default';
+        this._playSelect();
+      }
+      return;
+    }
+
+    // ── Shop click handling ──
+    if (this._inShop && this.wheel.flipped) {
+      const hit = this.wheel.shopHitTest(x, y, WHEEL_CX, WHEEL_CY);
+      if (hit) {
+        this._handleShopClick(hit);
+        return;
+      }
+    }
+
+    // Ticket icon click in UI ring → open sprite selector
+    if (!this._spinning && !this._inShop) {
+      const sx = WHEEL_CX + Math.round(IND_ARC_R);  // ticket at angle 0 on arc
+      const sy = WHEEL_CY;
+      const sdx = x - sx, sdy = y - sy;
+      if (sdx * sdx + sdy * sdy < 12 * 12) {
+        this._inSpriteSelect = true;
+        this._spriteHoverIdx = -1;
+        this._playSelect();
+        return;
+      }
+    }
+
     // Hub button click (ellipse hit test with tilt)
     const dx = x - WHEEL_CX;
     const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
@@ -127,6 +180,68 @@ class App {
       this._onAction();
       return;
     }
+  }
+
+  _handleShopClick(hit) {
+    const state = this.game.getState();
+    const run = state.run;
+    const meta = state.meta;
+    if (!run) return;
+
+    if (hit.type === 'offering') {
+      const offering = run.shopOfferings[hit.index];
+      if (!offering) return;
+      if (meta.tickets < offering.finalCost) {
+        this._pop('NO TICKETS!');
+        return;
+      }
+      this.wheel.shopRemoveOffering(hit.index);
+      const ok = this.game.shopBuyRelic(hit.index);
+      if (ok) {
+        this._pop('BOUGHT!');
+        this._shakeStart(3, 0.2);
+        // Refresh shop display
+        const rerollCost = BALANCE.SHOP_REROLL_BASE + (run.rerollCount || 0) * BALANCE.SHOP_REROLL_INCREMENT;
+        this.wheel.setShop(run.shopOfferings, meta.tickets, rerollCost);
+        // Update orbit slots with relics
+        this._syncRelicSlots();
+      }
+    } else if (hit.type === 'reroll') {
+      const rerollCost = BALANCE.SHOP_REROLL_BASE + (run.rerollCount || 0) * BALANCE.SHOP_REROLL_INCREMENT;
+      if (meta.tickets < rerollCost) {
+        this._pop('NO TICKETS!');
+        return;
+      }
+      const ok = this.game.shopReroll();
+      if (ok) {
+        this._pop('REROLL!');
+        this._shakeStart(2, 0.15);
+        const newRerollCost = BALANCE.SHOP_REROLL_BASE + (run.rerollCount || 0) * BALANCE.SHOP_REROLL_INCREMENT;
+        this.wheel.setShop(run.shopOfferings, meta.tickets, newRerollCost);
+      }
+    } else if (hit.type === 'leave') {
+      this.game.endShop();
+      this._closeForgeShop();
+    }
+  }
+
+  _syncRelicSlots() {
+    const run = this.game.getState().run;
+    if (!run) return;
+    const slots = [];
+    for (let i = 0; i < 8; i++) {
+      if (run.relics[i]) {
+        const r = run.relics[i];
+        const raritySprite = {
+          common: 'relic_common', uncommon: 'relic_uncommon',
+          rare: 'relic_rare', legendary: 'relic_legendary',
+        };
+        slots.push({ id: raritySprite[r.rarity] || 'ticket' });
+      } else {
+        slots.push(null);
+      }
+    }
+    this.wheel.setSlots(slots);
   }
 
   // ── Game flow ──
@@ -156,6 +271,7 @@ class App {
       } else if (phase === 'CHOICE') {
         this.game.skipChoice();
       } else if (phase === 'SHOP') {
+        if (this._inShop) break; // let forge shop handle it
         this.game.endShop();
       } else if (phase === 'GAME_OVER' || phase === 'VICTORY') {
         // Restart run
@@ -163,6 +279,16 @@ class App {
       } else break;
     }
     this._syncWheel();
+  }
+
+  _updateGaugeUnlocks() {
+    const meta = this.game.getState().meta;
+    this.wheel.setGaugeUnlocks([
+      true,
+      meta.unlocks.includes('unlock_gauge_2'),
+      meta.unlocks.includes('unlock_gauge_3'),
+      meta.unlocks.includes('unlock_gauge_4'),
+    ]);
   }
 
   async _doSpin() {
@@ -212,21 +338,67 @@ class App {
     }
 
     this._spinning = false;
+    this.wheel.setBonusMode(false);
 
-    // Flip wheel to show shop
+    // Advance game state through RESULTS → CHOICE → SHOP
+    this._advanceToShop();
+
+    const phase = this.game.getPhase();
+    if (phase === 'GAME_OVER' || phase === 'VICTORY') {
+      // Failed or won — skip shop, restart
+      await this._delay(1000);
+      this._autoAdvance();
+      return;
+    }
+
+    // Flip wheel to show forge shop
     await this._delay(500);
+    this._openForgeShop();
     this.wheel.startFlip();
     await this._delay(600);
 
-    // TODO: shop interaction here
-    await this._delay(2000);
+    // Wait for shop interaction (resolved by _closeForgeShop)
+    await new Promise(resolve => { this._shopResolve = resolve; });
 
     // Flip back
     this.wheel.startFlip();
     await this._delay(600);
 
-    // Auto-advance through results/choice/shop
+    // Auto-advance remaining phases (SHOP→IDLE for next round)
     this._autoAdvance();
+  }
+
+  _advanceToShop() {
+    let safety = 10;
+    while (safety-- > 0) {
+      const phase = this.game.getPhase();
+      if (phase === 'SHOP') break;
+      if (phase === 'GAME_OVER' || phase === 'VICTORY') break;
+      if (phase === 'RESULTS') {
+        this.game.continueFromResults();
+      } else if (phase === 'CHOICE') {
+        this.game.skipChoice();
+      } else break;
+    }
+  }
+
+  _openForgeShop() {
+    const state = this.game.getState();
+    const run = state.run;
+    if (!run) return;
+    const rerollCost = BALANCE.SHOP_REROLL_BASE + (run.rerollCount || 0) * BALANCE.SHOP_REROLL_INCREMENT;
+    this.wheel.placeBalls(run.ballsLeft);
+    this.wheel.setShop(run.shopOfferings, state.meta.tickets, rerollCost);
+    this._inShop = true;
+  }
+
+  _closeForgeShop() {
+    this._inShop = false;
+    if (this._shopResolve) {
+      const resolve = this._shopResolve;
+      this._shopResolve = null;
+      resolve();
+    }
   }
 
   _pop(text) {
@@ -267,6 +439,98 @@ class App {
     this._render();
   }
 
+  // ═══ Pre-rendered background ("Forge Aura") ═══
+  _initBackground() {
+    const BW = W + BG_PAD * 2, BH = H + BG_PAD * 2;
+    const c = document.createElement('canvas');
+    c.width = BW; c.height = BH;
+    const bgCtx = c.getContext('2d');
+    bgCtx.imageSmoothingEnabled = false;
+
+    const imgData = bgCtx.createImageData(BW, BH);
+    const buf = new Uint32Array(imgData.data.buffer);
+
+    const CX = WHEEL_CX + BG_PAD, CY = WHEEL_CY + BG_PAD;
+    // Zone radii for layered darkness
+    const ORBIT_OUTER = 115;       // matches RING_R in _drawUIRing — transparent inside
+    const AURA_TRANS = 8;          // transition from orbit edge to full aura
+
+    // Bayer 4×4 ordered dither matrix (values 0..15)
+    const BAYER = [
+      [ 0, 8, 2,10],
+      [12, 4,14, 6],
+      [ 3,11, 1, 9],
+      [15, 7,13, 5],
+    ];
+
+    // Deterministic hash for glint scatter
+    const hash = (x, y) => ((x * 374761393 + y * 668265263) >>> 0) & 255;
+
+    for (let y = 0; y < BH; y++) {
+      for (let x = 0; x < BW; x++) {
+        const dx = x - CX, dy = y - CY;
+        const dist2 = dx * dx + dy * dy;
+        const idx = y * BW + x;
+
+        // Inside UI ring — fully transparent (inner disc drawn separately with own parallax)
+        if (dist2 < ORBIT_OUTER * ORBIT_OUTER) { buf[idx] = 0; continue; }
+
+        const dist = Math.sqrt(dist2);
+        const bayer = BAYER[y & 3][x & 3];
+
+        // ── Zone attenuation (transition at orbit edge → full aura) ──
+        let zoneAtt;
+        if (dist < ORBIT_OUTER + AURA_TRANS) {
+          zoneAtt = (dist - ORBIT_OUTER) / AURA_TRANS;
+        } else {
+          zoneAtt = 1;
+        }
+
+        // ── Edge vignette (darken near canvas borders) ──
+        const ex = x - BG_PAD, ey = y - BG_PAD;
+        const edgeDist = Math.min(ex, ey, W - 1 - ex, H - 1 - ey);
+        const vignette = Math.min(1, edgeDist / 20);
+
+        // ── Radial fade from orbit edge ──
+        const radialFade = Math.max(0, 1 - Math.max(0, dist - ORBIT_OUTER) / 90);
+
+        // ── 8 radial light rays (warm spokes) ──
+        const angle = Math.atan2(dy, dx);
+        const ray = Math.pow(Math.max(0, Math.cos(angle * 4)), 6);
+
+        // ── Concentric ring accents (outside orbit zone) ──
+        const ringDist = (dist - ORBIT_OUTER) % 32;
+        const ring = (dist > ORBIT_OUTER && ringDist < 1.0) ? 0.25 : 0;
+
+        // ── Combined brightness ──
+        const brightness = zoneAtt * vignette *
+          (0.08 + 0.28 * radialFade + 0.35 * ray * radialFade + ring * radialFade);
+        const threshold = brightness * 16;
+
+        if (bayer < threshold) {
+          buf[idx] = (radialFade > 0.35 && ray > 0.15)
+            ? PAL32.darkGold
+            : PAL32.darkGray;
+        } else {
+          buf[idx] = PAL32.black;
+        }
+      }
+    }
+
+    // ── Glint scatter (sparse bright specks — dust/sparks in metal) ──
+    for (let y = 0; y < BH; y++) {
+      for (let x = 0; x < BW; x++) {
+        const dx = x - CX, dy = y - CY;
+        if (dx * dx + dy * dy < ORBIT_OUTER * ORBIT_OUTER) continue;
+        if (hash(x, y) < 2) buf[y * BW + x] = PAL32.midGray;   // ~0.8%
+      }
+    }
+
+    bgCtx.putImageData(imgData, 0, 0);
+
+    this._bgCanvas = c;
+  }
+
   _render() {
     const ctx = this._ctx;
     ctx.imageSmoothingEnabled = false;
@@ -276,26 +540,46 @@ class App {
     ctx.scale(PX, PX);
     ctx.translate(this._shake.x, this._shake.y);
 
-    // Clear
-    ctx.fillStyle = PAL.black;
+    // Clear previous frame (prevents bleed-through in transparent bg regions)
+    ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
 
     // ── Parallax offsets ──
     const px = this._mx;   // -1..1
     const py = this._my;
-    const wheelOx = px * 1.5;    // wheel: 1.5px max
+    const pocketOx = px * 1.0;   // pockets: slowest wheel layer
+    const pocketOy = py * 0.6;
+    const labelOx  = px * 1.4;   // number ring: medium
+    const labelOy  = py * 0.9;
+    const wheelOx = px * 1.5;    // wheel base (balls, hub circle)
     const wheelOy = py * 1;
+    const rimOx   = px * 2.0;    // rim border: fastest wheel layer
+    const rimOy   = py * 1.3;
     const periOx = px * 2;       // gauge + slots: 2px max
     const periOy = py * 2;
     const hudOx = px * 4.5;      // HUD: 4.5px max (fastest)
     const hudOy = py * 3;
+    const bgOx = px * 3;           // bg aura (aligned with UI ring)
+    const bgOy = py * 2.5;
+    const uiOx = px * 3;          // UI ring
+    const uiOy = py * 2.5;
+
+    // Background: inner disc (rim parallax) + outer aura (UI ring parallax)
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(WHEEL_CX + rimOx, WHEEL_CY + rimOy, 84, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.drawImage(this._bgCanvas, -BG_PAD + bgOx, -BG_PAD + bgOy);
 
     // Wheel (parallax layer 1) + peripherals (layer 2)
-    this.wheel.draw(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy, periOx - wheelOx, periOy - wheelOy);
+    const _layers = {
+      pocket: { x: pocketOx - wheelOx, y: pocketOy - wheelOy },
+      label:  { x: labelOx - wheelOx,  y: labelOy - wheelOy },
+      rim:    { x: rimOx - wheelOx,    y: rimOy - wheelOy },
+    };
+    this.wheel.draw(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy, periOx - wheelOx, periOy - wheelOy, _layers);
 
     // UI Ring (parallax layer 2.5 — between slots and title)
-    const uiOx = px * 3;
-    const uiOy = py * 2.5;
     this._drawUIRing(ctx, WHEEL_CX + uiOx, WHEEL_CY + uiOy);
 
     // Title (parallax layer 3 — moves most)
@@ -306,9 +590,16 @@ class App {
 
     this._drawPops(ctx);
 
-    // Hub button (always on top of everything, hidden when flipped)
-    if (!this.wheel.flipped) {
-      this._drawHubBtn(ctx, wheelOx, wheelOy);
+    // Sprite selection overlay
+    if (this._inSpriteSelect) {
+      this._drawSpriteSelect(ctx);
+    }
+
+    // Hub button (own parallax layer — faster than labels, slower than rim)
+    const hubBtnOx = px * 1.7;
+    const hubBtnOy = py * 1.1;
+    if (!this.wheel.flipped && !this._inSpriteSelect) {
+      this._drawHubBtn(ctx, hubBtnOx, hubBtnOy);
     }
 
     ctx.restore(); // end PX scale
@@ -490,22 +781,33 @@ class App {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // 3 items along the right arc (tighter spacing)
+    // 3 indicators along arc on right side, inside ring
     const items = [
-      { angle: -0.35, sprite: 'coin', anim: true, val: score, col: PAL.gold },
-      { angle:  0,    sprite: 'star', anim: false, val: this._diamonds, col: PAL.green },
-      { angle:  0.35, sprite: 'ball', anim: false, val: balls, col: PAL.white },
+      { angle: -IND_ARC_STEP, sprite: 'coin',   anim: true,  val: score, col: PAL.gold },
+      { angle:  0,            sprite: 'ticket', anim: false, val: this.game.getState().meta.tickets, col: PAL.green },
+      { angle:  IND_ARC_STEP, sprite: 'ball',   anim: false, val: balls, col: PAL.white },
     ];
 
     for (const it of items) {
-      const ix = Math.round(cx + Math.cos(it.angle) * (RING_R + 6));
-      const iy = Math.round(cy + Math.sin(it.angle) * (RING_R + 6));
+      const ix = Math.round(cx + IND_ARC_R * Math.cos(it.angle));
+      const iy = Math.round(cy + IND_ARC_R * Math.sin(it.angle));
+
+      const txt = String(it.val);
+      const tw = measureText(txt);
+      const gap = 2;
+      const totalW = tw + gap + SPRITE_SIZE;
+      const sx = ix - Math.floor(totalW / 2);
+
+      // Number first (left)
+      drawText(ctx, txt, sx, iy - Math.floor(CHAR_H / 2), it.col, 1);
+
+      // Sprite second (right of number)
+      const sprCX = sx + tw + gap + Math.floor(SPRITE_SIZE / 2);
       if (it.anim) {
-        drawAnimSpriteCentered(ctx, it.sprite, ix, iy, 1, this._time, 6);
+        drawAnimSpriteCentered(ctx, it.sprite, sprCX, iy, 1, this._time, 6);
       } else {
-        drawSpriteCentered(ctx, it.sprite, ix, iy, 1);
+        drawSpriteCentered(ctx, it.sprite, sprCX, iy, 1);
       }
-      drawText(ctx, String(it.val), ix + 7, iy - Math.floor(CHAR_H / 2), it.col, 1);
     }
   }
 
@@ -621,6 +923,89 @@ class App {
     this._shake.intensity = intensity;
     this._shake.decay = decay;
     this._shake.time = 0;
+  }
+
+  // ── Sprite Selection Screen ──
+
+  _spriteSelectHitTest(mx, my) {
+    const variants = getTicketVariants();
+    const cols = 10;
+    const cellW = 32;
+    const cellH = 20;
+    const totalW = cols * cellW;
+    const ox = Math.floor((W - totalW) / 2);
+    const oy = 35;
+
+    for (let i = 0; i < variants.length; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cx = ox + col * cellW + cellW / 2;
+      const cy = oy + row * cellH + cellH / 2;
+      if (Math.abs(mx - cx) < cellW / 2 && Math.abs(my - cy) < cellH / 2) return i;
+    }
+    return -1;
+  }
+
+  _drawSpriteSelect(ctx) {
+    const variants = getTicketVariants();
+    const activeIdx = getActiveTicketIdx();
+    const cols = 10;
+    const cellW = 32;
+    const cellH = 20;
+    const scale = 2;
+    const totalW = cols * cellW;
+    const ox = Math.floor((W - totalW) / 2);
+    const oy = 35;
+    const spriteHW = (TICKET_W * scale) / 2;
+    const spriteHH = (TICKET_H * scale) / 2;
+
+    // Dim background
+    ctx.fillStyle = 'rgba(0,0,0,0.88)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    drawTextCentered(ctx, 'SELECT TICKET SPRITE', W / 2, 8, PAL.gold, 2);
+
+    // Back button
+    drawText(ctx, '< BACK', 4, 6, PAL.lightGray, 1);
+
+    // Grid
+    for (let i = 0; i < variants.length; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cx = ox + col * cellW + cellW / 2;
+      const cy = oy + row * cellH + cellH / 2;
+
+      // Active selection border (gold)
+      if (i === activeIdx) {
+        ctx.fillStyle = PAL.gold;
+        ctx.fillRect(Math.round(cx - spriteHW - 2), Math.round(cy - spriteHH - 2),
+                     TICKET_W * scale + 4, TICKET_H * scale + 4);
+      }
+
+      // Hover highlight
+      if (i === this._spriteHoverIdx && i !== activeIdx) {
+        ctx.fillStyle = PAL.midGray;
+        ctx.fillRect(Math.round(cx - spriteHW - 1), Math.round(cy - spriteHH - 1),
+                     TICKET_W * scale + 2, TICKET_H * scale + 2);
+      }
+
+      // Cell background
+      ctx.fillStyle = PAL.darkGray;
+      ctx.fillRect(Math.round(cx - spriteHW), Math.round(cy - spriteHH),
+                   TICKET_W * scale, TICKET_H * scale);
+
+      // Draw variant sprite
+      drawTicketVariantCentered(ctx, i, cx, cy, scale);
+    }
+
+    // Name label at bottom
+    const showIdx = this._spriteHoverIdx >= 0 ? this._spriteHoverIdx : activeIdx;
+    if (showIdx >= 0 && showIdx < variants.length) {
+      const name = variants[showIdx].name;
+      const label = showIdx === activeIdx ? '> ' + name + ' <' : name;
+      drawTextCentered(ctx, label, W / 2, H - 14, showIdx === activeIdx ? PAL.gold : PAL.white, 1);
+    }
   }
 }
 

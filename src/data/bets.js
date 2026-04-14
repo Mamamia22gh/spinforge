@@ -24,7 +24,7 @@ export const BET_TYPES = [
   { id: 'wildcard',     name: 'Wildcard',     emoji: '🌟', description: "N'importe quel résultat",     payout: 1.2, condition: 'wildcard', target: null,     startsUnlocked: true,  minRound: 1 },
   { id: 'color_green',  name: 'Vert',         emoji: '🟢', description: 'Symbole vert tombe',          payout: 3,   condition: 'color',    target: 'green',  startsUnlocked: false, minRound: 3 },
   { id: 'color_purple', name: 'Violet',       emoji: '🟣', description: 'Symbole violet tombe',        payout: 3,   condition: 'color',    target: 'purple', startsUnlocked: false, minRound: 3 },
-  { id: 'exact_star',   name: 'Exact Étoile', emoji: '⭐', description: 'Le symbole Étoile exact',     payout: 10,  condition: 'exact',    target: 'star',   startsUnlocked: false, minRound: 5 },
+  { id: 'exact_ticket', name: 'Exact Ticket', emoji: '🎟️', description: 'Le symbole Ticket exact',     payout: 10,  condition: 'exact',    target: 'ticket', startsUnlocked: false, minRound: 5 },
   { id: 'exact_seven',  name: 'Exact Sept',   emoji: '7️⃣', description: 'Le symbole Sept exact',       payout: 12,  condition: 'exact',    target: 'seven',  startsUnlocked: false, minRound: 5 },
   { id: 'void_bet',     name: 'Pari Void',    emoji: '🌀', description: 'Le Void tombe',               payout: 15,  condition: 'exact',    target: 'void',   startsUnlocked: false, minRound: 7 },
   { id: 'chain',        name: 'Chaîne',       emoji: '⛓️', description: 'Même couleur 3× de suite',    payout: 8,   condition: 'chain',    target: null,     startsUnlocked: false, minRound: 4 },

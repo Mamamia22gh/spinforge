@@ -196,7 +196,8 @@ export class GameBridge {
 
     const offerings = run.shopOfferings;
     if (offerings.length > 0) {
-      const idx = offerings.findIndex(o => run.shopCurrency >= o.finalCost);
+      const meta = this.game.getState().meta;
+      const idx = offerings.findIndex(o => meta.tickets >= o.finalCost);
       if (idx >= 0) {
         this.audio.play('click');
         this.machine.pullLever();
@@ -253,7 +254,7 @@ export class GameBridge {
 
     this.game.on('shop:opened', () => {
       const state = this.game.getState();
-      this.ui.showShop(state.run);
+      this.ui.showShop(state.run, state.meta.tickets);
     });
 
     this.game.on('game:won', () => {
