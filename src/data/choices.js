@@ -1,5 +1,9 @@
 /**
  * Between-round upgrade choices. Player picks 1 of 3.
+ *
+ * Special balls: one-time use balls with unique effects.
+ * When purchased/chosen, they are added to run.specialBalls
+ * and fire first during the next round.
  */
 export const CHOICES = [
   // ── Wheel manipulation ──
@@ -8,12 +12,12 @@ export const CHOICES = [
   { id: 'remove_segment', name: 'Retirer Segment',  emoji: '✂️', description: 'Retire un segment (au choix)',       type: 'remove_symbol', weight: 6,  minRound: 2, requiresUnlock: null, payload: {} },
   { id: 'boost_weight',   name: 'Lester',           emoji: '⚖️', description: '+1 poids à un segment',             type: 'boost_weight',  weight: 7,  minRound: 2, requiresUnlock: null, payload: {} },
 
-  // ── Chip / spin upgrades ──
-  { id: 'chips_10',       name: '+10 Chips',        emoji: '🪙', description: '+10 chips de base',                  type: 'upgrade',       weight: 8,  minRound: 1, requiresUnlock: null, payload: { chipsMax: 10 },   rarity: 'common',    cost: 20 },
-  { id: 'chips_25',       name: '+25 Chips',        emoji: '🪙', description: '+25 chips de base',                  type: 'upgrade',       weight: 4,  minRound: 4, requiresUnlock: null, payload: { chipsMax: 25 },   rarity: 'uncommon',  cost: 45 },
-  { id: 'extra_spin',     name: '+1 Spin',          emoji: '🔄', description: '+1 spin par round',                  type: 'upgrade',       weight: 5,  minRound: 3, requiresUnlock: null, payload: { extraSpins: 1 },  rarity: 'rare',      cost: 70 },
-  { id: 'payout_10',      name: '+10% Payouts',     emoji: '📈', description: '+10% tous les payouts',              type: 'upgrade',       weight: 6,  minRound: 2, requiresUnlock: null, payload: { payoutPercent: 10 }, rarity: 'common',  cost: 25 },
-  { id: 'payout_25',      name: '+25% Payouts',     emoji: '📈', description: '+25% tous les payouts',              type: 'upgrade',       weight: 3,  minRound: 5, requiresUnlock: null, payload: { payoutPercent: 25 }, rarity: 'rare',    cost: 80 },
+  // ── Special balls (purchasable in shop & offered as choices) ──
+  { id: 'ball_golden',   name: 'Bille Dorée',     emoji: '🟡', description: '×2 la valeur du segment',             type: 'special_ball', weight: 8,  minRound: 1, requiresUnlock: null, effect: 'double',       rarity: 'common',    cost: 20 },
+  { id: 'ball_heavy',    name: 'Bille Lourde',    emoji: '⚫', description: '+1 poids au segment touché',          type: 'special_ball', weight: 6,  minRound: 2, requiresUnlock: null, effect: 'weight',       rarity: 'common',    cost: 25 },
+  { id: 'ball_ghost',    name: 'Bille Fantôme',   emoji: '👻', description: 'Ne consomme pas de tour',             type: 'special_ball', weight: 5,  minRound: 3, requiresUnlock: null, effect: 'ghost',        rarity: 'uncommon',  cost: 45 },
+  { id: 'ball_splash',   name: 'Bille Explosive', emoji: '💥', description: 'Score aussi les 2 segments adjacents',type: 'special_ball', weight: 4,  minRound: 4, requiresUnlock: null, effect: 'splash',       rarity: 'rare',      cost: 70 },
+  { id: 'ball_critical', name: 'Bille Critique',  emoji: '⚡', description: '×5 la valeur du segment',             type: 'special_ball', weight: 2,  minRound: 6, requiresUnlock: null, effect: 'critical',     rarity: 'legendary', cost: 120 },
 ];
 
 export const CHOICE_MAP = new Map(CHOICES.map(c => [c.id, c]));

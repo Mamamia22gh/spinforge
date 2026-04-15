@@ -4,14 +4,14 @@ import { SYMBOLS } from '../data/symbols.js';
 import { CHOICES } from '../data/choices.js';
 
 /**
- * Forge (shop) — buy relics, symbols and upgrades between rounds.
+ * Forge (shop) — buy relics, symbols and special balls between rounds.
  *
  * Slot layout (8 slots, 4 quadrants × 2):
  *   0-1  top-right     → relics
  *   2-3  bottom-right  → relics
  *   4    bottom-left/1 → REROLL (hardcoded, not in offerings)
  *   5    bottom-left/2 → SYMBOL (ball)
- *   6    top-left/1    → UPGRADE
+ *   6    top-left/1    → SPECIAL BALL
  *   7    top-left/2    → relic
  */
 export class ShopSystem {
@@ -22,7 +22,7 @@ export class ShopSystem {
   }
 
   /**
-   * Generate shop offerings: 1 symbol + 1 upgrade + relics filling the rest.
+   * Generate shop offerings: 1 symbol + 1 special ball + relics filling the rest.
    * Slot 4 is reroll (not in array). Offerings are indexed by slot number.
    */
   generateOfferings(run, rng) {
@@ -37,8 +37,8 @@ export class ShopSystem {
     // ── 1. Symbol slot (slot 5) ──
     offerings[5] = this.#pickSymbol(run, rng, weights, applyCost);
 
-    // ── 2. Upgrade slot (slot 6) ──
-    offerings[6] = this.#pickUpgrade(run, rng, weights, applyCost);
+    // ── 2. Special ball slot (slot 6) ──
+    offerings[6] = this.#pickSpecialBall(run, rng, weights, applyCost);
 
     // ── 3. Relic slots (0, 1, 2, 3, 7) ──
     const relicSlots = [0, 1, 2, 3, 7];
@@ -93,39 +93,39 @@ export class ShopSystem {
     };
   }
 
-  #pickUpgrade(run, rng, weights, applyCost) {
-    const upgrades = CHOICES.filter(c => {
-      if (c.type !== 'upgrade') return false;
+  #pickSpecialBall(run, rng, weights, applyCost) {
+    const balls = CHOICES.filter(c => {
+      if (c.type !== 'special_ball') return false;
       if (c.minRound && run.round < c.minRound) return false;
       if (c.requiresUnlock) return false;
       return true;
     });
-    if (upgrades.length === 0) {
-      // Fallback: generic chips_10
-      const fb = CHOICES.find(c => c.id === 'chips_10') || CHOICES.find(c => c.type === 'upgrade');
+    if (balls.length === 0) {
+      // Fallback: cheapest available
+      const fb = CHOICES.find(c => c.type === 'special_ball') || CHOICES[CHOICES.length - 1];
       return {
-        shopType: 'upgrade',
+        shopType: 'special_ball',
         id: fb.id,
         name: fb.name,
         emoji: fb.emoji,
         rarity: fb.rarity || 'common',
         description: fb.description,
         finalCost: applyCost(fb.cost || 20),
-        payload: fb.payload,
+        effect: fb.effect,
       };
     }
 
-    const w = upgrades.map(c => (weights[c.rarity] || 1) * c.weight);
-    const pick = rng.pickWeighted(upgrades, w);
+    const w = balls.map(c => (weights[c.rarity] || 1) * c.weight);
+    const pick = rng.pickWeighted(balls, w);
     return {
-      shopType: 'upgrade',
+      shopType: 'special_ball',
       id: pick.id,
       name: pick.name,
       emoji: pick.emoji,
       rarity: pick.rarity || 'common',
       description: pick.description,
       finalCost: applyCost(pick.cost || 20),
-      payload: pick.payload,
+      effect: pick.effect,
     };
   }
 
@@ -190,14 +190,18 @@ export class ShopSystem {
         wheelSystem.addSegment(run, offering.symbolId);
         break;
 
-      case 'upgrade':
-        this.#applyUpgrade(run, offering.payload);
-        if (!run.purchasedUpgrades) run.purchasedUpgrades = [];
-        run.purchasedUpgrades.push({
+      case 'special_ball':
+        run.specialBalls.push({
           id: offering.id,
-          name: offering.name || offering.id,
-          sprite: offering.sprite || 'ball',
-          payload: offering.payload,
+          name: offering.name,
+          effect: offering.effect,
+          rarity: offering.rarity,
+        });
+        run.ballsLeft++;
+        this.#events.emit('special_ball:added', {
+          ball: offering,
+          totalSpecial: run.specialBalls.length,
+          ballsLeft: run.ballsLeft,
         });
         break;
 
@@ -215,18 +219,6 @@ export class ShopSystem {
       remaining: meta.tickets,
     });
     return true;
-  }
-
-  #applyUpgrade(run, payload) {
-    if (payload.chipsMax) {
-      run.maxChips = (run.maxChips || 0) + payload.chipsMax;
-    }
-    if (payload.extraSpins) {
-      run.ballsLeft = (run.ballsLeft || 0) + payload.extraSpins;
-    }
-    if (payload.payoutPercent) {
-      run._payoutBonus = (run._payoutBonus ?? 0) + payload.payoutPercent;
-    }
   }
 
   /**

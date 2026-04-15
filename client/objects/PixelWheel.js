@@ -225,7 +225,7 @@ export class PixelWheel {
   setRelics(relics) { this._relics = relics || []; }
   setSegmentValues(values) { this._segmentValues = values || []; }
 
-  placeBalls(n) {
+  placeBalls(n, specialBalls) {
     this._placedBalls = [];
     this._balls = [];
     this._results = [];
@@ -233,6 +233,7 @@ export class PixelWheel {
     this._dropping = false;
     this._inGauge = true;
 
+    const specials = specialBalls || [];
     const GAUGE_MID = (RIM_R + 16 + RIM_R + 21) / 2;
 
     // Collect unlocked gauges (exclude gauge 1=top, 2=bottom, 3=corruption)
@@ -263,6 +264,8 @@ export class PixelWheel {
         const r = LABEL_OUTER + 2 + Math.random() * (RIM_R - LABEL_OUTER - BALL_RADIUS * 2 - 3);
         // Gauge: stack from end toward start, tightly packed
         const ga = cfg.end - j * GAUGE_BALL_SPACING;
+        // Special balls are first in queue — mark them
+        const isSpecial = globalIdx < specials.length;
         this._placedBalls.push({
           localX: Math.cos(a) * r,
           localY: Math.sin(a) * r,
@@ -272,6 +275,7 @@ export class PixelWheel {
           gaugeIdx: gIdx,
           dropDelay: (indices.length - 1 - j) * DROP_STAGGER, // top of stack ejects first
           dropDur: DROP_DURATION,
+          special: isSpecial ? specials[globalIdx] : null,
         });
         globalIdx++;
       }
@@ -904,14 +908,14 @@ export class PixelWheel {
           const elapsed = this._dropClock - pb.dropDelay;
           if (elapsed < pb.dropDur) continue; // still ejecting
         }
-        this._drawPixelBall(ctx, pb.localX, pb.localY, false);
+        this._drawPixelBall(ctx, pb.localX, pb.localY, false, pb.special?.effect);
       }
     }
 
     // ── Settled balls (rotate with wheel) ──
     for (const b of this._balls) {
       if (!b.settled || b.localX === undefined) continue;
-      this._drawPixelBall(ctx, b.localX, b.localY, true);
+      this._drawPixelBall(ctx, b.localX, b.localY, true, b.special?.effect);
     }
 
     // ── Hub circle ──
@@ -929,7 +933,7 @@ export class PixelWheel {
     // ── Active balls (world space) ──
     for (const b of this._balls) {
       if (b.settled) continue;
-      this._drawPixelBall(ctx, cx + b.x, cy + b.y, false);
+      this._drawPixelBall(ctx, cx + b.x, cy + b.y, false, b.special?.effect);
       this._frameLights.push({
         x: cx + b.x, y: cy + b.y * this.tilt,
         r: 10, color: PAL.white, a: 0.12,
@@ -957,8 +961,8 @@ export class PixelWheel {
     switch (offering.shopType) {
       case 'symbol':
         return offering.symbolId || 'ball';
-      case 'upgrade':
-        return 'arrow_right';
+      case 'special_ball':
+        return 'ball';
       case 'relic':
       default: {
         const rc = PixelWheel.RARITY_COLORS[offering.rarity];
@@ -1187,7 +1191,7 @@ export class PixelWheel {
     ctx.strokeStyle = leaveHover ? PAL.lightGray : PAL.midGray;
     ctx.lineWidth = 1;
     ctx.stroke();
-    drawSpriteCentered(ctx, 'arrow_right', cx, Math.round(cy - 8), 1);
+    drawSpriteCentered(ctx, 'ball', cx, Math.round(cy - 8), 1);
     drawTextCentered(ctx, 'CONTINUER', cx, Math.round(cy), PAL.lightGray, 1);
     if (shop.nextQuota) {
       drawTextCentered(ctx, 'QUOTA ' + shop.nextQuota, cx, Math.round(cy + 10), PAL.midGray, 1, false);
@@ -1195,8 +1199,25 @@ export class PixelWheel {
   }
 
 
-  _drawPixelBall(ctx, bx, by, settled) {
-    drawSpriteCentered(ctx, 'ball', Math.round(bx), Math.round(by), 1);
+  _drawPixelBall(ctx, bx, by, settled, specialEffect) {
+    const rx = Math.round(bx), ry = Math.round(by);
+    // Special ball: colored halo behind the ball sprite
+    if (specialEffect) {
+      let haloColor;
+      switch (specialEffect) {
+        case 'double':   haloColor = PAL.gold;     break;
+        case 'weight':   haloColor = PAL.midGray;  break;
+        case 'ghost':    haloColor = PAL.purple;   break;
+        case 'splash':   haloColor = PAL.red;      break;
+        case 'critical': haloColor = PAL.neonPink;  break;
+        default:         haloColor = PAL.white;    break;
+      }
+      ctx.fillStyle = haloColor;
+      // Cross-shaped halo (1px larger than ball sprite)
+      ctx.fillRect(rx - 5, ry - 3, 11, 7);
+      ctx.fillRect(rx - 3, ry - 5, 7, 11);
+    }
+    drawSpriteCentered(ctx, 'ball', rx, ry, 1);
   }
 
   _drawHubScreen(ctx, cx, cy) {
@@ -1332,10 +1353,14 @@ export class PixelWheel {
       const by = Math.round(cy + pb.gaugeY);
       ctx.fillStyle = PAL.black;
       ctx.fillRect(bx - 4, by - 3, 7, 7);
-      this._drawPixelBall(ctx, bx, by, false);
+      this._drawPixelBall(ctx, bx, by, false, pb.special?.effect);
+      const glowColor = pb.special ? ({
+        double: PAL.gold, weight: PAL.white, ghost: PAL.purple,
+        splash: PAL.red, critical: PAL.neonPink,
+      }[pb.special.effect] || PAL.white) : PAL.white;
       this._frameLights.push({
         x: cx + pb.gaugeX, y: cy + pb.gaugeY * this.tilt,
-        r: 6, color: PAL.white, a: 0.06,
+        r: pb.special ? 8 : 6, color: glowColor, a: pb.special ? 0.12 : 0.06,
       });
     }
 

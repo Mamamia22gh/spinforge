@@ -73,8 +73,8 @@ export class ChoiceSystem {
         }
         return wheelSystem.boostWeight(run, targetIndex);
 
-      case 'upgrade':
-        return this.#applyUpgrade(run, choice.payload);
+      case 'special_ball':
+        return this.#addSpecialBall(run, choice);
 
       default:
         this.#events.emit('error', { message: `Unknown choice type: ${choice.type}` });
@@ -98,18 +98,19 @@ export class ChoiceSystem {
     }
   }
 
-  #applyUpgrade(run, payload) {
-    if (payload.chipsMax) {
-      run.maxChips += payload.chipsMax;
-    }
-    if (payload.extraSpins) {
-      run.spinsLeft += payload.extraSpins; // persistent via run state
-    }
-    if (payload.payoutPercent) {
-      // Store as a permanent run bonus — EffectSystem-like
-      run._payoutBonus = (run._payoutBonus ?? 0) + payload.payoutPercent;
-    }
-    this.#events.emit('choice:upgrade_applied', { payload });
+  #addSpecialBall(run, choice) {
+    run.specialBalls.push({
+      id: choice.id,
+      name: choice.name,
+      effect: choice.effect,
+      rarity: choice.rarity || 'common',
+    });
+    run.ballsLeft++;
+    this.#events.emit('special_ball:added', {
+      ball: choice,
+      totalSpecial: run.specialBalls.length,
+      ballsLeft: run.ballsLeft,
+    });
     return true;
   }
 }

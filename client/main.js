@@ -253,11 +253,11 @@ class App {
 
   _drawCatalogue(ctx) {
     if (!this._catalogueOpen) return;
-    const TAB_NAMES = ['BILLES', 'RELIQUES', 'UPGRADES'];
+    const TAB_NAMES = ['BILLES', 'RELIQUES', 'BILLES SP.'];
     const TAB_DATA = [
       SYMBOLS.map(s => ({ name: s.name, sprite: s.id, rarity: s.rarity, desc: `val ${s.baseValue}${s.specialEffect ? ' — ' + s.specialEffect : ''}` })),
       RELICS.map(r => ({ name: r.name, sprite: 'relic_' + r.rarity, rarity: r.rarity, desc: r.description })),
-      CHOICES.map(c => ({ name: c.name, sprite: c.payload?.symbolId || 'ball', rarity: null, desc: c.description })),
+      CHOICES.filter(c => c.type === 'special_ball').map(c => ({ name: c.name, sprite: 'ball', rarity: c.rarity, desc: c.description })),
     ];
 
     // Dims
@@ -471,7 +471,7 @@ class App {
       const ok = this.game.shopBuy(hit.index);
       if (ok) {
         const label = offering.shopType === 'symbol' ? 'ADDED!'
-                    : offering.shopType === 'upgrade' ? 'UPGRADED!'
+                    : offering.shopType === 'special_ball' ? 'ADDED!'
                     : 'BOUGHT!';
         this._pop(label);
         this._shakeStart(3, 0.2);
@@ -526,7 +526,7 @@ class App {
     const state = this.game.getState();
     if (state.run) {
       this.wheel.setWheel(state.run.wheel);
-      this.wheel.placeBalls(state.run.ballsLeft);
+      this.wheel.placeBalls(state.run.ballsLeft, state.run.specialBalls);
       this.wheel.setCorruption(state.run.corruption);
     }
     this.wheel.setCounters(
@@ -665,7 +665,7 @@ class App {
     if (!run) return;
     const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
     const nextQuota = getQuota(run.round + 1);
-    this.wheel.placeBalls(run.ballsLeft);
+    this.wheel.placeBalls(run.ballsLeft, run.specialBalls);
     this.wheel.setShop(run.shopOfferings, state.meta.tickets, rerollCost, nextQuota);
     this._inShop = true;
   }
@@ -1199,7 +1199,7 @@ class App {
     if (!offering) return;
 
     const RARITY_COL = { common: PAL.white, uncommon: PAL.green, rare: PAL.blue, legendary: PAL.gold };
-    const TYPE_LABELS = { symbol: 'SYMBOLE', upgrade: 'AMELIORATION', relic: 'RELIQUE' };
+    const TYPE_LABELS = { symbol: 'SYMBOLE', special_ball: 'BILLE SPECIALE', relic: 'RELIQUE' };
     const col = RARITY_COL[offering.rarity] || PAL.white;
 
     const PAD = 4;

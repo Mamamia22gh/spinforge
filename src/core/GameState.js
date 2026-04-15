@@ -62,6 +62,9 @@ export function createRunState() {
     // Purchased upgrades (for display in orbit slots)
     purchasedUpgrades: [],
 
+    // Special balls queue (fire first, consumed on use)
+    specialBalls: [],
+
     // Between-round
     currentChoices: [],
     lastRoundResult: null,
@@ -69,7 +72,6 @@ export function createRunState() {
     // Corruption
     corruption: BALANCE.CORRUPTION_START,
 
-    // Upgrades accumulated
-    _payoutBonus: 0,
+
   };
 }

@@ -94,27 +94,59 @@ export class GameLoop {
   // ─── Shared ball resolution ───
 
   #recordBall(run, segmentIndex) {
-    const { segment, symbol, value } = this.#resolveSegment(run, segmentIndex);
+    // Check if this ball is a special ball (special balls fire first)
+    let specialBall = null;
+    if (run.specialBalls.length > 0) {
+      specialBall = run.specialBalls.shift();
+    }
 
-    const spinResult = { segmentIndex, segment, symbol, value };
+    const { segment, symbol, value } = this.#resolveSegment(run, segmentIndex, specialBall);
+
+    const spinResult = { segmentIndex, segment, symbol, value, specialBall };
     run.spinResults.push(spinResult);
     run.score += value;
     run.ballsLeft--;
 
+    // Ghost ball: refund the turn (don't consume a ball slot)
+    if (specialBall?.effect === 'ghost') {
+      run.ballsLeft++;
+    }
+
+    // Weight ball: +1 weight to the segment hit
+    if (specialBall?.effect === 'weight') {
+      if (segment.weight < BALANCE.MAX_WEIGHT_PER_SEGMENT) {
+        segment.weight++;
+        this.events.emit('special_ball:weight', { segmentIndex, newWeight: segment.weight });
+      }
+    }
+
+    // Splash ball: also score adjacent segments
+    if (specialBall?.effect === 'splash') {
+      const len = run.wheel.length;
+      const left = (segmentIndex - 1 + len) % len;
+      const right = (segmentIndex + 1) % len;
+      const { value: vL } = this.#resolveSegment(run, left, null);
+      const { value: vR } = this.#resolveSegment(run, right, null);
+      run.score += vL + vR;
+      spinResult.splashValue = vL + vR;
+      spinResult.value += vL + vR;
+    }
+
     this.events.emit('spin:resolved', {
       result: spinResult,
-      value,
+      value: spinResult.value,
       ballsLeft: run.ballsLeft,
+      specialBall,
     });
 
     if (run.ballsLeft <= 0) {
       this.#endRound();
     }
 
-    return { result: spinResult, value };
+    return { result: spinResult, value: spinResult.value };
   }
 
-  #resolveSegment(run, segmentIndex) {
+  #resolveSegment(run, segmentIndex, specialBall) {
     const segment = run.wheel[segmentIndex];
     const symbol = segment.symbolId ? getSymbol(segment.symbolId) : null;
     const mods = this.#getMods();
@@ -128,16 +160,18 @@ export class GameLoop {
 
     let value = baseVal * segment.weight;
 
-    // Payout bonus from upgrades
-    if (run._payoutBonus > 0) {
-      value = Math.floor(value * (1 + run._payoutBonus / 100));
-    }
-
     // Symbol special effects (cherry, void, etc.)
     if (symbol?.specialEffect === 'double_payout') {
       value *= 2;
     } else if (symbol?.specialEffect === 'void_burst') {
       value = 0;
+    }
+
+    // Special ball effects (post-symbol)
+    if (specialBall?.effect === 'double') {
+      value *= 2;
+    } else if (specialBall?.effect === 'critical') {
+      value *= 5;
     }
 
     return { segment, symbol, value };
@@ -274,8 +308,8 @@ export class GameLoop {
       return true;
     }
 
-    // Reset for next round
-    run.ballsLeft = BALANCE.BALLS_PER_ROUND;
+    // Reset for next round — special balls carry over as extra balls
+    run.ballsLeft = BALANCE.BALLS_PER_ROUND + run.specialBalls.length;
     run.spinResults = [];
     run.shopDiscount = 0;
 

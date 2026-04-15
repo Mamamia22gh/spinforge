@@ -58,7 +58,7 @@ describe('Integration — Full game flow (balls only, no betting)', () => {
 
       // Pick first choice or skip
       if (state.run.currentChoices.length > 0) {
-        const addChoice = state.run.currentChoices.findIndex(c => c.type === 'add_symbol' || c.type === 'upgrade');
+        const addChoice = state.run.currentChoices.findIndex(c => c.type === 'add_symbol' || c.type === 'special_ball');
         if (addChoice >= 0) {
           game.makeChoice(addChoice);
         } else {
