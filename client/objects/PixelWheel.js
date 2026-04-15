@@ -303,6 +303,23 @@ export class PixelWheel {
   }
 
   highlight(idx) { this._highlights.push({ idx, t: 0 }); }
+
+  getPocketPosition(idx, cx, cy) {
+    const data = this._data;
+    if (!data.length || idx < 0 || idx >= data.length) return { x: cx, y: cy };
+    const tw = data.reduce((s, w) => s + w.weight, 0);
+    let off = 0;
+    for (let i = 0; i < idx; i++) off += (data[i].weight / tw) * Math.PI * 2;
+    const angle = (data[idx].weight / tw) * Math.PI * 2;
+    const mid = off + angle / 2;
+    const worldA = this._angle + mid;
+    const hlR = (POCKET_INNER + POCKET_OUTER) / 2;
+    const TILT_Y = Math.abs(this._tilt);
+    return {
+      x: cx + Math.cos(worldA) * hlR,
+      y: cy + Math.sin(worldA) * hlR * TILT_Y,
+    };
+  }
   get spinning() { return this._angVel > 0.05 || this._balls.some(b => !b.settled); }
   get speed() { return Math.abs(this._angVel); }
   get gaugeBallCount() {

@@ -17,8 +17,8 @@ const IND_ARC_STEP = Math.PI / 11; // ~16.4° between each indicator
 const BG_PAD = 4;                      // background oversize for parallax shift
 
 // ── Hieroglyph Ring constants ──
-const HIERO_INNER = 155;           // inner radius of hieroglyph ring
-const HIERO_OUTER = 170;           // outer radius (15px height, matches label ring)
+const HIERO_INNER = 149;           // inner radius of hieroglyph ring
+const HIERO_OUTER = 176;           // outer radius (27px height, matches full wedge pocket+label)
 const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 
 
@@ -467,7 +467,8 @@ class App {
       }
 
       this._playReveal(i, results.length);
-      this._pop('+' + result.value);
+      const pos = this.wheel.getPocketPosition(results[i], WHEEL_CX, WHEEL_CY);
+      this._pop('+' + result.value, pos.x, pos.y - 15);
 
       // Shake on gold pocket
       if (result.result.symbol.id === 'gold') this._shakeStart(2, 0.2);
@@ -547,11 +548,11 @@ class App {
     }
   }
 
-  _pop(text) {
+  _pop(text, x, y) {
     this._pops.push({
       text,
-      x: WHEEL_CX + (Math.random() - 0.5) * 60,
-      y: WHEEL_CY - 50 - Math.random() * 20,
+      x: x != null ? x : WHEEL_CX + (Math.random() - 0.5) * 60,
+      y: y != null ? y : WHEEL_CY - 50 - Math.random() * 20,
       age: 0,
     });
   }
@@ -602,7 +603,7 @@ class App {
     const AURA_TRANS = 8;          // transition from orbit edge to full aura
 
     // ── Precompute hiero ring segment arcs (matching wheel wedges) ──
-    const numSegs = wheelData.length;
+    const numSegs = 16;
     const TWO_PI = Math.PI * 2;
     const initAngle = -Math.PI / 2 - Math.PI / numSegs;
     const hieroArcs = new Float64Array(numSegs + 1);
