@@ -22,184 +22,11 @@ const HIERO_OUTER = 220;           // outer radius (44px height — enlarged seg
 const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 
 
-// ── Hieroglyph pixel art glyphs (9×9 scaled 3× → 27×27px; menu icons native 27×27) ──
-const HIERO_GLYPHS = {
-  ankh: [
-    '...###...',
-    '..#...#..',
-    '..#...#..',
-    '...###...',
-    '.#..#..#.',
-    '....#....',
-    '....#....',
-    '....#....',
-    '.........',
-  ],
-  eye: [
-    '.........',
-    '..#####..',
-    '.#..#..#.',
-    '#...#...#',
-    '.#######.',
-    '..#...#..',
-    '...#.#...',
-    '....#....',
-    '.........',
-  ],
-  scarab: [
-    '...###...',
-    '..#####..',
-    '.##.#.##.',
-    '###.#.###',
-    '###.#.###',
-    '.##.#.##.',
-    '..#.#.#..',
-    '..#...#..',
-    '.........',
-  ],
-  serpent: [
-    '...##....',
-    '..#..#...',
-    '.#...#...',
-    '.#..#....',
-    '..##.....',
-    '..#......',
-    '..#......',
-    '..#......',
-    '.........',
-  ],
-  lotus: [
-    '....#....',
-    '...#.#...',
-    '..#.#.#..',
-    '.#..#..#.',
-    '.#.###.#.',
-    '..#####..',
-    '....#....',
-    '...###...',
-    '.........',
-  ],
-  djed: [
-    '..#####..',
-    '...###...',
-    '..#####..',
-    '...###...',
-    '..#####..',
-    '...###...',
-    '..#####..',
-    '...###...',
-    '.........',
-  ],
-  feather: [
-    '....#....',
-    '....##...',
-    '...##....',
-    '....#....',
-    '....##...',
-    '...##....',
-    '....#....',
-    '...##....',
-    '....#....',
-  ],
-  bird: [
-    '...##....',
-    '..###....',
-    '.#####...',
-    '..###....',
-    '...#.....',
-    '..#.#....',
-    '.#...#...',
-    '.#...#...',
-    '.........',
-  ],
-  pyramid: [
-    '....#....',
-    '...###...',
-    '...#.#...',
-    '..#...#..',
-    '..#...#..',
-    '.#.....#.',
-    '.#.....#.',
-    '#########',
-    '.........',
-  ],
-  sun: [
-    '.#..#..#.',
-    '..#####..',
-    '.#######.',
-    '.#######.',
-    '.#######.',
-    '.#######.',
-    '..#####..',
-    '.#..#..#.',
-    '.........',
-  ],
-  // Menu icons (27×27)
-  gear: [
-    '...........................',
-    '..........#######..........',
-    '.......#..#######..#.......',
-    '......##..#######..##......',
-    '....#####..#####..#####....',
-    '....#####..#####..#####....',
-    '...#######.#####.#######...',
-    '..#######################..',
-    '....###################....',
-    '......###############......',
-    '.###...#####...#####...###.',
-    '.##########.....##########.',
-    '.#########.......#########.',
-    '.#########.......#########.',
-    '.#########.......#########.',
-    '.##########.....##########.',
-    '.###...#####...#####...###.',
-    '......###############......',
-    '....###################....',
-    '..#######################..',
-    '...#######.#####.#######...',
-    '....#####..#####..#####....',
-    '....#####..#####..#####....',
-    '......##..#######..##......',
-    '.......#..#######..#.......',
-    '..........#######..........',
-    '...........................',
-  ],
-  exit: [
-    '..............#############',
-    '..............#...........#',
-    '..............#...........#',
-    '..............#..#######..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '.....##.......#..#.....#..#',
-    '....###.......#..#.....#..#',
-    '...###........#..#######..#',
-    '..###.........#...........#',
-    '.############.#.........###',
-    '#############.#.........###',
-    '.############.#.........###',
-    '..###.........#...........#',
-    '...###........#..#######..#',
-    '....###.......#..#.....#..#',
-    '.....##.......#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#######..#',
-    '..............#...........#',
-    '..............#...........#',
-    '..............#############',
-  ],
-};
-
 // Menu segment definitions (indices relative to wheel segment count)
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
-  { offsetFromEnd: 2, id: 'settings', glyph: 'gear' },
-  { offsetFromEnd: 5, id: 'exit',     glyph: 'exit' },
+  { offsetFromEnd: 6, id: 'settings' },
+  { offsetFromEnd: 5, id: 'exit' },
 ];
 
 class App {
@@ -670,11 +497,11 @@ class App {
     for (let i = 0; i <= numSegs; i++) {
       hieroArcs[i] = i * TWO_PI / numSegs;
     }
-    // Menu segment lookup { segIndex → { id, glyph } }
+    // Menu segment lookup { segIndex → { id } }
     const menuSegs = {};
     for (const def of HIERO_MENU_DEFS) {
       const idx = numSegs - def.offsetFromEnd;
-      if (idx >= 0 && idx < numSegs) menuSegs[idx] = { id: def.id, glyph: def.glyph };
+      if (idx >= 0 && idx < numSegs) menuSegs[idx] = { id: def.id };
     }
 
     // Bayer 4×4 ordered dither matrix (values 0..15)
@@ -776,42 +603,6 @@ class App {
 
     bgCtx.putImageData(imgData, 0, 0);
 
-    // ── Stamp segment labels into ring (numbers + menu icons) ──
-    bgCtx.imageSmoothingEnabled = false;
-    for (let s = 0; s < numSegs; s++) {
-      const midAngle = initAngle + (hieroArcs[s] + hieroArcs[s + 1]) / 2;
-      const gcx = CX + Math.cos(midAngle) * HIERO_MID;
-      const gcy = CY + Math.sin(midAngle) * HIERO_MID;
-      const rot = midAngle + Math.PI / 2;
-
-      bgCtx.save();
-      bgCtx.translate(gcx, gcy);
-
-      const menu = menuSegs[s];
-      if (menu) {
-        // Menu icon: pixel art glyph
-        const glyphData = HIERO_GLYPHS[menu.glyph];
-        if (glyphData) {
-          const gw = glyphData[0].length, gh = glyphData.length;
-          const pxSize = Math.max(1, Math.floor(27 / Math.max(gw, gh)));
-          const ox = Math.floor(gw * pxSize / 2), oy = Math.floor(gh * pxSize / 2);
-          bgCtx.fillStyle = PAL.white;
-          for (let gy = 0; gy < gh; gy++) {
-            for (let gx = 0; gx < gw; gx++) {
-              if (glyphData[gy][gx] === '#')
-                bgCtx.fillRect(gx * pxSize - ox, gy * pxSize - oy, pxSize, pxSize);
-            }
-          }
-        }
-      } else {
-        // Segment number (rotated to follow the ring)
-        bgCtx.rotate(rot);
-        drawTextCentered(bgCtx, String(s + 1), 0, -Math.floor(CHAR_H / 2), PAL.darkGold, 1);
-      }
-
-      bgCtx.restore();
-    }
-
     // Store menu segment data for hit-testing
     this._menuSegments = [];
     for (let s = 0; s < numSegs; s++) {
@@ -819,7 +610,6 @@ class App {
       if (menu) {
         this._menuSegments.push({
           id: menu.id,
-          glyph: menu.glyph,
           segIdx: s,
           startAngle: initAngle + hieroArcs[s],
           endAngle: initAngle + hieroArcs[s + 1],
