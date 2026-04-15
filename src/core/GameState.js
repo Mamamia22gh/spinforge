@@ -34,9 +34,9 @@ export function createMetaState() {
 }
 
 export function createRunState() {
-  const wheel = BALANCE.INITIAL_WHEEL.map((symbolId) => ({
+  const wheel = Array.from({ length: BALANCE.INITIAL_SEGMENTS }, () => ({
     id: uid('seg'),
-    symbolId,
+    symbolId: null,
     weight: 1,
     modifiers: [],
   }));
@@ -49,14 +49,6 @@ export function createRunState() {
 
     ballsLeft: BALANCE.BALLS_PER_ROUND,
     spinResults: [],    // { segmentIndex, segment, symbol, value }
-
-    // Streak tracking
-    lastColor: null,
-    colorStreak: 0,
-    consecutiveHigh: 0,
-
-    // Fever
-    fever: { active: false, remaining: 0 },
 
     // Economy
     shopCurrency: 0,

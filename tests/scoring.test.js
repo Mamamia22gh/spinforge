@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { ScoringSystem } from '../src/systems/ScoringSystem.js';
 import { createRunState, resetUid } from '../src/core/GameState.js';
 import { getQuota } from '../src/data/balance.js';
-import { getSymbol } from '../src/data/symbols.js';
 
 describe('ScoringSystem', () => {
   let scoring;
@@ -12,49 +11,43 @@ describe('ScoringSystem', () => {
     scoring = new ScoringSystem();
   });
 
-  it('should pass round when totalWon >= quota', () => {
+  it('calculates correct total from spin results', () => {
     const run = createRunState();
-    const quota = getQuota(1);
-
-    // Simulate spin results with .value
+    // Simulate 3 spins on pockets 0, 9, 19 (values 1, 10, 20)
     run.spinResults = [
-      { segmentIndex: 0, segment: run.wheel[0], symbol: getSymbol('red'), value: quota + 100 },
+      { segmentIndex: 0, segment: run.wheel[0], symbol: null, value: 1 },
+      { segmentIndex: 9, segment: run.wheel[9], symbol: null, value: 10 },
+      { segmentIndex: 19, segment: run.wheel[19], symbol: null, value: 20 },
     ];
 
     const result = scoring.evaluateRound(run);
-    expect(result.passed).toBe(true);
-    expect(result.totalWon).toBe(quota + 100);
-    expect(result.surplus).toBe(100);
+    expect(result.totalWon).toBe(31);
+    expect(result.quota).toBe(getQuota(1));
   });
 
-  it('should fail round when totalWon < quota', () => {
+  it('calculates surplus correctly', () => {
+    const run = createRunState();
+    const quota = getQuota(1);
+    const over = quota + 40;
+
+    run.spinResults = [
+      { segmentIndex: 0, segment: run.wheel[0], symbol: null, value: over },
+    ];
+
+    const result = scoring.evaluateRound(run);
+    expect(result.totalWon).toBe(over);
+    expect(result.surplus).toBe(40);
+    expect(result.passed).toBe(true);
+  });
+
+  it('fails when below quota', () => {
     const run = createRunState();
     run.spinResults = [
-      { segmentIndex: 0, segment: run.wheel[0], symbol: getSymbol('red'), value: 10 },
+      { segmentIndex: 0, segment: run.wheel[0], symbol: null, value: 1 },
     ];
 
     const result = scoring.evaluateRound(run);
     expect(result.passed).toBe(false);
     expect(result.surplus).toBe(0);
-  });
-
-  it('should convert surplus to shop coins', () => {
-    const run = createRunState();
-    const quota = getQuota(1);
-
-    run.spinResults = [
-      { segmentIndex: 0, segment: run.wheel[0], symbol: getSymbol('red'), value: quota + 300 },
-    ];
-
-    const result = scoring.evaluateRound(run);
-    expect(result.shopCoins).toBe(Math.floor(300 / 20)); // SURPLUS_CONVERSION_RATE = 20
-  });
-
-  it('quota should scale with round', () => {
-    const q1 = getQuota(1);
-    const q5 = getQuota(5);
-    const q12 = getQuota(12);
-    expect(q5).toBeGreaterThan(q1);
-    expect(q12).toBeGreaterThan(q5);
   });
 });

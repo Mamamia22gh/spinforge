@@ -14,10 +14,6 @@
 
 /** @type {SymbolDef[]} */
 export const SYMBOLS = [
-  // ── Commons (starters) ──
-  { id: 'red',      name: 'Rouge',     emoji: '🔴', color: 'red',    baseValue: 10,  rarity: 'common',    startsUnlocked: true,  specialEffect: null },
-  { id: 'blue',     name: 'Bleu',      emoji: '🔵', color: 'blue',   baseValue: 10,  rarity: 'common',    startsUnlocked: true,  specialEffect: null },
-
   // ── Uncommons ──
   { id: 'cherry',   name: 'Cerise',    emoji: '🍒', color: 'red',    baseValue: 20,  rarity: 'uncommon',  startsUnlocked: false, specialEffect: 'double_payout' },
 

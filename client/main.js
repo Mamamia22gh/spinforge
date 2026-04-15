@@ -1,7 +1,7 @@
 import { createGame } from '../src/index.js';
 import { BALANCE, getQuota } from '../src/data/balance.js';
 import { PixelWheel } from './objects/PixelWheel.js';
-import { PAL, PAL32, SYM_COLORS } from './gfx/PaletteDB.js';
+import { PAL, PAL32 } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextCenteredOutlined, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
 import { preloadSprites, drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, getSpriteIds, getAnimSpriteIds, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { SYMBOLS, getSymbol } from '../src/data/symbols.js';
@@ -61,8 +61,8 @@ class App {
     this._debugScroll = 0;
 
     // Build default wheel data BEFORE background (background needs segment info)
-    const defaultWheel = BALANCE.INITIAL_WHEEL.map((id, i) => ({
-      id: 'seg_' + i, symbolId: id, weight: 1, modifiers: [],
+    const defaultWheel = Array.from({ length: BALANCE.INITIAL_SEGMENTS }, (_, i) => ({
+      id: 'seg_' + i, symbolId: null, weight: 1, modifiers: [],
     }));
     this.wheel.setWheel(defaultWheel);
 
@@ -241,7 +241,7 @@ class App {
     if (!this._catalogueOpen) return;
     const TAB_NAMES = ['BILLES', 'RELIQUES', 'UPGRADES'];
     const TAB_DATA = [
-      SYMBOLS.map(s => ({ name: s.name, sprite: s.id, rarity: s.rarity, desc: `${s.color} — val ${s.baseValue}${s.specialEffect ? ' — ' + s.specialEffect : ''}` })),
+      SYMBOLS.map(s => ({ name: s.name, sprite: s.id, rarity: s.rarity, desc: `val ${s.baseValue}${s.specialEffect ? ' — ' + s.specialEffect : ''}` })),
       RELICS.map(r => ({ name: r.name, sprite: 'relic_' + r.rarity, rarity: r.rarity, desc: r.description })),
       CHOICES.map(c => ({ name: c.name, sprite: c.payload?.symbolId || 'ball', rarity: null, desc: c.description })),
     ];
@@ -571,24 +571,16 @@ class App {
       if (!result) continue;
 
       this.wheel.highlight(results[i]);
-      this.wheel.hubShowValue(result.result.symbol.id, result.value);
+      this.wheel.hubShowValue(result.result.segment?.symbolId, result.value);
       this.wheel.hubSetScore(this.game.getState().run.score);
       this._goldDisplay = this.game.getState().run.score;
       const run2 = this.game.getState().run;
-      this.wheel.hubSetStreak(run2.colorStreak);
-      this.wheel.hubSetFever(run2.fever?.active ?? false);
-
-      if (run2.colorStreak >= 2) {
-        this.wheel.hubMessage('STREAK X' + run2.colorStreak);
-        this._playStreak(run2.colorStreak);
-      }
-
       this._playReveal(i, results.length);
       const pos = this.wheel.getPocketPosition(results[i], WHEEL_CX, WHEEL_CY);
       this._pop('+' + result.value, pos.x, pos.y - 15);
 
-      // Shake on gold pocket
-      if (result.result.symbol.id === 'cherry') this._shakeStart(2, 0.2);
+      // Shake on cherry pocket
+      if (result.result.segment?.symbolId === 'cherry') this._shakeStart(2, 0.2);
 
       // Shake on quota reached + invert flash + bonus mode
       const run3 = this.game.getState().run;
@@ -1217,12 +1209,7 @@ class App {
     setTimeout(() => this._tone(f * 1.5, 0.15, 'sine', 0.04), 50);
   }
 
-  _playStreak(count) {
-    const base = 440 + count * 80;
-    [0, 100, 200].forEach((d, i) => {
-      setTimeout(() => this._tone(base + i * 60, 0.15, 'square', 0.06), d);
-    });
-  }
+  _playStreak() {}
 
   _playSpin() {
     if (!this._audioCtx) return;

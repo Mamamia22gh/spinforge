@@ -20,8 +20,6 @@ describe('WheelSystem', () => {
     expect(result.segmentIndex).toBeGreaterThanOrEqual(0);
     expect(result.segmentIndex).toBeLessThan(run.wheel.length);
     expect(result.segment).toBeDefined();
-    expect(result.symbol).toBeDefined();
-    expect(result.symbol.id).toBe(result.segment.symbolId);
   });
 
   it('should produce deterministic results with same seed', () => {
@@ -48,19 +46,19 @@ describe('WheelSystem', () => {
   it('should add a segment', () => {
     const run = createRunState();
     const before = run.wheel.length;
-    const ok = wheel.addSegment(run, 'blue');
+    const ok = wheel.addSegment(run, null);
     expect(ok).toBe(true);
     expect(run.wheel.length).toBe(before + 1);
-    expect(run.wheel[run.wheel.length - 1].symbolId).toBe('blue');
+    expect(run.wheel[run.wheel.length - 1].symbolId).toBe(null);
   });
 
   it('should not exceed max segments', () => {
     const run = createRunState();
     // Fill to max
     while (run.wheel.length < 48) {
-      wheel.addSegment(run, 'red');
+      wheel.addSegment(run, null);
     }
-    const ok = wheel.addSegment(run, 'blue');
+    const ok = wheel.addSegment(run, null);
     expect(ok).toBe(false);
     expect(run.wheel.length).toBe(48);
   });

@@ -90,17 +90,6 @@ export class BettingSystem {
         // Apply relic modifiers
         payout = this.#applyPayoutMods(payout, bet, mods);
 
-        // Color streak bonus
-        if (bet.condition === 'color' && run.colorStreak > 0) {
-          const streakBonus = Math.min(run.colorStreak, BALANCE.COLOR_STREAK_MAX) * BALANCE.COLOR_STREAK_BONUS;
-          payout *= (1 + streakBonus);
-        }
-
-        // Fever bonus
-        if (run.fever.active) {
-          payout *= BALANCE.FEVER_MULTIPLIER;
-        }
-
         winnings = Math.floor(bet.wager * payout);
 
         // Symbol special effects
@@ -129,14 +118,6 @@ export class BettingSystem {
     // Return winnings as chips
     run.chips += totalWon;
 
-    // Track color streak
-    if (symbol.color === run.lastColor) {
-      run.colorStreak = Math.min(run.colorStreak + 1, BALANCE.COLOR_STREAK_MAX + 1);
-    } else {
-      run.colorStreak = 1;
-    }
-    run.lastColor = symbol.color;
-
     // Clear bets after resolution
     run.bets = [];
 
@@ -157,7 +138,7 @@ export class BettingSystem {
       case 'wildcard':
         return true;
       case 'chain':
-        return run.colorStreak >= 3;
+        return false; // chain bet requires external streak tracking
       case 'coin_flip':
         return rng.chance(0.5);
       default:
@@ -176,9 +157,6 @@ export class BettingSystem {
     // Flat percentage bonuses
     payout *= (1 + (mods.allPayoutPercent || 0) / 100);
 
-    if (bet.condition === 'color') {
-      payout *= (1 + (mods.colorPayoutPercent || 0) / 100);
-    }
     if (bet.condition === 'exact') {
       payout *= (1 + (mods.exactPayoutPercent || 0) / 100);
     }

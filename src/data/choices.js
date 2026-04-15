@@ -3,8 +3,7 @@
  */
 export const CHOICES = [
   // ── Wheel manipulation ──
-  { id: 'add_red',        name: 'Segment Rouge',    emoji: '🔴', description: 'Ajoute un segment Rouge',           type: 'add_symbol',    weight: 8,  minRound: 1, requiresUnlock: null, payload: { symbolId: 'red' } },
-  { id: 'add_blue',       name: 'Segment Bleu',     emoji: '🔵', description: 'Ajoute un segment Bleu',            type: 'add_symbol',    weight: 8,  minRound: 1, requiresUnlock: null, payload: { symbolId: 'blue' } },
+  { id: 'add_segment',    name: 'Segment',          emoji: '⚪', description: 'Ajoute un pocket générique',        type: 'add_symbol',    weight: 8,  minRound: 1, requiresUnlock: null, payload: { symbolId: null } },
   { id: 'add_cherry',     name: 'Cerise',           emoji: '🍒', description: 'Ajoute une Cerise (double payout)', type: 'add_symbol',    weight: 4,  minRound: 4, requiresUnlock: 'unlock_cherry', payload: { symbolId: 'cherry' } },
   { id: 'remove_segment', name: 'Retirer Segment',  emoji: '✂️', description: 'Retire un segment (au choix)',       type: 'remove_symbol', weight: 6,  minRound: 2, requiresUnlock: null, payload: {} },
   { id: 'boost_weight',   name: 'Lester',           emoji: '⚖️', description: '+1 poids à un segment',             type: 'boost_weight',  weight: 7,  minRound: 2, requiresUnlock: null, payload: {} },

@@ -101,7 +101,7 @@ export class PixelWheel {
     // Hub screen state
     this._hub = {
       lastSymbolId: '', lastValue: 0, valueFade: 0,
-      streak: 0, multi: 1, fever: false,
+      multi: 1,
       history: [],
       message: '', messageFade: 0,
       score: 0, scoreTarget: 0,
@@ -446,9 +446,7 @@ export class PixelWheel {
     this._hub.history.push(symbolId);
     if (this._hub.history.length > 5) this._hub.history.shift();
   }
-  hubSetStreak(n) { this._hub.streak = n; }
   hubSetMulti(m) { this._hub.multi = m; }
-  hubSetFever(f) { this._hub.fever = f; }
   hubSetScore(s) { this._hub.scoreTarget = s; }
   hubMessage(msg) { this._hub.message = msg; this._hub.messageFade = 2.5; }
   setSlots(data) { this._slots = data || []; }
@@ -739,8 +737,8 @@ export class PixelWheel {
     let off = 0;
     for (let i = 0; i < data.length; i++) {
       const seg = data[i], angle = (seg.weight / tw) * Math.PI * 2;
-      const isBlue = seg.symbolId === 'blue';
-      const isGold = seg.symbolId === 'gold';
+      const isBlue = false; // cosmetic only — no symbol colors
+      const isGold = false;
       const dark = i % 2 === 0;
       const mid = off + angle / 2;
 
@@ -831,7 +829,7 @@ export class PixelWheel {
       // Label highlight flash (drawn AFTER fill so it's visible)
       const hl = this._highlights.find(h => h.idx === i);
       if (hl) {
-        const isBlue = seg.symbolId === 'blue';
+        const isBlue = false; // cosmetic only
         const hlColor = isBlue ? PAL.blue : PAL.white;
         let a;
         if (hl.t < 0.15) a = 0.9;
@@ -1190,20 +1188,9 @@ export class PixelWheel {
       const startX = Math.round(cx - ((total - 1) * spacing) / 2);
       const histY = Math.round(cy + r * 0.55);
       for (let i = 0; i < total; i++) {
-        ctx.fillStyle = h.history[i] === 'blue' ? PAL.blue : PAL.lightGray;
+        ctx.fillStyle = i % 2 === 0 ? PAL.lightGray : PAL.midGray;
         ctx.fillRect(startX + i * spacing, histY, 3, 3);
       }
-    }
-
-    // Streak
-    if (h.streak > 1) {
-      drawTextCentered(ctx, 'X' + h.streak, cx, Math.round(cy + r * 0.75), PAL.red, 1);
-    }
-
-    // Fever
-    if (h.fever) {
-      const col = Math.sin(this._time * 8) > 0 ? PAL.red : PAL.gold;
-      drawTextCentered(ctx, 'FEVER', cx, Math.round(cy - r * 0.6), col, 1);
     }
 
     // Value flash with coin icon (coin on right)

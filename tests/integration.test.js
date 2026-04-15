@@ -26,7 +26,7 @@ describe('Integration — Full game flow (balls only, no betting)', () => {
 
     const result = game.spin();
     expect(result).not.toBeNull();
-    expect(result.result.symbol).toBeDefined();
+    expect(result.result.segment).toBeDefined();
     expect(result.value).toBeGreaterThanOrEqual(0);
     expect(state.run.ballsLeft).toBe(BALANCE.BALLS_PER_ROUND - 1);
   });

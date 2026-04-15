@@ -116,10 +116,11 @@ export class GameLoop {
 
   #resolveSegment(run, segmentIndex) {
     const segment = run.wheel[segmentIndex];
-    const symbol = getSymbol(segment.symbolId);
+    const symbol = segment.symbolId ? getSymbol(segment.symbolId) : null;
     const mods = this.#getMods();
 
-    let value = symbol.baseValue * segment.weight;
+    // Base value = pocket number (1-indexed)
+    let value = (segmentIndex + 1) * segment.weight;
 
     // Payout bonus from upgrades
     if (run._payoutBonus > 0) {
@@ -130,31 +131,11 @@ export class GameLoop {
     const payoutMult = 1 + (mods.allPayoutPercent || 0) / 100;
     value = Math.floor(value * payoutMult);
 
-    // Color streak
-    if (symbol.color === run.lastColor && run.lastColor !== null) {
-      run.colorStreak = Math.min(run.colorStreak + 1, BALANCE.COLOR_STREAK_MAX);
-    } else {
-      run.colorStreak = symbol.color === run.lastColor ? 1 : 0;
-    }
-    run.lastColor = symbol.color;
-
-    if (run.colorStreak > 0) {
-      const streakBonus = run.colorStreak * BALANCE.COLOR_STREAK_BONUS;
-      value = Math.floor(value * (1 + streakBonus));
-    }
-
-    // Fever multiplier
-    if (run.fever.active) {
-      value = Math.floor(value * BALANCE.FEVER_MULTIPLIER);
-    }
-
-    // Symbol special effects
-    if (symbol.specialEffect === 'double_payout') {
+    // Symbol special effects (cherry, void, etc.)
+    if (symbol?.specialEffect === 'double_payout') {
       value *= 2;
-    } else if (symbol.specialEffect === 'multiply_all') {
-      value = Math.floor(value * 1.5);
-    } else if (symbol.specialEffect === 'jackpot') {
-      value = Math.floor(value * 3);
+    } else if (symbol?.specialEffect === 'void_burst') {
+      value = 0;
     }
 
     // Echo spin (relic effect — double once per round)
@@ -162,28 +143,6 @@ export class GameLoop {
       value *= 2;
       run._echoUsedThisRound = true;
       this.events.emit('echo:triggered', { doubled: value });
-    }
-
-    // Fever tracking
-    if (value >= symbol.baseValue * 1.5) {
-      run.consecutiveHigh++;
-    } else {
-      run.consecutiveHigh = 0;
-    }
-
-    if (run.consecutiveHigh >= BALANCE.FEVER_THRESHOLD && !run.fever.active) {
-      const feverDur = BALANCE.FEVER_DURATION_BALLS + (mods.feverDuration || 0);
-      run.fever.active = true;
-      run.fever.remaining = feverDur;
-      this.events.emit('fever:started', { duration: feverDur });
-    }
-
-    if (run.fever.active) {
-      run.fever.remaining--;
-      if (run.fever.remaining <= 0) {
-        run.fever.active = false;
-        this.events.emit('fever:ended');
-      }
     }
 
     return { segment, symbol, value };
@@ -311,11 +270,7 @@ export class GameLoop {
     // Reset for next round
     run.ballsLeft = BALANCE.BALLS_PER_ROUND + (mods.extraSpins || 0);
     run.spinResults = [];
-    run.consecutiveHigh = 0;
-    run.fever = { active: false, remaining: 0 };
     run._echoUsedThisRound = false;
-    run.lastColor = null;
-    run.colorStreak = 0;
     run.shopDiscount = Math.min(80, mods.shopDiscount || 0);
 
     this.#setPhase(PHASE.IDLE);
@@ -370,7 +325,6 @@ export class GameLoop {
       wheel: run.wheel,
       probabilities: this.wheel.getProbabilities(run.wheel),
       relics: run.relics,
-      fever: run.fever,
     });
   }
 

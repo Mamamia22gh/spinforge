@@ -43,9 +43,6 @@ for (const [k, hex] of Object.entries(PAL)) {
 
 // Symbol color → palette mapping
 export const SYM_COLORS = {
-  red:    { fg: PAL.red,      bg: PAL.darkRed },
-  blue:   { fg: PAL.blue,     bg: PAL.darkBlue },
-  white:  { fg: PAL.white,    bg: PAL.lightGray },
   void:   { fg: PAL.darkPurple, bg: PAL.black },
 };
 

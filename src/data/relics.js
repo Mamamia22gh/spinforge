@@ -15,17 +15,14 @@
 /** @type {RelicDef[]} */
 export const RELICS = [
   // ═══ COMMON (15-35💵) ═══
-  { id: 'loaded_dice',    name: 'Dé Pipé',       emoji: '🎲', description: '+15% payout couleur',           rarity: 'common',    cost: 25,  minRound: 1, effects: [{ type: 'color_payout_percent', value: 15, metaLevel: 0 }] },
   { id: 'lucky_coin',     name: 'Pièce Porte-Bonheur', emoji: '🪙', description: '+10 chips par round',   rarity: 'common',    cost: 30,  minRound: 1, effects: [{ type: 'chips_per_round', value: 10, metaLevel: 0 }] },
   { id: 'horseshoe',      name: 'Fer à Cheval',   emoji: '🧲', description: '+20% payout exact',            rarity: 'common',    cost: 30,  minRound: 1, effects: [{ type: 'exact_payout_percent', value: 20, metaLevel: 0 }] },
   { id: 'rabbits_foot',   name: 'Patte de Lapin', emoji: '🐾', description: '+10% tous les payouts',        rarity: 'common',    cost: 35,  minRound: 1, effects: [{ type: 'all_payout_percent', value: 10, metaLevel: 0 }] },
   { id: 'piggy_bank',     name: 'Tirelire',       emoji: '🐷', description: '+8💵 par fin de round',        rarity: 'common',    cost: 20,  minRound: 1, effects: [{ type: 'money_round_end', value: 8, metaLevel: 0 }] },
   { id: 'magnet',         name: 'Aimant',         emoji: '🧲', description: '+5 chips de départ',            rarity: 'common',    cost: 25,  minRound: 1, effects: [{ type: 'starting_chips', value: 5, metaLevel: 0 }] },
-  { id: 'clover',         name: 'Trèfle',         emoji: '🍀', description: 'Fever +1 spin de durée',       rarity: 'common',    cost: 30,  minRound: 2, effects: [{ type: 'fever_duration', value: 1, metaLevel: 0 }] },
   { id: 'double_down',    name: 'Double Down',    emoji: '✌️', description: '+1 spin par round',            rarity: 'common',    cost: 35,  minRound: 2, effects: [{ type: 'extra_spins', value: 1, metaLevel: 0 }] },
 
   // ═══ UNCOMMON (40-60💵) ═══
-  { id: 'neon_sign',      name: 'Néon',           emoji: '💡', description: '+30% payout couleur',           rarity: 'uncommon',  cost: 45,  minRound: 3, effects: [{ type: 'color_payout_percent', value: 30, metaLevel: 0 }] },
   { id: 'crystal_ball',   name: 'Boule de Cristal', emoji: '🔮', description: 'Vois le prochain résultat',  rarity: 'uncommon',  cost: 50,  minRound: 3, effects: [{ type: 'preview_next', value: 1, metaLevel: 0 }] },
   { id: 'weighted_wheel', name: 'Roue Lestée',    emoji: '⚖️', description: '+25% poids symbole favori',    rarity: 'uncommon',  cost: 45,  minRound: 4, effects: [{ type: 'weight_boost_percent', value: 25, metaLevel: 0 }] },
   { id: 'insurance',      name: 'Assurance',       emoji: '🛡️', description: 'Perd 50% au lieu de 100%',    rarity: 'uncommon',  cost: 55,  minRound: 3, effects: [{ type: 'loss_reduction', value: 50, metaLevel: 0 }] },

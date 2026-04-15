@@ -32,7 +32,7 @@ export class WheelSystem {
     }
 
     const segment = wheel[segmentIndex];
-    const symbol = getSymbol(segment.symbolId);
+    const symbol = segment.symbolId ? getSymbol(segment.symbolId) : null;
 
     this.#events.emit('wheel:spun', { segmentIndex, segment, symbol });
 
@@ -52,7 +52,7 @@ export class WheelSystem {
     const map = new Map();
     for (const seg of wheel) {
       if (!map.has(seg.symbolId)) {
-        map.set(seg.symbolId, { symbolId: seg.symbolId, weight: 0, count: 0, symbol: getSymbol(seg.symbolId) });
+        map.set(seg.symbolId, { symbolId: seg.symbolId, weight: 0, count: 0, symbol: seg.symbolId ? getSymbol(seg.symbolId) : null });
       }
       const entry = map.get(seg.symbolId);
       entry.weight += seg.weight;
@@ -77,7 +77,7 @@ export class WheelSystem {
       return false;
     }
 
-    getSymbol(symbolId); // validate
+    if (symbolId) getSymbol(symbolId); // validate if not null
     run.wheel.push({ id: uid('seg'), symbolId, weight: 1, modifiers: [] });
     this.#events.emit('wheel:segment_added', { symbolId, totalSegments: run.wheel.length });
     return true;

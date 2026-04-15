@@ -6,29 +6,15 @@ export const BALANCE = Object.freeze({
   ROUNDS_PER_RUN: 12,
   BALLS_PER_ROUND: 5,
 
-  // Starting wheel — 40 segments, 4 blue
-  INITIAL_WHEEL: [
-    'blue', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red',
-    'blue', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red',
-    'blue', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red',
-    'blue', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red', 'red',
-  ],
+  // Starting wheel — 40 generic pockets (no symbol, scored by pocket number)
+  INITIAL_SEGMENTS: 40,
 
   // Quota scaling — quota(round) = BASE × GROWTH^(round-1)
-  QUOTA_BASE: 59,
+  QUOTA_BASE: 69,
   QUOTA_GROWTH: 1.2,
 
   // Economy
   SURPLUS_CONVERSION_RATE: 20,   // surplus ÷ 20 = 💵
-
-  // Fever — consecutive high-value hits
-  FEVER_THRESHOLD: 3,
-  FEVER_DURATION_BALLS: 3,
-  FEVER_MULTIPLIER: 2.0,
-
-  // Streak
-  COLOR_STREAK_BONUS: 0.3,      // +30% per streak level
-  COLOR_STREAK_MAX: 3,
 
   // Wheel limits
   MAX_SEGMENTS: 48,
