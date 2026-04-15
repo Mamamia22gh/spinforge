@@ -45,12 +45,8 @@ for (const [k, hex] of Object.entries(PAL)) {
 export const SYM_COLORS = {
   red:    { fg: PAL.red,      bg: PAL.darkRed },
   blue:   { fg: PAL.blue,     bg: PAL.darkBlue },
-  gold:   { fg: PAL.gold,     bg: PAL.darkGold },
-  green:  { fg: PAL.green,    bg: PAL.darkGreen },
-  purple: { fg: PAL.purple,   bg: PAL.darkPurple },
   white:  { fg: PAL.white,    bg: PAL.lightGray },
   void:   { fg: PAL.darkPurple, bg: PAL.black },
-  wild:   { fg: PAL.neonPink, bg: PAL.darkPurple },
 };
 
 // Segment alternation (casino red/black → dark/darker)

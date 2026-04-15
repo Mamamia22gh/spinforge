@@ -1,7 +1,7 @@
 ﻿/**
- * 13 symbol sprites — pixel art, drawn procedurally.
+ * Symbol sprites — pixel art, drawn procedurally.
  * Each sprite is an array of strings: '.' = transparent, letter = palette key.
- * Standard symbols are 9×9. Ticket sprite is 13×7.
+ * Standard symbols are 9×9.
  *
  * Palette keys:
  *   R = red, B = blue, G = gold, E = green, P = purple,
@@ -51,41 +51,8 @@ const SPRITES = {
     '...BBB...',
     '.........',
   ],
-  gold: [ // gold coin
-    '...GGG...',
-    '..GWGGG..',
-    '.GGGGGGG.',
-    '.GG.G.GG.',
-    '.GGGGGGG.',
-    '.GG.G.GG.',
-    '.GGGGGGG.',
-    '..YYYYY..',
-    '...YYY...',
-  ],
 
   // ── Uncommons ──
-  green: [ // green clover
-    '..EE.EE..',
-    '.EEWEEW..',
-    '.EEEEEEE.',
-    '..EEEEE..',
-    '...gEg...',
-    '...gEg...',
-    '....g....',
-    '....g....',
-    '.........',
-  ],
-  purple: [ // purple crystal
-    '....P....',
-    '...PPP...',
-    '..PPWPP..',
-    '..PPPPP..',
-    '.PPPPPPP.',
-    '.PPPpPPP.',
-    '..PPpPP..',
-    '...ppp...',
-    '.........',
-  ],
   cherry: [ // cherries
     '....ggg..',
     '...g..g..',
@@ -96,17 +63,6 @@ const SPRITES = {
     '.RRr..RRr',
     '..RR...RR',
     '.........',
-  ],
-  bell: [ // golden bell
-    '...GGG...',
-    '..GWGGG..',
-    '.GGGGGGG.',
-    '.GGGGGGG.',
-    '.GGGGGGG.',
-    'GGGGGGGGG',
-    'YYYYYYYYY',
-    '...GGG...',
-    '....G....',
   ],
   // ── UI ──
   ball: [ // roulette ball
@@ -122,26 +78,6 @@ const SPRITES = {
   ],
 
   // ── Rares ──
-  seven: [ // lucky 7
-    '.RRRRRRR.',
-    '.RRRRRRR.',
-    '.....RR..',
-    '....RR...',
-    '...RWR...',
-    '..RWR....',
-    '..RR.....',
-    '..RR.....',
-    '.........',
-  ],
-  ticket: [ // Lottery Green ticket (13×7)
-    'g.g.g.g.g.g.g',
-    'gEEEEEEEg.EEg',
-    'gEWEEEWEg.EEg',
-    '.EEEEEEEg.EE.',
-    'gEWEEEWEg.EEg',
-    'gEEEEEEEg.EEg',
-    'g.g.g.g.g.g.g',
-  ],
 
   // ── Legendaries ──
   void: [ // void spiral
@@ -154,28 +90,6 @@ const SPRITES = {
     '.p.....p.',
     '..p...p..',
     '...ppp...',
-  ],
-  joker: [ // joker face
-    '...NNN...',
-    '..NWWWN..',
-    '.NW.W.WN.',
-    '.NWWWWWN.',
-    '.NW.N.WN.',
-    '.NWNNWWN.',
-    '..NWWWN..',
-    '...NNN...',
-    '.........',
-  ],
-  phoenix: [ // fire bird
-    '...RGR...',
-    '..RGGR...',
-    '.RGWGGR..',
-    '.RGGGGR..',
-    'RRRGGRR..',
-    '.rRRRR...',
-    '..rRRr...',
-    '.r..r.r..',
-    '.........',
   ],
 
   // ── Relic sprites (for forge shop) ──

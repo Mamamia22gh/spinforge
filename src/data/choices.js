@@ -3,15 +3,9 @@
  */
 export const CHOICES = [
   // ── Wheel manipulation ──
-  { id: 'add_gold',       name: 'Segment Or',       emoji: '🟡', description: 'Ajoute un segment Or à la roue',    type: 'add_symbol',    weight: 10, minRound: 1, requiresUnlock: null, payload: { symbolId: 'gold' } },
   { id: 'add_red',        name: 'Segment Rouge',    emoji: '🔴', description: 'Ajoute un segment Rouge',           type: 'add_symbol',    weight: 8,  minRound: 1, requiresUnlock: null, payload: { symbolId: 'red' } },
   { id: 'add_blue',       name: 'Segment Bleu',     emoji: '🔵', description: 'Ajoute un segment Bleu',            type: 'add_symbol',    weight: 8,  minRound: 1, requiresUnlock: null, payload: { symbolId: 'blue' } },
-  { id: 'add_green',      name: 'Segment Vert',     emoji: '🟢', description: 'Ajoute un segment Vert',            type: 'add_symbol',    weight: 6,  minRound: 3, requiresUnlock: 'unlock_green', payload: { symbolId: 'green' } },
-  { id: 'add_purple',     name: 'Segment Violet',   emoji: '🟣', description: 'Ajoute un segment Violet',          type: 'add_symbol',    weight: 6,  minRound: 3, requiresUnlock: 'unlock_purple', payload: { symbolId: 'purple' } },
   { id: 'add_cherry',     name: 'Cerise',           emoji: '🍒', description: 'Ajoute une Cerise (double payout)', type: 'add_symbol',    weight: 4,  minRound: 4, requiresUnlock: 'unlock_cherry', payload: { symbolId: 'cherry' } },
-  { id: 'add_bell',       name: 'Cloche',           emoji: '🔔', description: 'Ajoute une Cloche (+chips)',         type: 'add_symbol',    weight: 4,  minRound: 4, requiresUnlock: 'unlock_bell', payload: { symbolId: 'bell' } },
-  { id: 'add_ticket',    name: 'Ticket',          emoji: '🎟️', description: 'Ajoute un Ticket (multi all)',       type: 'add_symbol',    weight: 2,  minRound: 7, requiresUnlock: 'unlock_ticket', payload: { symbolId: 'ticket' } },
-  { id: 'add_seven',      name: 'Sept',             emoji: '7️⃣', description: 'Ajoute un Sept (jackpot)',           type: 'add_symbol',    weight: 2,  minRound: 7, requiresUnlock: 'unlock_seven', payload: { symbolId: 'seven' } },
   { id: 'remove_segment', name: 'Retirer Segment',  emoji: '✂️', description: 'Retire un segment (au choix)',       type: 'remove_symbol', weight: 6,  minRound: 2, requiresUnlock: null, payload: {} },
   { id: 'boost_weight',   name: 'Lester',           emoji: '⚖️', description: '+1 poids à un segment',             type: 'boost_weight',  weight: 7,  minRound: 2, requiresUnlock: null, payload: {} },
 

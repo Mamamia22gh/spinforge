@@ -739,7 +739,7 @@ export class PixelWheel {
     let off = 0;
     for (let i = 0; i < data.length; i++) {
       const seg = data[i], angle = (seg.weight / tw) * Math.PI * 2;
-      const isGold = seg.symbolId === 'gold';
+      const isBlue = seg.symbolId === 'blue';
       const dark = i % 2 === 0;
       const mid = off + angle / 2;
 
@@ -830,8 +830,8 @@ export class PixelWheel {
       // Label highlight flash (drawn AFTER fill so it's visible)
       const hl = this._highlights.find(h => h.idx === i);
       if (hl) {
-        const isGold = seg.symbolId === 'gold';
-        const hlColor = isGold ? PAL.gold : PAL.white;
+        const isBlue = seg.symbolId === 'blue';
+        const hlColor = isBlue ? PAL.blue : PAL.white;
         let a;
         if (hl.t < 0.15) a = 0.9;
         else if (hl.t < 0.4) a = 0.7;
@@ -1196,7 +1196,7 @@ export class PixelWheel {
       const startX = Math.round(cx - ((total - 1) * spacing) / 2);
       const histY = Math.round(cy + r * 0.55);
       for (let i = 0; i < total; i++) {
-        ctx.fillStyle = h.history[i] === 'gold' ? PAL.gold : PAL.lightGray;
+        ctx.fillStyle = h.history[i] === 'blue' ? PAL.blue : PAL.lightGray;
         ctx.fillRect(startX + i * spacing, histY, 3, 3);
       }
     }

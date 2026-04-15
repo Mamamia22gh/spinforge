@@ -106,13 +106,6 @@ export class BettingSystem {
         // Symbol special effects
         if (symbol.specialEffect === 'double_payout') {
           winnings *= 2;
-        } else if (symbol.specialEffect === 'extra_chips') {
-          run.chips += 5;
-          this.#events.emit('symbol:extra_chips', { amount: 5 });
-        } else if (symbol.specialEffect === 'multiply_all') {
-          winnings = Math.floor(winnings * 1.5);
-        } else if (symbol.specialEffect === 'jackpot') {
-          winnings = Math.floor(winnings * 2);
         }
 
         totalWon += winnings;
@@ -155,9 +148,9 @@ export class BettingSystem {
   #evaluateBet(bet, run, segmentIndex, segment, symbol, rng) {
     switch (bet.condition) {
       case 'color':
-        return symbol.color === bet.target || symbol.specialEffect === 'wildcard';
+        return symbol.color === bet.target;
       case 'exact':
-        return segment.symbolId === bet.target || symbol.specialEffect === 'wildcard';
+        return segment.symbolId === bet.target;
       case 'sector':
         if (bet.sectorStart == null) return false;
         return this.#inSector(segmentIndex, bet.sectorStart, 3, run.wheel.length);

@@ -457,7 +457,7 @@ class App {
           common: 'relic_common', uncommon: 'relic_uncommon',
           rare: 'relic_rare', legendary: 'relic_legendary',
         };
-        slots.push({ id: raritySprite[r.rarity] || 'ticket' });
+        slots.push({ id: raritySprite[r.rarity] || 'ball' });
       } else {
         slots.push(null);
       }
@@ -551,7 +551,7 @@ class App {
       this._pop('+' + result.value, pos.x, pos.y - 15);
 
       // Shake on gold pocket
-      if (result.result.symbol.id === 'gold') this._shakeStart(2, 0.2);
+      if (result.result.symbol.id === 'cherry') this._shakeStart(2, 0.2);
 
       // Shake on quota reached + invert flash + bonus mode
       const run3 = this.game.getState().run;

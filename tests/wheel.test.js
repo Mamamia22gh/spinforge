@@ -48,10 +48,10 @@ describe('WheelSystem', () => {
   it('should add a segment', () => {
     const run = createRunState();
     const before = run.wheel.length;
-    const ok = wheel.addSegment(run, 'gold');
+    const ok = wheel.addSegment(run, 'blue');
     expect(ok).toBe(true);
     expect(run.wheel.length).toBe(before + 1);
-    expect(run.wheel[run.wheel.length - 1].symbolId).toBe('gold');
+    expect(run.wheel[run.wheel.length - 1].symbolId).toBe('blue');
   });
 
   it('should not exceed max segments', () => {

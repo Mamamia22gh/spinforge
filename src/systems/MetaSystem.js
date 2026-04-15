@@ -12,15 +12,8 @@ import { BALANCE } from '../data/balance.js';
 /** @type {MetaUnlock[]} */
 export const META_UNLOCKS = [
   // Symbols
-  { id: 'unlock_green',    name: 'Symbole Vert',      description: 'Segments Vert dans les choix',       cost: 3,  category: 'symbol' },
-  { id: 'unlock_purple',   name: 'Symbole Violet',    description: 'Segments Violet dans les choix',     cost: 3,  category: 'symbol' },
   { id: 'unlock_cherry',   name: 'Cerise',            description: 'Cerise (double payout) dans choix',  cost: 5,  category: 'symbol' },
-  { id: 'unlock_bell',     name: 'Cloche',            description: 'Cloche (+chips) dans les choix',     cost: 5,  category: 'symbol' },
-  { id: 'unlock_ticket',  name: 'Ticket',           description: 'Ticket (multi all) dans les choix',  cost: 10, category: 'symbol' },
-  { id: 'unlock_seven',    name: 'Sept',              description: 'Sept (jackpot) dans les choix',      cost: 10, category: 'symbol' },
   { id: 'unlock_void',     name: 'Void',              description: 'Void (burst) dans les choix',        cost: 15, category: 'symbol' },
-  { id: 'unlock_joker',    name: 'Joker',             description: 'Joker (wildcard) dans les choix',    cost: 12, category: 'symbol' },
-  { id: 'unlock_phoenix',  name: 'Phénix',            description: 'Phénix (resurrect) dans les choix',  cost: 20, category: 'symbol' },
 
   // Bet types
   { id: 'unlock_chain_bet',name: 'Pari Chaîne',       description: 'Débloque le pari Chaîne',            cost: 6,  category: 'bet' },
