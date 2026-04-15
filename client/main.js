@@ -55,7 +55,9 @@ class App {
     this._pops = [];
     this._shake = { x: 0, y: 0, intensity: 0, decay: 0, time: 0 };
     this._flash = 0;
-    this._goldDisplay = 0; // animated gold counter // invert flash timer (>0 = active)
+    this._goldDisplay = 0;
+    this._lastTicketDisplay = 0;
+    this._lastTicketDisplay = this.game.getState().meta.tickets; // animated gold counter // invert flash timer (>0 = active)
     this._inShop = false;
     this._shopResolve = null;
     this._debugSpritesOpen = false;
@@ -595,6 +597,7 @@ class App {
       this.wheel.hubShowValue(result.result.segment?.symbolId, result.value);
       this.wheel.hubSetScore(this.game.getState().run.score);
       this._goldDisplay = this.game.getState().run.score;
+      this.wheel.setCounters(this._goldDisplay, this._lastTicketDisplay);
       const run2 = this.game.getState().run;
       this._playReveal(i, results.length);
       const pos = this.wheel.getPocketPosition(results[i], WHEEL_CX, WHEEL_CY);
@@ -619,6 +622,22 @@ class App {
 
     // Advance game state through RESULTS → CHOICE → SHOP
     this._advanceToShop();
+
+    // Ticket animation if round passed
+    const postState = this.game.getState();
+    const postRun = postState.run;
+    if (postRun?.lastRoundResult?.passed) {
+      const ticketsEarned = BALANCE.TICKETS_PER_ROUND;
+      this.wheel.setCounters(this._goldDisplay, postState.meta.tickets - ticketsEarned);
+      await this._delay(300);
+      this.wheel.startTicketAnim(ticketsEarned);
+      this._shakeStart(3, 0.4);
+      this._playTicketFanfare();
+      // Wait for animation to complete
+      while (!this.wheel.ticketAnimDone) await this._delay(50);
+      this.wheel.setCounters(this._goldDisplay, postState.meta.tickets);
+      await this._delay(200);
+    }
 
     const phase = this.game.getPhase();
     if (phase === 'GAME_OVER' || phase === 'VICTORY') {
@@ -981,6 +1000,9 @@ class App {
       rim:    { x: rimOx - wheelOx,    y: rimOy - wheelOy },
     };
     this.wheel.draw(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy, periOx - wheelOx, periOy - wheelOy, _layers);
+
+    // Ticket animation overlay (above wheel, below UI)
+    this.wheel.drawTicketAnim(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
 
     // UI Ring (parallax layer 2.5 — between slots and title)
     this._drawUIRing(ctx, WHEEL_CX + uiOx, WHEEL_CY + uiOy);
@@ -1472,6 +1494,15 @@ class App {
     setTimeout(() => this._tone(1175, 0.10, 'square', 0.07), 60);
     setTimeout(() => this._tone(1760, 0.18, 'sine', 0.09), 120);
     setTimeout(() => this._tone(2640, 0.12, 'sine', 0.04), 180);
+  }
+
+  _playTicketFanfare() {
+    // Triumphant ascending arpeggio with shimmer
+    this._tone(660, 0.12, 'square', 0.06);
+    setTimeout(() => this._tone(880, 0.12, 'square', 0.06), 80);
+    setTimeout(() => this._tone(1100, 0.15, 'sine', 0.08), 160);
+    setTimeout(() => this._tone(1320, 0.20, 'sine', 0.07), 260);
+    setTimeout(() => this._tone(1760, 0.30, 'sine', 0.05), 380);
   }
 
   _delay(ms) { return new Promise(r => setTimeout(r, ms)); }

@@ -96,6 +96,9 @@ export class PixelWheel {
     this._relics = []; // array of { rarity } objects from run.relics
     this._segmentValues = []; // resolved display values per segment
 
+    // Ticket animation state
+    this._ticketAnim = null; // { phase, elapsed, duration, earned, counted, fromX, fromY, scale, shake }
+
     this._tilt = 1.0;
     this._flip = null;
     this.onFlipMid = null;
@@ -489,6 +492,32 @@ export class PixelWheel {
       this._ticketShake.time += dt;
       if (this._ticketShake.time >= this._ticketShake.decay) {
         this._ticketShake.intensity = 0;
+      }
+    }
+
+    // Ticket animation update
+    if (this._ticketAnim) {
+      const ta = this._ticketAnim;
+      ta.elapsed += dt;
+      if (ta.phase === 'fly' && ta.elapsed >= ta.flyDur) {
+        ta.phase = 'count';
+        ta.elapsed = 0;
+      } else if (ta.phase === 'count' && ta.elapsed >= ta.countDur) {
+        ta.phase = 'hold';
+        ta.elapsed = 0;
+        ta.counted = ta.earned;
+        this._counterTickets = ta.baseTickets + ta.earned;
+      } else if (ta.phase === 'hold' && ta.elapsed >= ta.holdDur) {
+        ta.phase = 'flyback';
+        ta.elapsed = 0;
+      } else if (ta.phase === 'flyback' && ta.elapsed >= ta.flybackDur) {
+        this._ticketAnim = null;
+      }
+      // Count up during count phase
+      if (ta && ta.phase === 'count') {
+        const t = Math.min(1, ta.elapsed / ta.countDur);
+        ta.counted = Math.floor(ta.earned * t);
+        this._counterTickets = ta.baseTickets + ta.counted;
       }
     }
 
@@ -1285,7 +1314,35 @@ export class PixelWheel {
       this._ticketShake.time = 0;
     }
     this._counterGold = gold;
-    this._counterTickets = tickets;
+    // Don't overwrite tickets during animation
+    if (!this._ticketAnim) this._counterTickets = tickets;
+  }
+
+  startTicketAnim(earned) {
+    // Compute rim ticket position (same as _drawRimCounters left half)
+    const cfg = GAUGE_CONFIGS[2];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const arcLen = cfg.end - cfg.start;
+    const tickA = cfg.start + arcLen * 0.25;
+    this._ticketAnim = {
+      phase: 'fly',
+      elapsed: 0,
+      flyDur: 0.4,
+      countDur: 0.8,
+      holdDur: 0.6,
+      flybackDur: 0.3,
+      earned,
+      counted: 0,
+      baseTickets: this._counterTickets,
+      fromA: tickA,
+      fromMidR: MID_R,
+    };
+  }
+
+  get ticketAnimDone() {
+    return !this._ticketAnim;
   }
 
   _drawGauges(ctx, cx, cy) {
@@ -1529,6 +1586,83 @@ export class PixelWheel {
     const tsx = tx - Math.floor(tickTotalW / 2);
     drawText(ctx, tickTxt, tsx, ty - Math.floor(CHAR_H / 2), PAL.green, 1);
     drawSpriteCentered(ctx, 'ticket', tsx + tickTW + gap + Math.floor(TICKET_W / 2) + 2, ty - 1, 1);
+  }
+
+  drawTicketAnim(ctx, cx, cy) {
+    const ta = this._ticketAnim;
+    if (!ta) return;
+
+    // Source position (rim ticket counter)
+    const srcX = Math.cos(ta.fromA) * ta.fromMidR;
+    const srcY = Math.sin(ta.fromA) * ta.fromMidR;
+
+    // Target position (screen center, relative to wheel cx/cy)
+    const tgtX = 0;
+    const tgtY = -10;
+
+    let t, x, y, scale, alpha;
+
+    if (ta.phase === 'fly') {
+      t = Math.min(1, ta.elapsed / ta.flyDur);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      x = srcX + (tgtX - srcX) * ease;
+      y = srcY + (tgtY - srcY) * ease;
+      scale = 1 + 2 * ease;
+      alpha = 0.5 + 0.5 * ease;
+    } else if (ta.phase === 'count') {
+      t = Math.min(1, ta.elapsed / ta.countDur);
+      x = tgtX; y = tgtY; scale = 3; alpha = 1;
+    } else if (ta.phase === 'hold') {
+      x = tgtX; y = tgtY; scale = 3; alpha = 1;
+    } else if (ta.phase === 'flyback') {
+      t = Math.min(1, ta.elapsed / ta.flybackDur);
+      const ease = t * t;
+      x = tgtX + (srcX - tgtX) * ease;
+      y = tgtY + (srcY - tgtY) * ease;
+      scale = 3 - 2 * ease;
+      alpha = 1 - 0.5 * ease;
+    } else return;
+
+    // Shake during count phase
+    let shakeX = 0, shakeY = 0;
+    if (ta.phase === 'count') {
+      const intensity = 2.5 * (1 - Math.min(1, ta.elapsed / ta.countDur));
+      shakeX = Math.round((Math.random() - 0.5) * 2 * intensity);
+      shakeY = Math.round((Math.random() - 0.5) * 2 * intensity);
+    }
+
+    ctx.save();
+    ctx.translate(cx + x + shakeX, cy + y + shakeY);
+    ctx.globalAlpha = alpha;
+
+    // Glow behind (during count/hold)
+    if (ta.phase === 'count' || ta.phase === 'hold') {
+      ctx.fillStyle = PAL.green;
+      ctx.globalAlpha = 0.12 + 0.06 * Math.sin(this._time * 12);
+      ctx.beginPath();
+      ctx.arc(0, 0, 22 * scale / 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = alpha;
+    }
+
+    // Ticket sprite (centered)
+    drawSpriteCentered(ctx, 'ticket', 0, -Math.floor(CHAR_H * scale / 2) - 2, scale);
+
+    // Ticket count text
+    const displayCount = ta.baseTickets + ta.counted;
+    const txt = String(displayCount);
+    drawTextCentered(ctx, txt, 0, Math.floor(CHAR_H * scale / 2) + 2, PAL.green, scale);
+
+    // "+earned" floating text during count
+    if (ta.phase === 'count' || ta.phase === 'hold') {
+      const earnTxt = '+' + ta.earned;
+      const earnAlpha = ta.phase === 'hold' ? Math.max(0, 1 - ta.elapsed / ta.holdDur) : 1;
+      ctx.globalAlpha = earnAlpha * 0.9;
+      drawTextCentered(ctx, earnTxt, 20 * scale / 3, -Math.floor(CHAR_H * scale / 2) - 6, PAL.white, Math.max(1, Math.floor(scale * 0.6)));
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   _drawOrbitSlots(ctx, cx, cy) {
