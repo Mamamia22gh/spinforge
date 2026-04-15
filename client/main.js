@@ -603,13 +603,11 @@ class App {
 
     // ── Precompute hiero ring segment arcs (matching wheel wedges) ──
     const numSegs = wheelData.length;
-    const tw = wheelData.reduce((s, w) => s + w.weight, 0);
     const TWO_PI = Math.PI * 2;
-    const initAngle = -Math.PI / 2 - (wheelData[0].weight / tw) * Math.PI;
+    const initAngle = -Math.PI / 2 - Math.PI / numSegs;
     const hieroArcs = new Float64Array(numSegs + 1);
-    hieroArcs[0] = 0;
-    for (let i = 0; i < numSegs; i++) {
-      hieroArcs[i + 1] = hieroArcs[i] + (wheelData[i].weight / tw) * TWO_PI;
+    for (let i = 0; i <= numSegs; i++) {
+      hieroArcs[i] = i * TWO_PI / numSegs;
     }
     // Menu segment lookup { segIndex → { id, glyph } }
     const menuSegs = {};
