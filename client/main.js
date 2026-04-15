@@ -502,35 +502,33 @@ class App {
         const angle = Math.atan2(dy, dx);
         const ray = Math.pow(Math.max(0, Math.cos(angle * 4)), 6);
 
-        // ── Segment alternation (wheel-style even/odd sectors) ──
+        // ── Segment alternation (narrow sector "cases", matching golden ray style) ──
         const normAngle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
         const sectorIdx = Math.floor(normAngle / SECTOR_ARC);
-        const darkSector = (sectorIdx % 2 === 0);  // mirrors dark = i % 2 === 0
-        // Blend factor: strong near orbit edge, fading outward
+        const darkSector = (sectorIdx % 2 === 0);
         const segFade = Math.max(0, 1 - Math.max(0, dist - ORBIT_OUTER) / 160);
-        const segBoost = darkSector ? 0.06 * segFade : -0.03 * segFade;
+        // Narrow peak centered in each sector (sin^6 narrows like golden ray cos^6)
+        const sectorPhase = (normAngle % SECTOR_ARC) / SECTOR_ARC;
+        const segPeak = Math.pow(Math.sin(sectorPhase * Math.PI), 6);
+        const inCase = segPeak > 0.1 && segFade > 0.05;
+        const segBoost = inCase ? (darkSector ? 0.06 : -0.03) * segFade * segPeak : 0;
 
         // ── Concentric ring accents (outside orbit zone) ──
         const ringDist = (dist - ORBIT_OUTER) % 32;
         const ring = (dist > ORBIT_OUTER && ringDist < 1.0) ? 0.25 : 0;
 
-        // ── Sector edge highlight (thin bright lines between sectors) ──
-        const sectorPhase = (normAngle % SECTOR_ARC) / SECTOR_ARC; // 0..1 within sector
-        const edgeProx = Math.min(sectorPhase, 1 - sectorPhase); // 0 at edges, 0.5 at center
-        const sectorEdge = (edgeProx < 0.04 && dist > ORBIT_OUTER + AURA_TRANS) ? 0.12 * segFade : 0;
-
         // ── Combined brightness ──
         const brightness = zoneAtt * vignette *
           (0.08 + segBoost + 0.28 * radialFade + 0.35 * ray * radialFade
-           + ring * radialFade + sectorEdge);
+           + ring * radialFade);
         const threshold = brightness * 16;
 
         if (bayer < threshold) {
           buf[idx] = (radialFade > 0.35 && ray > 0.15)
             ? PAL32.darkGold
-            : darkSector ? PAL32.darkGray : PAL32.midGray;
+            : inCase ? (darkSector ? PAL32.darkGray : PAL32.midGray) : PAL32.darkGray;
         } else {
-          buf[idx] = darkSector ? PAL32.black : PAL32.darkGray;
+          buf[idx] = (inCase && !darkSector) ? PAL32.darkGray : PAL32.black;
         }
       }
     }
