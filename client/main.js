@@ -63,6 +63,7 @@ class App {
     this._debugSpritesOpen = false;
     this._debugScroll = 0;
     this._relicHoverRarity = null; // hovered relic rarity for tooltip
+    this._gameOverData = null; // { round, score, quota } when game over
 
     // Build default wheel data BEFORE background (background needs segment info)
     const defaultWheel = Array.from({ length: BALANCE.INITIAL_SEGMENTS }, (_, i) => ({
@@ -77,6 +78,11 @@ class App {
     this._my = 0;
     this._hubHover = false;
     this._sweepTrigger = -99;  // time of last hover-triggered sweep
+
+    // Listen for game over
+    this.game.on('game:over', (data) => {
+      this._gameOverData = { round: data.round, score: data.totalWon, quota: data.quota };
+    });
 
     // Start game immediately
     this.game.startRun();
@@ -224,6 +230,10 @@ class App {
     const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
     if (dx * dx + dy * dy < 40 * 40) {
       if (this._spinning) return;
+      if (this._gameOverData) {
+        this._retryFromGameOver();
+        return;
+      }
       this._onAction();
       return;
     }
@@ -236,10 +246,18 @@ class App {
     } else if (menuId === 'settings') {
       this._pop('SETTINGS');
     } else if (menuId === 'retry') {
-      this._pop('RETRY');
+      this._retryFromGameOver();
     } else if (menuId === 'exit') {
       this._pop('EXIT');
     }
+  }
+
+  _retryFromGameOver() {
+    this._gameOverData = null;
+    this._playSelect();
+    this._shakeStart(4, 0.3);
+    this.game.startRun();
+    this._syncWheel();
   }
 
   // ── Catalogue overlay ──
@@ -640,8 +658,12 @@ class App {
     }
 
     const phase = this.game.getPhase();
-    if (phase === 'GAME_OVER' || phase === 'VICTORY') {
-      // Failed or won — skip shop, restart
+    if (phase === 'GAME_OVER') {
+      // Failed — show game over screen, wait for user click
+      this._spinning = false;
+      return;
+    }
+    if (phase === 'VICTORY') {
       await this._delay(1000);
       this._autoAdvance();
       return;
@@ -1045,7 +1067,11 @@ class App {
     const hubBtnOx = px * 1.7;
     const hubBtnOy = py * 1.1;
     if (!this.wheel.flipped) {
-      this._drawHubBtn(ctx, hubBtnOx, hubBtnOy);
+      if (this._gameOverData) {
+        this._drawGameOver(ctx, hubBtnOx, hubBtnOy);
+      } else {
+        this._drawHubBtn(ctx, hubBtnOx, hubBtnOy);
+      }
     }
 
     ctx.restore(); // end PX scale
@@ -1221,6 +1247,46 @@ class App {
       drawTextCentered(ctx, qStr, qOx, qY, PAL.darkGray, 1, false);
       drawAnimSpriteCentered(ctx, 'coin', Math.round(qOx + qW / 2 + qGap + coinSz / 2) + 2, qY + Math.floor(CHAR_H / 2) - 1, 1, t, 4);
     }
+
+    ctx.restore();
+  }
+
+  _drawGameOver(ctx, wox, woy) {
+    const r = this.wheel.hubRadius || 42;
+    const tilt = this.wheel.tilt || 0.65;
+    const go = this._gameOverData;
+    const hover = this._hubHover;
+
+    ctx.save();
+    ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
+    ctx.scale(1, tilt);
+    ctx.translate(0, hover ? -4 : -2);
+
+    // Dark red fill
+    ctx.fillStyle = PAL.darkRed;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Hover brighten
+    if (hover) {
+      ctx.fillStyle = PAL.white;
+      ctx.globalAlpha = 0.1;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Skull sprite
+    drawSpriteCentered(ctx, 'skull', 0, -Math.floor(r * 0.42), 2);
+
+    // ROUND X
+    drawTextCentered(ctx, 'ROUND ' + go.round, 0, -Math.floor(CHAR_H * 0.4), PAL.lightGray, 1);
+
+    // Score / Quota
+    drawTextCentered(ctx, go.score + '/' + go.quota, 0, Math.floor(CHAR_H * 0.8), PAL.red, 1);
+
+    // RETRY label
+    drawTextCentered(ctx, 'RETRY', 0, Math.floor(r * 0.55), PAL.gold, 1);
 
     ctx.restore();
   }

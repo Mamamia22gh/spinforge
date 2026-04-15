@@ -67,6 +67,67 @@ describe('EffectSystem', () => {
   });
 });
 
+describe('Even/Odd bonuses use baseVal parity', () => {
+  let game;
+
+  beforeEach(() => {
+    resetUid();
+    game = createGame({ seed: 42 });
+    game.startRun();
+  });
+
+  it('addEven applies to even-valued segment (seg 1 → baseVal 2)', () => {
+    const run = game.getState().run;
+    run.relics.push({ id: 'even_charm', effects: [{ type: 'add_even_segments', value: 10, metaLevel: 0 }] });
+    const r = game.resolveBallAt(1); // baseVal = 2 (even)
+    expect(r.value).toBe(12); // 2 + 10 = 12
+  });
+
+  it('addEven does NOT apply to odd-valued segment (seg 0 → baseVal 1)', () => {
+    const run = game.getState().run;
+    run.relics.push({ id: 'even_charm', effects: [{ type: 'add_even_segments', value: 10, metaLevel: 0 }] });
+    const r = game.resolveBallAt(0); // baseVal = 1 (odd)
+    expect(r.value).toBe(1); // no bonus
+  });
+
+  it('addOdd applies to odd-valued segment (seg 0 → baseVal 1)', () => {
+    const run = game.getState().run;
+    run.relics.push({ id: 'odd_charm', effects: [{ type: 'add_odd_segments', value: 5, metaLevel: 0 }] });
+    const r = game.resolveBallAt(0); // baseVal = 1 (odd)
+    expect(r.value).toBe(6); // 1 + 5 = 6
+  });
+
+  it('addOdd does NOT apply to even-valued segment (seg 1 → baseVal 2)', () => {
+    const run = game.getState().run;
+    run.relics.push({ id: 'odd_charm', effects: [{ type: 'add_odd_segments', value: 5, metaLevel: 0 }] });
+    const r = game.resolveBallAt(1); // baseVal = 2 (even)
+    expect(r.value).toBe(2); // no bonus
+  });
+
+  it('set_base_value=20 makes addEven apply to ALL segments', () => {
+    const run = game.getState().run;
+    run.relics.push(
+      { id: 'tablet_twenty', effects: [{ type: 'set_base_value', value: 20, metaLevel: 0 }] },
+      { id: 'even_charm', effects: [{ type: 'add_even_segments', value: 3, metaLevel: 0 }] },
+    );
+    // Any segment: baseVal = 20 (even) → addEven applies
+    const r0 = game.resolveBallAt(0);
+    expect(r0.value).toBe(23);
+    const r5 = game.resolveBallAt(5);
+    expect(r5.value).toBe(23);
+  });
+
+  it('set_base_value=19 makes addOdd apply to ALL segments', () => {
+    const run = game.getState().run;
+    run.relics.push(
+      { id: 'tablet_nineteen', effects: [{ type: 'set_base_value', value: 19, metaLevel: 0 }] },
+      { id: 'odd_charm', effects: [{ type: 'add_odd_segments', value: 7, metaLevel: 0 }] },
+    );
+    const r = game.resolveBallAt(10);
+    expect(r.value).toBe(26); // 19 + 7 = 26
+  });
+});
+
 describe('Special Balls', () => {
   let game;
 

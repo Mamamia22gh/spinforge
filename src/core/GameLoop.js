@@ -154,9 +154,9 @@ export class GameLoop {
     // Base value: relic override or pocket number (1-indexed)
     let baseVal = mods.setBaseValue !== null ? mods.setBaseValue : (segmentIndex + 1);
 
-    // Even/odd segment bonuses from relics
-    if (segmentIndex % 2 === 0) baseVal += mods.addEven;
-    else                        baseVal += mods.addOdd;
+    // Even/odd value bonuses from relics
+    if (baseVal % 2 === 0) baseVal += mods.addEven;
+    else                   baseVal += mods.addOdd;
 
     let value = baseVal * segment.weight;
 
@@ -183,7 +183,7 @@ export class GameLoop {
     const mods = this.#getMods();
     return run.wheel.map((seg, i) => {
       let v = mods.setBaseValue !== null ? mods.setBaseValue : (i + 1);
-      if (i % 2 === 0) v += mods.addEven;
+      if (v % 2 === 0) v += mods.addEven;
       else             v += mods.addOdd;
       return v;
     });

@@ -45,6 +45,6 @@ export class EffectSystem {
 
 const DEFAULT_MODS = Object.freeze({
   setBaseValue: null,   // if non-null, replaces (segmentIndex + 1) as base value
-  addEven: 0,           // flat bonus added to even-indexed segments (0,2,4,...)
-  addOdd: 0,            // flat bonus added to odd-indexed segments (1,3,5,...)
+  addEven: 0,           // flat bonus added to even-valued segments (2,4,6,...)
+  addOdd: 0,            // flat bonus added to odd-valued segments (1,3,5,...)
 });
