@@ -455,10 +455,6 @@ class App {
     const ORBIT_OUTER = 115;       // matches RING_R in _drawUIRing — transparent inside
     const AURA_TRANS = 8;          // transition from orbit edge to full aura
 
-    // Segment alternation (mirrors wheel SEG_A/SEG_B pattern)
-    const NUM_SECTORS = 24;        // angular sectors radiating outward
-    const SECTOR_ARC = (Math.PI * 2) / NUM_SECTORS;
-
     // Bayer 4×4 ordered dither matrix (values 0..15)
     const BAYER = [
       [ 0, 8, 2,10],
@@ -502,16 +498,8 @@ class App {
         const angle = Math.atan2(dy, dx);
         const ray = Math.pow(Math.max(0, Math.cos(angle * 4)), 6);
 
-        // ── Segment alternation (narrow sector "cases", matching golden ray style) ──
-        const normAngle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-        const sectorIdx = Math.floor(normAngle / SECTOR_ARC);
-        const darkSector = (sectorIdx % 2 === 0);
-        const segFade = Math.max(0, 1 - Math.max(0, dist - ORBIT_OUTER) / 160);
-        // Narrow peak centered in each sector (sin^6 narrows like golden ray cos^6)
-        const sectorPhase = (normAngle % SECTOR_ARC) / SECTOR_ARC;
-        const segPeak = Math.pow(Math.sin(sectorPhase * Math.PI), 6);
-        const inCase = segPeak > 0.1 && segFade > 0.05;
-        const segBoost = inCase ? (darkSector ? 0.06 : -0.03) * segFade * segPeak : 0;
+        // ── 4 interstitial wedges (between the 4 golden rays, same cos^6 shape) ──
+        const ray2 = Math.pow(Math.max(0, -Math.cos(angle * 4)), 6);
 
         // ── Concentric ring accents (outside orbit zone) ──
         const ringDist = (dist - ORBIT_OUTER) % 32;
@@ -519,16 +507,18 @@ class App {
 
         // ── Combined brightness ──
         const brightness = zoneAtt * vignette *
-          (0.08 + segBoost + 0.28 * radialFade + 0.35 * ray * radialFade
-           + ring * radialFade);
+          (0.08 + 0.28 * radialFade + 0.35 * ray * radialFade
+           + 0.15 * ray2 * radialFade + ring * radialFade);
         const threshold = brightness * 16;
 
         if (bayer < threshold) {
           buf[idx] = (radialFade > 0.35 && ray > 0.15)
             ? PAL32.darkGold
-            : inCase ? (darkSector ? PAL32.darkGray : PAL32.midGray) : PAL32.darkGray;
+            : (radialFade > 0.35 && ray2 > 0.15)
+              ? PAL32.midGray
+              : PAL32.darkGray;
         } else {
-          buf[idx] = (inCase && !darkSector) ? PAL32.darkGray : PAL32.black;
+          buf[idx] = (radialFade > 0.35 && ray2 > 0.15) ? PAL32.darkGray : PAL32.black;
         }
       }
     }
