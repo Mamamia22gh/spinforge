@@ -609,6 +609,7 @@ class App {
     this._shakeStart(4, 0.3);
     this.wheel.hubSetScore(0);
     this._goldDisplay = 0;
+    this.wheel.setCounters(0, this._lastTicketDisplay);
     const results = await this.wheel.spinAndEject();
     this._stopSpin();
 
@@ -621,11 +622,10 @@ class App {
       this.wheel.hubShowValue(result.result.segment?.symbolId, result.value);
       this.wheel.hubSetScore(this.game.getState().run.score);
       this._goldDisplay = this.game.getState().run.score;
-      this.wheel.setCounters(this._goldDisplay, this._lastTicketDisplay);
       const run2 = this.game.getState().run;
       this._playReveal(i, results.length);
       const pos = this.wheel.getPocketPosition(results[i], WHEEL_CX, WHEEL_CY);
-      this._pop('+' + result.value, pos.x, pos.y - 15);
+      this.wheel.startGoldFly('+' + result.value, result.value, pos.x, pos.y - 15, WHEEL_CX, WHEEL_CY);
 
       // Shake on cherry pocket
       if (result.result.segment?.symbolId === 'cherry') this._shakeStart(2, 0.2);
@@ -1064,6 +1064,9 @@ class App {
 
     // Commit hash (bottom right)
     drawText(ctx, typeof __COMMIT__ !== 'undefined' ? __COMMIT__ : '???', W - 40, H - 8, PAL.midGray, 1);
+
+    // Gold fly animations (above wheel, below UI)
+    this.wheel.drawGoldAnims(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
 
     this._drawPops(ctx);
 

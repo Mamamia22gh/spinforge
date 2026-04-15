@@ -93,6 +93,8 @@ export class PixelWheel {
     this._counterGold = 0;
     this._counterTickets = 0;
     this._ticketShake = { intensity: 0, time: 0, decay: 0.35 };
+    this._goldShake = { intensity: 0, time: 0, decay: 0.35 };
+    this._goldAnims = []; // flying gold popups [{x,y,targetX,targetY,text,value,elapsed,duration,arrived}]
     this._relics = []; // array of { rarity } objects from run.relics
     this._segmentValues = []; // resolved display values per segment
 
@@ -492,6 +494,27 @@ export class PixelWheel {
       this._ticketShake.time += dt;
       if (this._ticketShake.time >= this._ticketShake.decay) {
         this._ticketShake.intensity = 0;
+      }
+    }
+    // Gold shake decay
+    if (this._goldShake.intensity > 0) {
+      this._goldShake.time += dt;
+      if (this._goldShake.time >= this._goldShake.decay) {
+        this._goldShake.intensity = 0;
+      }
+    }
+    // Gold fly anims
+    for (let i = this._goldAnims.length - 1; i >= 0; i--) {
+      const ga = this._goldAnims[i];
+      ga.elapsed += dt;
+      if (!ga.arrived && ga.elapsed >= ga.duration) {
+        ga.arrived = true;
+        this._counterGold += ga.value;
+        this._goldShake.intensity = 3;
+        this._goldShake.time = 0;
+      }
+      if (ga.elapsed >= ga.duration + 0.15) {
+        this._goldAnims.splice(i, 1);
       }
     }
 
@@ -1313,9 +1336,50 @@ export class PixelWheel {
       this._ticketShake.intensity = 3;
       this._ticketShake.time = 0;
     }
-    this._counterGold = gold;
+    // Don't overwrite gold during fly anims
+    if (this._goldAnims.length === 0) this._counterGold = gold;
     // Don't overwrite tickets during animation
     if (!this._ticketAnim) this._counterTickets = tickets;
+  }
+
+  /** Launch a gold popup that flies from (sx,sy) to the gold counter */
+  startGoldFly(text, value, sx, sy, cx, cy) {
+    const cfg = GAUGE_CONFIGS[2];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const arcLen = cfg.end - cfg.start;
+    const goldA = cfg.start + arcLen * 0.75;
+    const tx = cx + Math.cos(goldA) * MID_R;
+    const ty = cy + Math.sin(goldA) * MID_R;
+    this._goldAnims.push({
+      text, value,
+      startX: sx, startY: sy,
+      targetX: tx, targetY: ty,
+      elapsed: 0, duration: 0.45,
+      arrived: false,
+    });
+  }
+
+  drawGoldAnims(ctx, cx, cy) {
+    for (const ga of this._goldAnims) {
+      const t = Math.min(1, ga.elapsed / ga.duration);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // ease in-out quad
+      const x = ga.startX + (ga.targetX - ga.startX) * ease;
+      const y = ga.startY + (ga.targetY - ga.startY) * ease;
+      const scale = 1 + 0.3 * Math.sin(Math.PI * t); // bulge mid-flight
+      const alpha = ga.arrived ? Math.max(0, 1 - (ga.elapsed - ga.duration) / 0.15) : 1;
+      if (alpha <= 0) continue;
+      ctx.globalAlpha = alpha;
+      const txtW = measureText(ga.text);
+      const coinSz = SPRITE_SIZE;
+      const totalW = txtW + 2 + coinSz;
+      const dx = Math.round(x - totalW / 2);
+      const dy = Math.round(y);
+      drawText(ctx, ga.text, dx, dy - Math.floor(CHAR_H * scale / 2), PAL.gold, scale);
+      drawAnimSpriteCentered(ctx, 'coin', dx + txtW + 2 + Math.floor(coinSz / 2), dy, scale, this._time, 6);
+      ctx.globalAlpha = 1;
+    }
   }
 
   startTicketAnim(earned) {
@@ -1560,8 +1624,14 @@ export class PixelWheel {
 
     // ── Gold counter (right half) ──
     const goldA = cfg.start + arcLen * 0.75;
-    const gx = Math.round(cx + Math.cos(goldA) * MID_R);
-    const gy = Math.round(cy + Math.sin(goldA) * MID_R);
+    let gx = Math.round(cx + Math.cos(goldA) * MID_R);
+    let gy = Math.round(cy + Math.sin(goldA) * MID_R);
+    if (this._goldShake.intensity > 0) {
+      const t = Math.min(1, this._goldShake.time / this._goldShake.decay);
+      const amp = this._goldShake.intensity * (1 - t);
+      gx += Math.round((Math.random() - 0.5) * 2 * amp);
+      gy += Math.round((Math.random() - 0.5) * 2 * amp);
+    }
     const goldTxt = String(this._counterGold);
     const goldTW = measureText(goldTxt);
     const gap = 2;
