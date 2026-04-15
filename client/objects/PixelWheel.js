@@ -1372,11 +1372,10 @@ export class PixelWheel {
       });
     }
 
-    // Skull icon at end of gauge arc
-    const skullR = OUTER + 8;
-    const la = cfg.end + 0.12;
-    const sx = Math.round(cx + Math.cos(la) * skullR);
-    const sy = Math.round(cy + Math.sin(la) * skullR);
+    // Skull icon centered below gauge
+    const skullMidR = (INNER + OUTER) / 2;
+    const sx = Math.round(cx + Math.cos(cfg.center) * skullMidR);
+    const sy = Math.round(cy + Math.sin(cfg.center) * skullMidR) + 14;
     drawSpriteCentered(ctx, 'skull', sx, sy, 1);
   }
 
