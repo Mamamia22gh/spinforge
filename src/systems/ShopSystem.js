@@ -189,6 +189,7 @@ export class ShopSystem {
       case 'symbol':
         if (offering.id === 'generic_ball') {
           run.ballsLeft++;
+          run.genericBallsBought = (run.genericBallsBought || 0) + 1;
         } else {
           wheelSystem.addSegment(run, offering.symbolId);
         }

@@ -308,8 +308,8 @@ export class GameLoop {
       return true;
     }
 
-    // Reset for next round — special balls carry over as extra balls
-    run.ballsLeft = BALANCE.BALLS_PER_ROUND + run.specialBalls.length;
+    // Reset for next round — special balls + generic balls bought carry over
+    run.ballsLeft = BALANCE.BALLS_PER_ROUND + run.specialBalls.length + (run.genericBallsBought || 0);
     run.spinResults = [];
     run.shopDiscount = 0;
 

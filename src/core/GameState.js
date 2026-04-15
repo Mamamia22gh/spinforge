@@ -65,6 +65,9 @@ export function createRunState() {
     // Special balls queue (fire first, consumed on use)
     specialBalls: [],
 
+    // Generic balls bought in shop (persist across shop reset)
+    genericBallsBought: 0,
+
     // Between-round
     currentChoices: [],
     lastRoundResult: null,

@@ -1640,22 +1640,24 @@ export class PixelWheel {
     drawText(ctx, goldTxt, gsx, gy - Math.floor(CHAR_H / 2), PAL.gold, 1);
     drawAnimSpriteCentered(ctx, 'coin', gsx + goldTW + gap + Math.floor(SPRITE_SIZE / 2), gy, 1, this._time, 6);
 
-    // ── Ticket counter (left half) ──
-    const tickA = cfg.start + arcLen * 0.25;
-    let tx = Math.round(cx + Math.cos(tickA) * MID_R);
-    let ty = Math.round(cy + Math.sin(tickA) * MID_R);
-    if (this._ticketShake.intensity > 0) {
-      const t = Math.min(1, this._ticketShake.time / this._ticketShake.decay);
-      const amp = this._ticketShake.intensity * (1 - t);
-      tx += Math.round((Math.random() - 0.5) * 2 * amp);
-      ty += Math.round((Math.random() - 0.5) * 2 * amp);
+    // ── Ticket counter (left half) — hidden during ticket animation ──
+    if (!this._ticketAnim) {
+      const tickA = cfg.start + arcLen * 0.25;
+      let tx = Math.round(cx + Math.cos(tickA) * MID_R);
+      let ty = Math.round(cy + Math.sin(tickA) * MID_R);
+      if (this._ticketShake.intensity > 0) {
+        const t = Math.min(1, this._ticketShake.time / this._ticketShake.decay);
+        const amp = this._ticketShake.intensity * (1 - t);
+        tx += Math.round((Math.random() - 0.5) * 2 * amp);
+        ty += Math.round((Math.random() - 0.5) * 2 * amp);
+      }
+      const tickTxt = String(this._counterTickets);
+      const tickTW = measureText(tickTxt);
+      const tickTotalW = tickTW + gap + TICKET_W;
+      const tsx = tx - Math.floor(tickTotalW / 2);
+      drawText(ctx, tickTxt, tsx, ty - Math.floor(CHAR_H / 2), PAL.green, 1);
+      drawSpriteCentered(ctx, 'ticket', tsx + tickTW + gap + Math.floor(TICKET_W / 2) + 2, ty - 1, 1);
     }
-    const tickTxt = String(this._counterTickets);
-    const tickTW = measureText(tickTxt);
-    const tickTotalW = tickTW + gap + TICKET_W;
-    const tsx = tx - Math.floor(tickTotalW / 2);
-    drawText(ctx, tickTxt, tsx, ty - Math.floor(CHAR_H / 2), PAL.green, 1);
-    drawSpriteCentered(ctx, 'ticket', tsx + tickTW + gap + Math.floor(TICKET_W / 2) + 2, ty - 1, 1);
   }
 
   drawTicketAnim(ctx, cx, cy) {

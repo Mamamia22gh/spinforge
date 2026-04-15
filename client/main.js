@@ -29,7 +29,7 @@ const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
   { offsetFromEnd: 12, id: 'catalogue', glyph: 'book' },
-  { offsetFromEnd: 3,  id: 'retry',     glyph: 'arrow_right', scale: 3 },
+  { offsetFromEnd: 3,  id: 'retry',     glyph: 'retry' },
   { offsetFromEnd: 4,  id: 'settings',  glyph: 'gear' },
   { offsetFromEnd: 5,  id: 'exit',      glyph: 'exit' },
 ];
@@ -552,7 +552,10 @@ class App {
     const state = this.game.getState();
     if (state.run) {
       this.wheel.setWheel(state.run.wheel);
-      this.wheel.placeBalls(state.run.ballsLeft, state.run.specialBalls);
+      const previewBalls = this._inShop
+        ? BALANCE.BALLS_PER_ROUND + state.run.specialBalls.length + (state.run.genericBallsBought || 0)
+        : state.run.ballsLeft;
+      this.wheel.placeBalls(previewBalls, state.run.specialBalls);
       this.wheel.setCorruption(state.run.corruption);
     }
     this.wheel.setCounters(
@@ -712,7 +715,7 @@ class App {
     if (!run) return;
     const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
     const nextQuota = getQuota(run.round + 1);
-    this.wheel.placeBalls(run.ballsLeft, run.specialBalls);
+    this.wheel.placeBalls(BALANCE.BALLS_PER_ROUND + run.specialBalls.length + (run.genericBallsBought || 0), run.specialBalls);
     this.wheel.setShop(run.shopOfferings, state.meta.tickets, rerollCost, nextQuota);
     this._inShop = true;
   }
@@ -921,7 +924,7 @@ class App {
         // Menu icon: sprite from assets/menu/ (drawn upright, no rotation)
         drawSpriteCentered(bgCtx, menu.glyph, 0, 0, menu.scale || 1);
         if (menu.id === 'retry') {
-          drawTextCentered(bgCtx, 'RETRY', 0, 16, PAL.gold, 2);
+          drawTextCentered(bgCtx, 'RETRY', 0, 16, PAL.gold, 3);
         }
       }
 
@@ -1295,7 +1298,7 @@ class App {
     drawTextCentered(ctx, go.score + '/' + go.quota, 0, Math.floor(CHAR_H * 0.8), PAL.red, 1);
 
     // RETRY label
-    drawTextCentered(ctx, 'RETRY', 0, Math.floor(r * 0.55), PAL.gold, 2);
+    drawTextCentered(ctx, 'RETRY', 0, Math.floor(r * 0.55), PAL.gold, 3);
 
     ctx.restore();
   }
