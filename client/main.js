@@ -154,19 +154,25 @@ class App {
 
 
     // Relic bar hover detection (top gauge area) — always active, even in shop
+    const oldRelicHover = this._relicHoverRarity;
     const relicHit = this.wheel.relicBarHitTest(x, y, WHEEL_CX, WHEEL_CY);
     this._relicHoverRarity = relicHit;
+    if (relicHit && relicHit !== oldRelicHover) this._playHover();
 
     if (this._inShop && this.wheel.flipped) {
+      const oldShopHover = this.wheel._shop.hoverIdx;
       const hit = this.wheel.shopHitTest(x, y, WHEEL_CX, WHEEL_CY);
       this.wheel.shopSetHover(hit);
+      if (this.wheel._shop.hoverIdx !== -1 && this.wheel._shop.hoverIdx !== oldShopHover) this._playHover();
       this._display.style.cursor = (hit || relicHit) ? 'pointer' : 'default';
       return;
     }
 
     // Menu button hover detection (hieroglyph ring)
+    const oldMenuHover = this._menuHover;
     const menuHit = this._hieroHitTest(x, y);
     this._menuHover = menuHit;
+    if (menuHit && menuHit !== oldMenuHover) this._playHover();
 
     // Hub hover detection
     const dx = x - WHEEL_CX;
@@ -176,7 +182,7 @@ class App {
     this._display.style.cursor = (relicHit || menuHit || (this._hubHover && !this._spinning)) ? 'pointer' : 'default';
 
     // Trigger sweep on hover enter
-    if (this._hubHover && !wasHover) this._sweepTrigger = this._time;
+    if (this._hubHover && !wasHover) { this._sweepTrigger = this._time; this._playHover(); }
   }
 
   _handleClick(e) {
@@ -469,6 +475,7 @@ class App {
                     : 'BOUGHT!';
         this._pop(label);
         this._shakeStart(3, 0.2);
+        this._playBuy();
         // Refresh shop display
         const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
         const nextQuota = getQuota(run.round + 1);
@@ -1429,6 +1436,18 @@ class App {
   _playSelect() {
     this._tone(660, 0.06, 'square', 0.06);
     setTimeout(() => this._tone(880, 0.08, 'square', 0.06), 50);
+  }
+
+  _playHover() {
+    this._tone(1100, 0.03, 'sine', 0.03);
+  }
+
+  _playBuy() {
+    // Cha-ching: metallic ascending triad + shimmer
+    this._tone(880, 0.10, 'square', 0.07);
+    setTimeout(() => this._tone(1175, 0.10, 'square', 0.07), 60);
+    setTimeout(() => this._tone(1760, 0.18, 'sine', 0.09), 120);
+    setTimeout(() => this._tone(2640, 0.12, 'sine', 0.04), 180);
   }
 
   _delay(ms) { return new Promise(r => setTimeout(r, ms)); }

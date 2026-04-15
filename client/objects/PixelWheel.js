@@ -92,6 +92,7 @@ export class PixelWheel {
     this._corruption = 0.5; // corruption fill 0..1
     this._counterGold = 0;
     this._counterTickets = 0;
+    this._ticketShake = { intensity: 0, time: 0, decay: 0.35 };
     this._relics = []; // array of { rarity } objects from run.relics
     this._segmentValues = []; // resolved display values per segment
 
@@ -478,6 +479,14 @@ export class PixelWheel {
     }
     this._hub.valueFade = Math.max(0, this._hub.valueFade - dt);
     this._hub.messageFade = Math.max(0, this._hub.messageFade - dt);
+
+    // Ticket shake decay
+    if (this._ticketShake.intensity > 0) {
+      this._ticketShake.time += dt;
+      if (this._ticketShake.time >= this._ticketShake.decay) {
+        this._ticketShake.intensity = 0;
+      }
+    }
 
     // Flip animation
     if (this._flip) {
@@ -1250,6 +1259,10 @@ export class PixelWheel {
   }
 
   setCounters(gold, tickets) {
+    if (tickets < this._counterTickets) {
+      this._ticketShake.intensity = 3;
+      this._ticketShake.time = 0;
+    }
     this._counterGold = gold;
     this._counterTickets = tickets;
   }
@@ -1477,8 +1490,14 @@ export class PixelWheel {
 
     // ── Ticket counter (left half) ──
     const tickA = cfg.start + arcLen * 0.25;
-    const tx = Math.round(cx + Math.cos(tickA) * MID_R);
-    const ty = Math.round(cy + Math.sin(tickA) * MID_R);
+    let tx = Math.round(cx + Math.cos(tickA) * MID_R);
+    let ty = Math.round(cy + Math.sin(tickA) * MID_R);
+    if (this._ticketShake.intensity > 0) {
+      const t = Math.min(1, this._ticketShake.time / this._ticketShake.decay);
+      const amp = this._ticketShake.intensity * (1 - t);
+      tx += Math.round((Math.random() - 0.5) * 2 * amp);
+      ty += Math.round((Math.random() - 0.5) * 2 * amp);
+    }
     const tickTxt = String(this._counterTickets);
     const tickTW = measureText(tickTxt);
     const tickTotalW = tickTW + gap + TICKET_W;
