@@ -1016,6 +1016,7 @@ class App {
     this._drawCatalogue(uiCtx);
     this._drawDebugSprites(uiCtx);
     this._drawRelicTooltip(uiCtx);
+    this._drawShopTooltip(uiCtx);
 
     uiCtx.restore();
 
@@ -1180,6 +1181,65 @@ class App {
     ctx.stroke();
 
     // Counters moved to PixelWheel rim (bottom gauge area)
+  }
+
+  _drawShopTooltip(ctx) {
+    if (!this._inShop) return;
+    const offering = this.wheel.shopHoveredOffering;
+    if (!offering) return;
+
+    const RARITY_COL = { common: PAL.white, uncommon: PAL.green, rare: PAL.blue, legendary: PAL.gold };
+    const TYPE_LABELS = { symbol: 'SYMBOLE', upgrade: 'AMELIORATION', relic: 'RELIQUE' };
+    const col = RARITY_COL[offering.rarity] || PAL.white;
+
+    const PAD = 4;
+    const LINE_H = 8;
+    const PW = 160;
+    const descMaxW = PW - PAD * 2;
+
+    // Pre-calc description wrap height
+    const desc = (offering.description || '').toUpperCase();
+    const words = desc.split(' ');
+    let descLines = 0;
+    let line = '';
+    for (const word of words) {
+      const test = line ? line + ' ' + word : word;
+      if (measureText(test) > descMaxW && line) {
+        descLines++;
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) descLines++;
+    descLines = Math.max(1, descLines);
+
+    const HEADER_H = 10;
+    const TYPE_H = 8;
+    const PH = PAD * 3 + HEADER_H + TYPE_H + descLines * LINE_H;
+
+    const PX0 = Math.floor((W - PW) / 2);
+    const PY0 = H - PH - 8;
+
+    // Backdrop
+    ctx.fillStyle = 'rgba(0,0,0,0.88)';
+    ctx.fillRect(PX0 - 1, PY0 - 1, PW + 2, PH + 2);
+    ctx.fillStyle = PAL.black;
+    ctx.fillRect(PX0, PY0, PW, PH);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PX0 + 0.5, PY0 + 0.5, PW - 1, PH - 1);
+
+    // Header: item name
+    const title = (offering.name || offering.id || '???').toUpperCase();
+    drawTextCentered(ctx, title, PX0 + Math.floor(PW / 2), PY0 + PAD, col);
+
+    // Type label
+    const typeLabel = TYPE_LABELS[offering.shopType] || '';
+    drawTextCentered(ctx, typeLabel, PX0 + Math.floor(PW / 2), PY0 + PAD + HEADER_H, PAL.midGray);
+
+    // Description (word-wrapped)
+    drawTextWrapped(ctx, offering.description || '', PX0 + PAD, PY0 + PAD * 2 + HEADER_H + TYPE_H, descMaxW, PAL.lightGray, 1);
   }
 
   _drawRelicTooltip(ctx) {

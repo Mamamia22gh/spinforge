@@ -189,7 +189,7 @@ const SPRITES = {
     '.........',
   ],
   ticket: [
-    'KK.KKKKKKKKKKKK',
+    '.K.K.K.K.K.K.K.',
     'KgKgKgKgKgKgKgK',
     'KgEEEEEEEgKEEgK',
     'KgEWEEEWEgKEEgK',
@@ -197,7 +197,7 @@ const SPRITES = {
     'KgEWEEEWEgKEEgK',
     'KgEEEEEEEgKEEgK',
     'KgKgKgKgKgKgKgK',
-    'KKKKKKKKKKKKKKK',
+    '.K.K.K.K.K.K.K.',
   ],
   skull: [
     '..pWWWp..',

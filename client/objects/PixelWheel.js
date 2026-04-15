@@ -436,6 +436,12 @@ export class PixelWheel {
     else this._shop.hoverIdx = -1;
   }
 
+  get shopHoveredOffering() {
+    const idx = this._shop.hoverIdx;
+    if (typeof idx !== 'number' || idx < 0) return null;
+    return this._shop.offerings[idx] || null;
+  }
+
   get flipped() { return this._tilt < 0; }
 
   startFlip(duration = 0.45) {
