@@ -372,9 +372,8 @@ export class PixelWheel {
     const dist = Math.sqrt(dx * dx + dy * dy);
     const angle = Math.atan2(dy, dx);
 
-    // Hub area: top half = reroll, bottom half = leave
+    // Hub area: single "CONTINUER" button
     if (dist < HUB_R) {
-      if (dy < 0) return { type: 'reroll' };
       return { type: 'leave' };
     }
 
@@ -411,6 +410,8 @@ export class PixelWheel {
           }
           if (inArc) {
             const idx = q * 2 + s;
+            // Slot 4 (bottom-left first slot) is the reroll button
+            if (idx === 4) return { type: 'reroll' };
             return { type: 'offering', index: idx };
           }
         }
@@ -974,6 +975,58 @@ export class PixelWheel {
         ctx.lineWidth = 1;
         ctx.stroke();
 
+        // Check if this slot is the reroll button (slot 4 = bottom-left)
+        if (slotIdx === 4) {
+          const isRerollHover = shop.hoverIdx === 'reroll';
+          const rerollAfford = shop.currency >= shop.rerollCost;
+
+          // Tinted fill
+          ctx.beginPath();
+          ctx.arc(cx, cy, slotOuter - 1, a0, a1);
+          ctx.arc(cx, cy, slotInner + 1, a1, a0, true);
+          ctx.closePath();
+          ctx.fillStyle = PAL.darkGray;
+          ctx.globalAlpha = 0.3;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+
+          // Border
+          ctx.beginPath();
+          ctx.arc(cx, cy, slotOuter, a0, a1);
+          ctx.arc(cx, cy, slotInner, a1, a0, true);
+          ctx.closePath();
+          ctx.strokeStyle = PAL.lightGray;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Reroll sprite
+          const rx = cx + Math.cos(mid) * slotMidR;
+          const ry = cy + Math.sin(mid) * slotMidR;
+          if (!rerollAfford) ctx.globalAlpha = 0.35;
+          drawSpriteCentered(ctx, 'reroll', Math.round(rx), Math.round(ry), 2);
+          ctx.globalAlpha = 1;
+
+          // Price below sprite
+          const priceR = slotMidR + 10;
+          const rpx = cx + Math.cos(mid) * priceR;
+          const rpy = cy + Math.sin(mid) * priceR;
+          const priceColor = rerollAfford ? PAL.gold : PAL.darkRed;
+          drawTextCentered(ctx, String(shop.rerollCost), Math.round(rpx), Math.round(rpy) - Math.floor(CHAR_H / 2), priceColor, 1);
+
+          // Hover highlight
+          if (isRerollHover && rerollAfford) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, slotOuter, a0, a1);
+            ctx.arc(cx, cy, slotInner, a1, a0, true);
+            ctx.closePath();
+            ctx.fillStyle = PAL.white;
+            ctx.globalAlpha = 0.12;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          continue;
+        }
+
         // Check if this slot has an offering
         const offering = shop.offerings[slotIdx];
 
@@ -1074,31 +1127,12 @@ export class PixelWheel {
       ctx.stroke();
     }
 
-    // ── Hub center: 2 semi-circle buttons ──
+    // ── Hub center: single CONTINUER button ──
     const hubR = HUB_R;
-    const rerollHover = shop.hoverIdx === 'reroll';
-    const leaveHover  = shop.hoverIdx === 'leave';
+    const leaveHover = shop.hoverIdx === 'leave';
 
-    // Top semi-circle: REROLL
     ctx.beginPath();
-    ctx.arc(cx, cy, hubR - 1, Math.PI, 0); // top half
-    ctx.closePath();
-    ctx.fillStyle = PAL.darkGray;
-    ctx.globalAlpha = rerollHover ? 0.8 : 0.5;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = rerollHover ? PAL.lightGray : PAL.midGray;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    // Reroll icon + cost
-    drawSpriteCentered(ctx, 'reroll', cx, Math.round(cy - hubR * 0.45), 1);
-    const rerollStr = String(shop.rerollCost);
-    const rerollAfford = shop.currency >= shop.rerollCost;
-    drawTextCentered(ctx, rerollStr, cx, Math.round(cy - hubR * 0.45) + 6, rerollAfford ? PAL.gold : PAL.darkRed, 1);
-
-    // Bottom semi-circle: LEAVE / CONTINUE
-    ctx.beginPath();
-    ctx.arc(cx, cy, hubR - 1, 0, Math.PI); // bottom half
+    ctx.arc(cx, cy, hubR - 1, 0, Math.PI * 2);
     ctx.closePath();
     ctx.fillStyle = PAL.darkGray;
     ctx.globalAlpha = leaveHover ? 0.8 : 0.5;
@@ -1107,17 +1141,8 @@ export class PixelWheel {
     ctx.strokeStyle = leaveHover ? PAL.lightGray : PAL.midGray;
     ctx.lineWidth = 1;
     ctx.stroke();
-    // Leave arrow + label
-    drawSpriteCentered(ctx, 'arrow_right', cx, Math.round(cy + hubR * 0.35), 1);
-    drawTextCentered(ctx, 'GO', cx, Math.round(cy + hubR * 0.35) + 6, PAL.lightGray, 1);
-
-    // Divider line between the two halves
-    ctx.beginPath();
-    ctx.moveTo(cx - hubR + 1, cy);
-    ctx.lineTo(cx + hubR - 1, cy);
-    ctx.strokeStyle = PAL.midGray;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    drawSpriteCentered(ctx, 'arrow_right', cx, Math.round(cy - 4), 1);
+    drawTextCentered(ctx, 'CONTINUER', cx, Math.round(cy + 4), PAL.lightGray, 1);
 
     // ── Currency display at hub top ──
     const currStr = String(shop.currency);

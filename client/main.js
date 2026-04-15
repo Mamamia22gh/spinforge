@@ -350,9 +350,9 @@ class App {
     if (!this._catalogueOpen) return;
     const TAB_NAMES = ['BILLES', 'RELIQUES', 'UPGRADES'];
     const TAB_DATA = [
-      SYMBOLS.map(s => ({ name: s.name, emoji: s.emoji, rarity: s.rarity, desc: `${s.color} — val ${s.baseValue}${s.specialEffect ? ' — ' + s.specialEffect : ''}` })),
-      RELICS.map(r => ({ name: r.name, emoji: r.emoji, rarity: r.rarity, desc: r.description })),
-      CHOICES.map(c => ({ name: c.name, emoji: c.emoji, rarity: null, desc: c.description })),
+      SYMBOLS.map(s => ({ name: s.name, sprite: s.id, rarity: s.rarity, desc: `${s.color} — val ${s.baseValue}${s.specialEffect ? ' — ' + s.specialEffect : ''}` })),
+      RELICS.map(r => ({ name: r.name, sprite: 'relic_' + r.rarity, rarity: r.rarity, desc: r.description })),
+      CHOICES.map(c => ({ name: c.name, sprite: c.payload?.symbolId || 'ball', rarity: null, desc: c.description })),
     ];
 
     // Dims
@@ -401,7 +401,8 @@ class App {
       const it = visible[i];
       const ry = BODY_Y + i * ROW_H;
       const col = it.rarity ? (RARITY_COL[it.rarity] || PAL.white) : PAL.white;
-      drawText(ctx, `${it.emoji} ${it.name}`, PX0 + 4, ry, col);
+      drawSpriteCentered(ctx, it.sprite, PX0 + 4 + Math.floor(SPRITE_SIZE / 2), ry + Math.floor(ROW_H / 2), 1);
+      drawText(ctx, it.name, PX0 + 4 + SPRITE_SIZE + 2, ry, col);
       drawText(ctx, it.desc, PX0 + 100, ry, PAL.midGray);
     }
 
@@ -794,10 +795,11 @@ class App {
         // ── Combined brightness ──
         const inHiero = hieroSeg >= 0;
         const hieroAtt = inHiero ? 1 : zoneAtt; // no fade-out inside hiero ring
-        const brightness = hieroAtt * vignette *
-          (0.08 + 0.28 * radialFade + 0.35 * ray * radialFade
-           + 0.15 * ray2 * radialFade + ring * radialFade
-           + (inHiero ? 0.15 : 0));
+        const brightness = inHiero
+          ? vignette * 0.65
+          : hieroAtt * vignette *
+            (0.08 + 0.28 * radialFade + 0.35 * ray * radialFade
+             + 0.15 * ray2 * radialFade + ring * radialFade);
         const threshold = brightness * 16;
 
         if (bayer < threshold) {
@@ -1018,7 +1020,7 @@ class App {
     ctx.clearRect(0, 0, CW, CH);
 
     // Hub glow (always active, stepped pulse)
-    if (!this._spinning) {
+    if (!this._spinning && !this._inShop) {
       const raw = Math.sin(this._time * 3);
       const stepped = Math.floor(raw * 4) / 4;
       const pulse = 0.12 + 0.08 * stepped;
