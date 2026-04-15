@@ -1068,14 +1068,14 @@ export class PixelWheel {
           ctx.globalAlpha = 1;
 
           // Price below sprite
-          const priceR = slotMidR + 10;
+          const priceR = slotMidR + 14;
           const px = cx + Math.cos(mid) * priceR;
           const py = cy + Math.sin(mid) * priceR;
           const priceStr = String(offering.finalCost);
           const priceColor = tooExpensive ? PAL.darkRed : PAL.gold;
           const textW = measureText(priceStr);
           const gap = 2;
-          const ticketW = 13;
+          const ticketW = SPRITE_SIZE;
           const totalW = textW + gap + ticketW;
           const startX = Math.round(px - totalW / 2);
           const textY = Math.round(py) - Math.floor(CHAR_H / 2);
