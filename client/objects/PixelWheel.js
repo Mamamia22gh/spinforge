@@ -1392,45 +1392,6 @@ export class PixelWheel {
     const MID_R = (INNER + OUTER) / 2;
     const arcLen = cfg.end - cfg.start; // 0.60 rad
 
-    // ── Dithered background (Bayer 4×4) ──
-    const BAYER = [
-      [ 0, 8, 2,10],
-      [12, 4,14, 6],
-      [ 3,11, 1, 9],
-      [15, 7,13, 5],
-    ];
-    // Rasterize a bounding box around the arc
-    const x0 = Math.floor(cx - OUTER - 2);
-    const y0 = Math.floor(cy - OUTER - 2);
-    const x1 = Math.ceil(cx + OUTER + 2);
-    const y1 = Math.ceil(cy + OUTER + 2);
-    for (let py = y0; py <= y1; py++) {
-      for (let px = x0; px <= x1; px++) {
-        const dx = px - cx, dy = py - cy;
-        const d2 = dx * dx + dy * dy;
-        if (d2 < INNER * INNER || d2 > OUTER * OUTER) continue;
-        let a = Math.atan2(dy, dx);
-        // Normalize to [cfg.start, cfg.start + 2π)
-        while (a < cfg.start) a += Math.PI * 2;
-        while (a >= cfg.start + Math.PI * 2) a -= Math.PI * 2;
-        if (a > cfg.end) continue;
-
-        const bayer = BAYER[py & 3][px & 3];
-        // Radial gradient: brighter at center of arc thickness
-        const dist = Math.sqrt(d2);
-        const radNorm = (dist - INNER) / (OUTER - INNER); // 0..1
-        const radBright = 1 - 4 * (radNorm - 0.5) * (radNorm - 0.5); // peak at center
-        const brightness = 0.35 * radBright;
-        const threshold = brightness * 16;
-        if (bayer < threshold) {
-          ctx.fillStyle = PAL.darkGray;
-        } else {
-          ctx.fillStyle = PAL.black;
-        }
-        ctx.fillRect(px, py, 1, 1);
-      }
-    }
-
     // ── Border arcs ──
     ctx.strokeStyle = PAL.midGray;
     ctx.lineWidth = 1;
@@ -1471,7 +1432,7 @@ export class PixelWheel {
     const tickTotalW = tickTW + gap + SPRITE_SIZE;
     const tsx = tx - Math.floor(tickTotalW / 2);
     drawText(ctx, tickTxt, tsx, ty - Math.floor(CHAR_H / 2), PAL.green, 1);
-    drawSpriteCentered(ctx, 'ticket', tsx + tickTW + gap + Math.floor(SPRITE_SIZE / 2), ty, 1);
+    drawSpriteCentered(ctx, 'ticket', tsx + tickTW + gap + Math.floor(SPRITE_SIZE / 2) + 2, ty - 1, 1);
   }
 
   _drawOrbitSlots(ctx, cx, cy) {
