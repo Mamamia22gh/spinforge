@@ -12,7 +12,7 @@ import { drawSpriteCentered } from './PixelSprites.js';
 
 export function chromaText(ctx, text, x, y, color, scale = 1, offset = 1) {
   const a = ctx.globalAlpha;
-  ctx.globalAlpha = a * 0.35;
+  ctx.globalAlpha = a * 0.18;
   drawText(ctx, text, x + offset, y, PAL.red, scale);
   drawText(ctx, text, x - offset, y, PAL.blue, scale);
   ctx.globalAlpha = a;
@@ -21,7 +21,7 @@ export function chromaText(ctx, text, x, y, color, scale = 1, offset = 1) {
 
 export function chromaTextCentered(ctx, text, cx, y, color, scale = 1, offset = 1) {
   const a = ctx.globalAlpha;
-  ctx.globalAlpha = a * 0.35;
+  ctx.globalAlpha = a * 0.18;
   drawTextCentered(ctx, text, cx + offset, y, PAL.red, scale);
   drawTextCentered(ctx, text, cx - offset, y, PAL.blue, scale);
   ctx.globalAlpha = a;
@@ -32,7 +32,7 @@ export function chromaTextCentered(ctx, text, cx, y, color, scale = 1, offset = 
 
 export function chromaSpriteCentered(ctx, id, cx, cy, scale = 1, offset = 1) {
   const a = ctx.globalAlpha;
-  ctx.globalAlpha = a * 0.25;
+  ctx.globalAlpha = a * 0.12;
   drawSpriteCentered(ctx, id, cx + offset, cy, scale);
   drawSpriteCentered(ctx, id, cx - offset, cy, scale);
   ctx.globalAlpha = a;
