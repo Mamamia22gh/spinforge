@@ -760,7 +760,7 @@ class App {
         const inHiero = hieroSeg >= 0;
         const hieroAtt = inHiero ? 1 : zoneAtt; // no fade-out inside hiero ring
         const brightness = inHiero
-          ? vignette * 0.65
+          ? vignette * 0.80
           : hieroAtt * vignette *
             (0.08 + 0.28 * radialFade + 0.35 * ray * radialFade
              + 0.15 * ray2 * radialFade + ring * radialFade);
@@ -778,8 +778,12 @@ class App {
                 : PAL32.darkGray;
           }
         } else {
-          buf[idx] = inHiero ? PAL32.black
-            : (radialFade > 0.35 && ray2 > 0.15) ? PAL32.darkGray : PAL32.black;
+          if (inHiero) {
+            buf[idx] = menuSegs[hieroSeg] ? PAL32.darkGray
+              : (hieroSeg % 2 === 0) ? PAL32.darkGray : PAL32.black;
+          } else {
+            buf[idx] = (radialFade > 0.35 && ray2 > 0.15) ? PAL32.darkGray : PAL32.black;
+          }
         }
       }
     }
