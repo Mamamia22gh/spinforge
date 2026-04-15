@@ -157,9 +157,9 @@ const HIERO_GLYPHS = {
     '....###.......#..#.....#..#',
     '...###........#..#######..#',
     '..###.........#...........#',
-    '.############.###.........#',
-    '#############.###.........#',
-    '.############.###.........#',
+    '.############.#.........###',
+    '#############.#.........###',
+    '.############.#.........###',
     '..###.........#...........#',
     '...###........#..#######..#',
     '....###.......#..#.....#..#',
@@ -178,7 +178,7 @@ const HIERO_GLYPHS = {
 // Menu segment definitions (indices relative to wheel segment count)
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
-  { offsetFromEnd: 3, id: 'settings', glyph: 'gear' },
+  { offsetFromEnd: 2, id: 'settings', glyph: 'gear' },
   { offsetFromEnd: 5, id: 'exit',     glyph: 'exit' },
 ];
 
