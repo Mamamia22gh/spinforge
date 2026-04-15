@@ -16,6 +16,146 @@ const IND_ARC_R = 92;             // indicator arc radius (between rim 82 and ri
 const IND_ARC_STEP = Math.PI / 11; // ~16.4° between each indicator
 const BG_PAD = 4;                      // background oversize for parallax shift
 
+// ── Hieroglyph Ring constants ──
+const HIERO_INNER = 128;           // inner radius of hieroglyph ring
+const HIERO_OUTER = 152;           // outer radius of hieroglyph ring
+const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
+const NUM_HIERO_SEGS = 16;         // 16 segments around the ring
+const HIERO_SEG_ARC = (Math.PI * 2) / NUM_HIERO_SEGS;
+
+// ── Hieroglyph pixel art glyphs (7×7, '#'=foreground, '.'=transparent) ──
+const HIERO_GLYPHS = {
+  ankh: [
+    '.###.',
+    '#...#',
+    '.###.',
+    '..#..',
+    '.###.',
+    '..#..',
+    '..#..',
+  ],
+  eye: [
+    '.....',
+    '.###.',
+    '#.#.#',
+    '#####',
+    '.#.#.',
+    '..#..',
+    '.....',
+  ],
+  scarab: [
+    '..#..',
+    '.###.',
+    '##.##',
+    '#####',
+    '.#.#.',
+    '.#.#.',
+    '.....',
+  ],
+  serpent: [
+    '.##..',
+    '#..#.',
+    '..#..',
+    '.#...',
+    '#....',
+    '#.#..',
+    '.#...',
+  ],
+  lotus: [
+    '..#..',
+    '.#.#.',
+    '#.#.#',
+    '#.#.#',
+    '.###.',
+    '..#..',
+    '..#..',
+  ],
+  djed: [
+    '.###.',
+    '..#..',
+    '.###.',
+    '..#..',
+    '.###.',
+    '..#..',
+    '.###.',
+  ],
+  feather: [
+    '..#..',
+    '..##.',
+    '..#..',
+    '.##..',
+    '..#..',
+    '..##.',
+    '..#..',
+  ],
+  bird: [
+    '..#..',
+    '.##..',
+    '####.',
+    '.##..',
+    '..#..',
+    '.#.#.',
+    '.#...',
+  ],
+  pyramid: [
+    '..#..',
+    '..#..',
+    '.#.#.',
+    '.#.#.',
+    '#...#',
+    '#####',
+    '.....',
+  ],
+  sun: [
+    '#.#.#',
+    '.###.',
+    '#####',
+    '.###.',
+    '#.#.#',
+    '.....',
+    '.....',
+  ],
+  // Menu icons
+  gear: [
+    '.#.#.',
+    '.###.',
+    '##.##',
+    '.###.',
+    '.#.#.',
+    '.....',
+    '.....',
+  ],
+  exit: [
+    '#...#',
+    '.#.#.',
+    '..#..',
+    '.#.#.',
+    '#...#',
+    '.....',
+    '.....',
+  ],
+};
+
+// Segment layout: which glyph + whether it's a menu button
+const HIERO_SEG_MAP = [
+  { glyph: 'ankh',    menu: false },  // 0  — right
+  { glyph: 'eye',     menu: false },  // 1
+  { glyph: 'scarab',  menu: false },  // 2
+  { glyph: 'serpent', menu: false },  // 3  — bottom-right
+  { glyph: 'lotus',   menu: false },  // 4
+  { glyph: 'djed',    menu: false },  // 5
+  { glyph: 'feather', menu: false },  // 6  — bottom-left
+  { glyph: 'bird',    menu: false },  // 7
+  { glyph: 'pyramid', menu: false },  // 8  — left
+  { glyph: 'sun',     menu: false },  // 9
+  { glyph: 'gear',    menu: 'settings' },  // 10 — top-left (settings)
+  { glyph: 'exit',    menu: 'exit' },      // 11 — top-left (exit)
+  { glyph: 'ankh',    menu: false },  // 12 — top
+  { glyph: 'eye',     menu: false },  // 13
+  { glyph: 'scarab',  menu: false },  // 14 — top-right
+  { glyph: 'serpent', menu: false },  // 15
+];
+
 class App {
   constructor() {
     this._canvas = document.createElement('canvas');
@@ -120,12 +260,16 @@ class App {
       return;
     }
 
+    // Menu button hover detection (hieroglyph ring)
+    const menuHit = this._hieroHitTest(x, y);
+    this._menuHover = menuHit;
+
     // Hub hover detection
     const dx = x - WHEEL_CX;
     const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
     const wasHover = this._hubHover;
     this._hubHover = dx * dx + dy * dy < 40 * 40;
-    this._display.style.cursor = this._hubHover && !this._spinning ? 'pointer' : 'default';
+    this._display.style.cursor = (menuHit || (this._hubHover && !this._spinning)) ? 'pointer' : 'default';
 
     // Trigger sweep on hover enter
     if (this._hubHover && !wasHover) this._sweepTrigger = this._time;
@@ -172,6 +316,13 @@ class App {
       }
     }
 
+    // Menu button click (hieroglyph ring)
+    const menuHit = this._hieroHitTest(x, y);
+    if (menuHit) {
+      this._onMenuClick(menuHit);
+      return;
+    }
+
     // Hub button click (ellipse hit test with tilt)
     const dx = x - WHEEL_CX;
     const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
@@ -179,6 +330,15 @@ class App {
       if (this._spinning) return;
       this._onAction();
       return;
+    }
+  }
+
+  _onMenuClick(menuId) {
+    this._playSelect();
+    if (menuId === 'settings') {
+      this._pop('SETTINGS');
+    } else if (menuId === 'exit') {
+      this._pop('EXIT');
     }
   }
 
@@ -532,9 +692,123 @@ class App {
       }
     }
 
+    // ── Hieroglyph Ring: segment backgrounds + dividers (pixel art into buf) ──
+    const TWO_PI = Math.PI * 2;
+    for (let y = 0; y < BH; y++) {
+      for (let x = 0; x < BW; x++) {
+        const dx = x - CX, dy = y - CY;
+        const dist2 = dx * dx + dy * dy;
+        if (dist2 < HIERO_INNER * HIERO_INNER || dist2 > HIERO_OUTER * HIERO_OUTER) continue;
+        const dist = Math.sqrt(dist2);
+        const idx = y * BW + x;
+
+        // Angle → segment index
+        let a = Math.atan2(dy, dx);
+        if (a < 0) a += TWO_PI;
+        const segIdx = Math.floor(a / HIERO_SEG_ARC);
+        const segStart = segIdx * HIERO_SEG_ARC;
+        const segEnd = segStart + HIERO_SEG_ARC;
+        const inAngle = a - segStart;
+
+        // Divider lines (1px gold at segment boundaries)
+        const dividerW = 0.015; // radians (~0.9°)
+        if (inAngle < dividerW || (HIERO_SEG_ARC - inAngle) < dividerW) {
+          buf[idx] = PAL32.darkGold;
+          continue;
+        }
+
+        // Ring border (1px at inner/outer edge)
+        if (dist < HIERO_INNER + 1 || dist > HIERO_OUTER - 1) {
+          buf[idx] = PAL32.darkGold;
+          continue;
+        }
+
+        // Segment fill: alternating darkRed/black, menu segments get midGray
+        const seg = HIERO_SEG_MAP[segIdx];
+        if (seg && seg.menu) {
+          buf[idx] = PAL32.darkGray;
+        } else {
+          buf[idx] = (segIdx % 2 === 0) ? PAL32.darkRed : PAL32.black;
+        }
+      }
+    }
+
     bgCtx.putImageData(imgData, 0, 0);
 
+    // ── Stamp hieroglyph glyphs into ring segments (pixel art via fillRect) ──
+    bgCtx.imageSmoothingEnabled = false;
+    for (let s = 0; s < NUM_HIERO_SEGS; s++) {
+      const seg = HIERO_SEG_MAP[s];
+      const glyphData = HIERO_GLYPHS[seg.glyph];
+      if (!glyphData) continue;
+
+      const midAngle = (s + 0.5) * HIERO_SEG_ARC;
+      const gw = glyphData[0].length;
+      const gh = glyphData.length;
+
+      // Glyph center in canvas coords
+      const gcx = CX + Math.cos(midAngle) * HIERO_MID;
+      const gcy = CY + Math.sin(midAngle) * HIERO_MID;
+
+      // Rotation: glyph "up" points radially outward
+      const rot = midAngle + Math.PI / 2;
+      const cosR = Math.cos(rot);
+      const sinR = Math.sin(rot);
+
+      // Color: gold for hieroglyphs, white for menu icons
+      const fgColor = seg.menu ? PAL32.white : PAL32.darkGold;
+
+      for (let gy = 0; gy < gh; gy++) {
+        const row = glyphData[gy];
+        for (let gx = 0; gx < gw; gx++) {
+          if (row[gx] !== '#') continue;
+          // Local coords centered on glyph
+          const lx = gx - (gw - 1) / 2;
+          const ly = gy - (gh - 1) / 2;
+          // Rotate into canvas space
+          const px = Math.round(gcx + lx * cosR - ly * sinR);
+          const py = Math.round(gcy + lx * sinR + ly * cosR);
+          if (px >= 0 && px < BW && py >= 0 && py < BH) {
+            buf[py * BW + px] = fgColor;
+          }
+        }
+      }
+    }
+
+    // Re-put imageData with glyphs stamped
+    bgCtx.putImageData(imgData, 0, 0);
+
+    // Store menu segment data for hit-testing
+    this._menuSegments = [];
+    for (let s = 0; s < NUM_HIERO_SEGS; s++) {
+      const seg = HIERO_SEG_MAP[s];
+      if (seg.menu) {
+        this._menuSegments.push({
+          id: seg.menu,
+          glyph: seg.glyph,
+          segIdx: s,
+          startAngle: s * HIERO_SEG_ARC,
+          endAngle: (s + 1) * HIERO_SEG_ARC,
+        });
+      }
+    }
+    this._menuHover = null;
+
     this._bgCanvas = c;
+  }
+
+  // ── Hieroglyph ring hit-test (returns menu id or null) ──
+  _hieroHitTest(mx, my) {
+    const cx = WHEEL_CX, cy = WHEEL_CY;
+    const dx = mx - cx, dy = my - cy;
+    const dist2 = dx * dx + dy * dy;
+    if (dist2 < HIERO_INNER * HIERO_INNER || dist2 > HIERO_OUTER * HIERO_OUTER) return null;
+    let a = Math.atan2(dy, dx);
+    if (a < 0) a += Math.PI * 2;
+    for (const seg of this._menuSegments) {
+      if (a >= seg.startAngle && a < seg.endAngle) return seg.id;
+    }
+    return null;
   }
 
   _render() {
@@ -576,6 +850,23 @@ class App {
     ctx.arc(WHEEL_CX + rimOx, WHEEL_CY + rimOy, 84, 0, Math.PI * 2);
     ctx.fill();
     ctx.drawImage(this._bgCanvas, -BG_PAD + bgOx, -BG_PAD + bgOy);
+
+    // Menu segment hover highlight (drawn over background)
+    if (this._menuHover) {
+      const seg = this._menuSegments.find(s => s.id === this._menuHover);
+      if (seg) {
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = PAL.gold;
+        ctx.beginPath();
+        ctx.arc(WHEEL_CX + bgOx, WHEEL_CY + bgOy, HIERO_OUTER - 1, seg.startAngle, seg.endAngle);
+        ctx.arc(WHEEL_CX + bgOx, WHEEL_CY + bgOy, HIERO_INNER + 1, seg.endAngle, seg.startAngle, true);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    }
 
     // Wheel (parallax layer 1) + peripherals (layer 2)
     const _layers = {
