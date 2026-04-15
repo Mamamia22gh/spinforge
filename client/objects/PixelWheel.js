@@ -1360,7 +1360,7 @@ export class PixelWheel {
     }
 
     // Skull icon below gauge
-    const skullA = cfg.end + 0.18;
+    const skullA = cfg.start - 0.18;
     const skullR = (INNER + OUTER) / 2;
     const sx = Math.round(cx + Math.cos(skullA) * skullR);
     const sy = Math.round(cy + Math.sin(skullA) * skullR);
