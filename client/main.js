@@ -17,8 +17,8 @@ const IND_ARC_STEP = Math.PI / 11; // ~16.4° between each indicator
 const BG_PAD = 4;                      // background oversize for parallax shift
 
 // ── Hieroglyph Ring constants ──
-const HIERO_INNER = 128;           // inner radius of hieroglyph ring
-const HIERO_OUTER = 152;           // outer radius of hieroglyph ring
+const HIERO_INNER = 155;           // inner radius of hieroglyph ring
+const HIERO_OUTER = 180;           // outer radius of hieroglyph ring
 const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 const NUM_HIERO_SEGS = 16;         // 16 segments around the ring
 const HIERO_SEG_ARC = (Math.PI * 2) / NUM_HIERO_SEGS;
@@ -665,20 +665,46 @@ class App {
         const ringDist = (dist - ORBIT_OUTER) % 32;
         const ring = (dist > ORBIT_OUTER && ringDist < 1.0) ? 0.25 : 0;
 
+        // ── Hieroglyph ring zone (dithered into background) ──
+        let inHiero = 0; // 0=none, 1=border/divider, 2=segment fill
+        let hieroSeg = -1;
+        if (dist >= HIERO_INNER && dist <= HIERO_OUTER) {
+          let ha = angle; if (ha < 0) ha += Math.PI * 2;
+          hieroSeg = Math.floor(ha / HIERO_SEG_ARC);
+          const inAngle = ha - hieroSeg * HIERO_SEG_ARC;
+          const divW = 0.015;
+          if (inAngle < divW || (HIERO_SEG_ARC - inAngle) < divW ||
+              dist < HIERO_INNER + 1 || dist > HIERO_OUTER - 1) {
+            inHiero = 1;
+          } else {
+            inHiero = 2;
+          }
+        }
+
         // ── Combined brightness ──
+        const hieroBright = inHiero === 2 ? 0.15 : 0;
         const brightness = zoneAtt * vignette *
           (0.08 + 0.28 * radialFade + 0.35 * ray * radialFade
-           + 0.15 * ray2 * radialFade + ring * radialFade);
+           + 0.15 * ray2 * radialFade + ring * radialFade + hieroBright);
         const threshold = brightness * 16;
 
-        if (bayer < threshold) {
-          buf[idx] = (radialFade > 0.35 && ray > 0.15)
-            ? PAL32.darkGold
-            : (radialFade > 0.35 && ray2 > 0.15)
-              ? PAL32.midGray
-              : PAL32.darkGray;
+        if (inHiero === 1) {
+          buf[idx] = PAL32.darkGold;
+        } else if (bayer < threshold) {
+          if (inHiero === 2) {
+            const seg = HIERO_SEG_MAP[hieroSeg];
+            buf[idx] = seg && seg.menu ? PAL32.midGray
+              : (hieroSeg % 2 === 0) ? PAL32.darkRed : PAL32.darkGray;
+          } else {
+            buf[idx] = (radialFade > 0.35 && ray > 0.15)
+              ? PAL32.darkGold
+              : (radialFade > 0.35 && ray2 > 0.15)
+                ? PAL32.midGray
+                : PAL32.darkGray;
+          }
         } else {
-          buf[idx] = (radialFade > 0.35 && ray2 > 0.15) ? PAL32.darkGray : PAL32.black;
+          buf[idx] = (inHiero === 2) ? PAL32.black
+            : (radialFade > 0.35 && ray2 > 0.15) ? PAL32.darkGray : PAL32.black;
         }
       }
     }
@@ -692,91 +718,41 @@ class App {
       }
     }
 
-    // ── Hieroglyph Ring: segment backgrounds + dividers (pixel art into buf) ──
-    const TWO_PI = Math.PI * 2;
-    for (let y = 0; y < BH; y++) {
-      for (let x = 0; x < BW; x++) {
-        const dx = x - CX, dy = y - CY;
-        const dist2 = dx * dx + dy * dy;
-        if (dist2 < HIERO_INNER * HIERO_INNER || dist2 > HIERO_OUTER * HIERO_OUTER) continue;
-        const dist = Math.sqrt(dist2);
-        const idx = y * BW + x;
-
-        // Angle → segment index
-        let a = Math.atan2(dy, dx);
-        if (a < 0) a += TWO_PI;
-        const segIdx = Math.floor(a / HIERO_SEG_ARC);
-        const segStart = segIdx * HIERO_SEG_ARC;
-        const segEnd = segStart + HIERO_SEG_ARC;
-        const inAngle = a - segStart;
-
-        // Divider lines (1px gold at segment boundaries)
-        const dividerW = 0.015; // radians (~0.9°)
-        if (inAngle < dividerW || (HIERO_SEG_ARC - inAngle) < dividerW) {
-          buf[idx] = PAL32.darkGold;
-          continue;
-        }
-
-        // Ring border (1px at inner/outer edge)
-        if (dist < HIERO_INNER + 1 || dist > HIERO_OUTER - 1) {
-          buf[idx] = PAL32.darkGold;
-          continue;
-        }
-
-        // Segment fill: alternating darkRed/black, menu segments get midGray
-        const seg = HIERO_SEG_MAP[segIdx];
-        if (seg && seg.menu) {
-          buf[idx] = PAL32.darkGray;
-        } else {
-          buf[idx] = (segIdx % 2 === 0) ? PAL32.darkRed : PAL32.black;
-        }
-      }
-    }
-
     bgCtx.putImageData(imgData, 0, 0);
 
-    // ── Stamp hieroglyph glyphs into ring segments (pixel art via fillRect) ──
+    // ── Stamp segment labels into ring (numbers + menu icons) ──
     bgCtx.imageSmoothingEnabled = false;
     for (let s = 0; s < NUM_HIERO_SEGS; s++) {
       const seg = HIERO_SEG_MAP[s];
-      const glyphData = HIERO_GLYPHS[seg.glyph];
-      if (!glyphData) continue;
-
       const midAngle = (s + 0.5) * HIERO_SEG_ARC;
-      const gw = glyphData[0].length;
-      const gh = glyphData.length;
-
-      // Glyph center in canvas coords
       const gcx = CX + Math.cos(midAngle) * HIERO_MID;
       const gcy = CY + Math.sin(midAngle) * HIERO_MID;
-
-      // Rotation: glyph "up" points radially outward
       const rot = midAngle + Math.PI / 2;
-      const cosR = Math.cos(rot);
-      const sinR = Math.sin(rot);
 
-      // Color: gold for hieroglyphs, white for menu icons
-      const fgColor = seg.menu ? PAL32.white : PAL32.darkGold;
+      bgCtx.save();
+      bgCtx.translate(gcx, gcy);
+      bgCtx.rotate(rot);
 
-      for (let gy = 0; gy < gh; gy++) {
-        const row = glyphData[gy];
-        for (let gx = 0; gx < gw; gx++) {
-          if (row[gx] !== '#') continue;
-          // Local coords centered on glyph
-          const lx = gx - (gw - 1) / 2;
-          const ly = gy - (gh - 1) / 2;
-          // Rotate into canvas space
-          const px = Math.round(gcx + lx * cosR - ly * sinR);
-          const py = Math.round(gcy + lx * sinR + ly * cosR);
-          if (px >= 0 && px < BW && py >= 0 && py < BH) {
-            buf[py * BW + px] = fgColor;
+      if (seg.menu) {
+        // Menu icon: pixel art glyph
+        const glyphData = HIERO_GLYPHS[seg.glyph];
+        if (glyphData) {
+          const gw = glyphData[0].length, gh = glyphData.length;
+          bgCtx.fillStyle = PAL.white;
+          for (let gy = 0; gy < gh; gy++) {
+            for (let gx = 0; gx < gw; gx++) {
+              if (glyphData[gy][gx] === '#')
+                bgCtx.fillRect(gx - (gw - 1) / 2, gy - (gh - 1) / 2, 1, 1);
+            }
           }
         }
+      } else {
+        // Segment number
+        drawTextCentered(bgCtx, String(s + 1), 0, -Math.floor(CHAR_H / 2), PAL.darkGold, 1);
       }
-    }
 
-    // Re-put imageData with glyphs stamped
-    bgCtx.putImageData(imgData, 0, 0);
+      bgCtx.restore();
+    }
 
     // Store menu segment data for hit-testing
     this._menuSegments = [];
