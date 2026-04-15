@@ -17,8 +17,8 @@ const IND_ARC_STEP = Math.PI / 11; // ~16.4° between each indicator
 const BG_PAD = 4;                      // background oversize for parallax shift
 
 // ── Hieroglyph Ring constants ──
-const HIERO_INNER = 116;           // inner radius of hieroglyph ring (flush with ORBIT_OUTER=115)
-const HIERO_OUTER = 160;           // outer radius (44px height — enlarged segments)
+const HIERO_INNER = 174;           // inner radius of hieroglyph ring (13px gap outside ORBIT_OUTER=115)
+const HIERO_OUTER = 220;           // outer radius (44px height — enlarged segments)
 const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 
 
