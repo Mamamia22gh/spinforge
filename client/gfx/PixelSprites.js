@@ -35,6 +35,7 @@ const SPRITE_MANIFEST = {
   gear:             { path: 'assets/menu/gear.png',                w: 27, h: 27 },
   exit:             { path: 'assets/menu/exit.png',                w: 27, h: 27 },
   book:             { path: 'assets/menu/book.png',                w: 27, h: 27 },
+  retry:            { path: 'assets/menu/retry.png',               w: 27, h: 27 },
 };
 
 // Animated sprite manifest: id → { frames: [path, ...], w, h }

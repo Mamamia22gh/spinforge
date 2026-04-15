@@ -28,7 +28,7 @@ const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
   { offsetFromEnd: 12, id: 'catalogue', glyph: 'book' },
-  { offsetFromEnd: 3,  id: 'retry',     glyph: 'arrow_right' },
+  { offsetFromEnd: 3,  id: 'retry',     glyph: 'retry' },
   { offsetFromEnd: 4,  id: 'settings',  glyph: 'gear' },
   { offsetFromEnd: 5,  id: 'exit',      glyph: 'exit' },
 ];
@@ -471,7 +471,8 @@ class App {
         this._shakeStart(3, 0.2);
         // Refresh shop display
         const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
-        this.wheel.setShop(run.shopOfferings, meta.tickets, rerollCost);
+        const nextQuota = getQuota(run.round + 1);
+        this.wheel.setShop(run.shopOfferings, meta.tickets, rerollCost, nextQuota);
         // Update orbit slots with relics
         this._syncRelicSlots();
         // Re-sync wheel in case a symbol was added
@@ -488,7 +489,8 @@ class App {
         this._pop('REROLL!');
         this._shakeStart(2, 0.15);
         const newRerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
-        this.wheel.setShop(run.shopOfferings, meta.tickets, newRerollCost);
+        const nextQuota = getQuota(run.round + 1);
+        this.wheel.setShop(run.shopOfferings, meta.tickets, newRerollCost, nextQuota);
       }
     } else if (hit.type === 'leave') {
       this.game.endShop();
@@ -655,8 +657,9 @@ class App {
     const run = state.run;
     if (!run) return;
     const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
+    const nextQuota = getQuota(run.round + 1);
     this.wheel.placeBalls(run.ballsLeft);
-    this.wheel.setShop(run.shopOfferings, state.meta.tickets, rerollCost);
+    this.wheel.setShop(run.shopOfferings, state.meta.tickets, rerollCost, nextQuota);
     this._inShop = true;
   }
 
@@ -864,7 +867,7 @@ class App {
         // Menu icon: sprite from assets/menu/ (drawn upright, no rotation)
         drawSpriteCentered(bgCtx, menu.glyph, 0, 0, 1);
         if (menu.id === 'retry') {
-          drawTextCentered(bgCtx, 'RETRY', 0, 10, PAL.lightGray, 1, false);
+          drawTextCentered(bgCtx, 'RETRY', 0, 16, PAL.lightGray, 1);
         }
       }
 

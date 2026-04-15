@@ -117,6 +117,7 @@ export class PixelWheel {
       hoverIdx: -1,
       buyFlash: -1,
       buyFlashTimer: 0,
+      nextQuota: 0,
     };
   }
 
@@ -344,10 +345,11 @@ export class PixelWheel {
   get lights() { return this._frameLights; }
 
   // ── Forge shop API ──
-  setShop(offerings, currency, rerollCost) {
+  setShop(offerings, currency, rerollCost, nextQuota) {
     this._shop.offerings = offerings || [];
     this._shop.currency = currency;
     this._shop.rerollCost = rerollCost;
+    if (nextQuota !== undefined) this._shop.nextQuota = nextQuota;
     this._shop.hoverIdx = -1;
     this._shop.buyFlash = -1;
     this._shop.buyFlashTimer = 0;
@@ -1176,8 +1178,11 @@ export class PixelWheel {
     ctx.strokeStyle = leaveHover ? PAL.lightGray : PAL.midGray;
     ctx.lineWidth = 1;
     ctx.stroke();
-    drawSpriteCentered(ctx, 'arrow_right', cx, Math.round(cy - 4), 1);
-    drawTextCentered(ctx, 'CONTINUER', cx, Math.round(cy + 4), PAL.lightGray, 1);
+    drawSpriteCentered(ctx, 'arrow_right', cx, Math.round(cy - 8), 1);
+    drawTextCentered(ctx, 'CONTINUER', cx, Math.round(cy), PAL.lightGray, 1);
+    if (shop.nextQuota) {
+      drawTextCentered(ctx, 'QUOTA ' + shop.nextQuota, cx, Math.round(cy + 10), PAL.midGray, 1, false);
+    }
   }
 
 
