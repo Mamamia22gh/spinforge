@@ -142,7 +142,7 @@ const HIERO_GLYPHS = {
 // Menu segment definitions (indices relative to wheel segment count)
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
-  { offsetFromEnd: 6, id: 'settings', glyph: 'gear' },
+  { offsetFromEnd: 3, id: 'settings', glyph: 'gear' },
   { offsetFromEnd: 5, id: 'exit',     glyph: 'exit' },
 ];
 
@@ -730,7 +730,6 @@ class App {
 
       bgCtx.save();
       bgCtx.translate(gcx, gcy);
-      bgCtx.rotate(rot);
 
       const menu = menuSegs[s];
       if (menu) {
@@ -747,7 +746,8 @@ class App {
           }
         }
       } else {
-        // Segment number
+        // Segment number (rotated to follow the ring)
+        bgCtx.rotate(rot);
         drawTextCentered(bgCtx, String(s + 1), 0, -Math.floor(CHAR_H / 2), PAL.darkGold, 1);
       }
 
