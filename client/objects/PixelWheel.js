@@ -1388,25 +1388,6 @@ export class PixelWheel {
     const MID_R = (INNER + OUTER) / 2;
     const arcLen = cfg.end - cfg.start; // 0.60 rad
 
-    // ── Border arcs ──
-    ctx.strokeStyle = PAL.midGray;
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(cx, cy, OUTER, cfg.start, cfg.end); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, INNER, cfg.start, cfg.end); ctx.stroke();
-    for (const a of [cfg.start, cfg.end]) {
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(a) * INNER, cy + Math.sin(a) * INNER);
-      ctx.lineTo(cx + Math.cos(a) * OUTER, cy + Math.sin(a) * OUTER);
-      ctx.stroke();
-    }
-
-    // ── Divider line at center of arc ──
-    const midA = cfg.center;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(midA) * INNER, cy + Math.sin(midA) * INNER);
-    ctx.lineTo(cx + Math.cos(midA) * OUTER, cy + Math.sin(midA) * OUTER);
-    ctx.stroke();
-
     // ── Gold counter (left half) ──
     const goldA = cfg.start + arcLen * 0.25;
     const gx = Math.round(cx + Math.cos(goldA) * MID_R);

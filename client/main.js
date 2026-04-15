@@ -3,7 +3,7 @@ import { BALANCE, getQuota } from '../src/data/balance.js';
 import { PixelWheel } from './objects/PixelWheel.js';
 import { PAL, PAL32, SYM_COLORS } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextCenteredOutlined, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
-import { preloadSprites, drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, SPRITE_SIZE } from './gfx/PixelSprites.js';
+import { preloadSprites, drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, getSpriteIds, getAnimSpriteIds, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { SYMBOLS, getSymbol } from '../src/data/symbols.js';
 import { RELICS } from '../src/data/relics.js';
 import { CHOICES } from '../src/data/choices.js';
@@ -57,6 +57,8 @@ class App {
     this._goldDisplay = 0; // animated gold counter // invert flash timer (>0 = active)
     this._inShop = false;
     this._shopResolve = null;
+    this._debugSpritesOpen = false;
+    this._debugScroll = 0;
 
     // Build default wheel data BEFORE background (background needs segment info)
     const defaultWheel = BALANCE.INITIAL_WHEEL.map((id, i) => ({
@@ -106,9 +108,19 @@ class App {
     this._display.addEventListener('click', e => this._handleClick(e));
     this._display.addEventListener('mousemove', e => this._handleMouse(e));
     window.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && this._catalogueOpen) { this._closeCatalogue(); e.preventDefault(); }
+      if (e.key === 'Escape' && this._debugSpritesOpen) { this._debugSpritesOpen = false; e.preventDefault(); }
+      else if (e.key === 'Escape' && this._catalogueOpen) { this._closeCatalogue(); e.preventDefault(); }
     });
     this._display.addEventListener('wheel', e => {
+      if (this._debugSpritesOpen) {
+        const ids = getSpriteIds().length + getAnimSpriteIds().length;
+        const COLS = Math.floor((400 - 8) / 28);
+        const ROWS = Math.floor((230 - 20) / 28);
+        const maxScroll = Math.max(0, Math.ceil(ids / COLS) - ROWS);
+        this._debugScroll = Math.max(0, Math.min(maxScroll, this._debugScroll + (e.deltaY > 0 ? 1 : -1)));
+        e.preventDefault();
+        return;
+      }
       if (!this._catalogueOpen) return;
       const TAB_DATA_LENS = [SYMBOLS.length, RELICS.length, CHOICES.length];
       const maxScroll = Math.max(0, TAB_DATA_LENS[this._catalogueTab] - 18);
@@ -164,6 +176,12 @@ class App {
   _handleClick(e) {
     this._initAudio();
     const { x, y } = this._mapCoords(e);
+
+    // Debug sprites overlay intercepts all clicks when open
+    if (this._debugSpritesOpen) {
+      this._debugSpritesClick(x, y);
+      return;
+    }
 
     // Catalogue overlay intercepts all clicks when open
     if (this._catalogueOpen) {
@@ -290,9 +308,33 @@ class App {
 
     // Close hint
     drawTextCentered(ctx, '[ESC] FERMER', PX0 + Math.floor(PW / 2), PY0 + PH - 9, PAL.darkGold);
+
+    // Debug button below catalogue
+    const dbtnW = 80, dbtnH = 12;
+    const dbtnX = PX0 + Math.floor((PW - dbtnW) / 2);
+    const dbtnY = PY0 + PH + 4;
+    ctx.fillStyle = PAL.darkGray;
+    ctx.fillRect(dbtnX, dbtnY, dbtnW, dbtnH);
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(dbtnX + 0.5, dbtnY + 0.5, dbtnW - 1, dbtnH - 1);
+    drawTextCentered(ctx, 'DEBUG SPRITES', dbtnX + Math.floor(dbtnW / 2), dbtnY + 2, PAL.white);
   }
 
   _catalogueClick(x, y) {
+    // Debug button hit test
+    const PW2 = 320, PH2 = 200;
+    const PX02 = Math.floor((W - PW2) / 2), PY02 = Math.floor((H - PH2) / 2);
+    const dbtnW = 80, dbtnH = 12;
+    const dbtnX = PX02 + Math.floor((PW2 - dbtnW) / 2);
+    const dbtnY = PY02 + PH2 + 4;
+    if (x >= dbtnX && x <= dbtnX + dbtnW && y >= dbtnY && y <= dbtnY + dbtnH) {
+      this._closeCatalogue();
+      this._debugSpritesOpen = true;
+      this._debugScroll = 0;
+      return;
+    }
+
     const PW = 320, PH = 200;
     const PX0 = Math.floor((W - PW) / 2), PY0 = Math.floor((H - PH) / 2);
     const TAB_H = 14;
@@ -312,6 +354,90 @@ class App {
         this._catalogueScroll = 0;
       }
     }
+  }
+
+  // ── Debug sprites grid ──
+  _drawDebugSprites(ctx) {
+    if (!this._debugSpritesOpen) return;
+
+    const ids = getSpriteIds();
+    const animIds = getAnimSpriteIds();
+    const allIds = [...ids, ...animIds.map(id => '~' + id)];
+
+    const PW = 400, PH = 230;
+    const PX0 = Math.floor((W - PW) / 2), PY0 = Math.floor((H - PH) / 2);
+    const CELL = 28;       // cell size (sprite + label)
+    const COLS = Math.floor((PW - 8) / CELL);
+    const ROWS = Math.floor((PH - 20) / CELL);
+    const maxScroll = Math.max(0, Math.ceil(allIds.length / COLS) - ROWS);
+    this._debugScroll = Math.min(this._debugScroll, maxScroll);
+
+    // Backdrop
+    ctx.fillStyle = 'rgba(0,0,0,0.88)';
+    ctx.fillRect(PX0 - 2, PY0 - 2, PW + 4, PH + 4);
+    ctx.fillStyle = PAL.black;
+    ctx.fillRect(PX0, PY0, PW, PH);
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PX0 + 0.5, PY0 + 0.5, PW - 1, PH - 1);
+
+    // Title
+    drawTextCentered(ctx, 'DEBUG SPRITES (' + allIds.length + ')', PX0 + Math.floor(PW / 2), PY0 + 3, PAL.white);
+
+    // Grid
+    const gridY0 = PY0 + 14;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(PX0, gridY0, PW, PH - 20);
+    ctx.clip();
+
+    for (let i = 0; i < allIds.length; i++) {
+      const row = Math.floor(i / COLS) - this._debugScroll;
+      const col = i % COLS;
+      if (row < -1 || row > ROWS) continue;
+
+      const cx = PX0 + 6 + col * CELL + Math.floor(CELL / 2);
+      const cy = gridY0 + row * CELL + Math.floor(CELL / 2);
+
+      const rawId = allIds[i];
+      const isAnim = rawId.startsWith('~');
+      const id = isAnim ? rawId.slice(1) : rawId;
+
+      // Cell border
+      ctx.strokeStyle = PAL.darkGray;
+      ctx.strokeRect(cx - Math.floor(CELL / 2) + 0.5, cy - Math.floor(CELL / 2) + 0.5, CELL - 1, CELL - 1);
+
+      // Sprite
+      if (isAnim) {
+        drawAnimSpriteCentered(ctx, id, cx, cy - 3, 1, this._time);
+      } else {
+        drawSpriteCentered(ctx, id, cx, cy - 3, 1);
+      }
+
+      // Label (truncated)
+      const label = id.length > 5 ? id.slice(0, 4) + '.' : id;
+      drawTextCentered(ctx, label, cx, cy + 7, isAnim ? PAL.gold : PAL.darkGold, 1, false);
+    }
+
+    ctx.restore();
+
+    // Scrollbar
+    if (maxScroll > 0) {
+      const sbTotalH = PH - 20;
+      const pct = this._debugScroll / maxScroll;
+      const sbH = Math.max(8, Math.floor(sbTotalH * ROWS / Math.ceil(allIds.length / COLS)));
+      const sbY = gridY0 + Math.floor((sbTotalH - sbH) * pct);
+      ctx.fillStyle = PAL.midGray;
+      ctx.fillRect(PX0 + PW - 5, sbY, 3, sbH);
+    }
+
+    // Close hint
+    drawTextCentered(ctx, '[ESC] FERMER', PX0 + Math.floor(PW / 2), PY0 + PH - 9, PAL.midGray);
+  }
+
+  _debugSpritesClick(x, y) {
+    // Any click closes the debug view
+    this._debugSpritesOpen = false;
   }
 
   _handleShopClick(hit) {
@@ -881,6 +1007,7 @@ class App {
     uiCtx.save();
     uiCtx.scale(PX, PX);
     this._drawCatalogue(uiCtx);
+    this._drawDebugSprites(uiCtx);
 
     uiCtx.restore();
 

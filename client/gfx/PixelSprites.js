@@ -158,6 +158,9 @@ export function getAnimFrameCount(id) {
   return _animFrameCounts.get(id) ?? 0;
 }
 
+export function getSpriteIds() { return Object.keys(SPRITE_MANIFEST); }
+export function getAnimSpriteIds() { return Object.keys(ANIM_MANIFEST); }
+
 export const SPRITE_SIZE = SIZE;
 export const TICKET_W = 15;
 export const TICKET_H = 9;
