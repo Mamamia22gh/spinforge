@@ -45,6 +45,11 @@ export const BALANCE = Object.freeze({
   TICKETS_BONUS_WIN: 10,
   TICKETS_BONUS_PERFECT: 5,
 
+  // Corruption
+  CORRUPTION_START: 0.5,          // 50% at run start
+  CORRUPTION_PER_SPIN: 0.02,      // +2% per spin
+  CORRUPTION_CRITICAL: 0.85,      // above this = danger zone
+
   // Coins visual
   MAX_COIN_DROP: 40,
   COINS_PER_SURPLUS: 5,

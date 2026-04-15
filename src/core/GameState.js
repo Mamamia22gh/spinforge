@@ -71,6 +71,9 @@ export function createRunState() {
     currentChoices: [],
     lastRoundResult: null,
 
+    // Corruption
+    corruption: BALANCE.CORRUPTION_START,
+
     // Upgrades accumulated
     _payoutBonus: 0,
     _echoUsedThisRound: false,

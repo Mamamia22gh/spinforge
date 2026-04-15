@@ -20,10 +20,20 @@ uniform sampler2D uSrc;
 uniform vec3 uPal[16];
 uniform float uScan;
 uniform float uVig;
+uniform float uChroma;
 varying vec2 vUv;
 
 void main() {
-  vec3 c = texture2D(uSrc, vUv).rgb;
+  vec2 uv = vUv - 0.5;
+  float dist2 = dot(uv, uv);
+
+  // Chromatic aberration — R/B X-offset scales with distance from center
+  float off = uChroma * dist2;
+  vec3 c = vec3(
+    texture2D(uSrc, vUv + vec2(off, 0.0)).r,
+    texture2D(uSrc, vUv).g,
+    texture2D(uSrc, vUv - vec2(off, 0.0)).b
+  );
 
   // Quantize to nearest palette color
   float best = 99999.0;
@@ -40,8 +50,7 @@ void main() {
   c *= scan;
 
   // Vignette
-  vec2 uv = vUv - 0.5;
-  c *= max(0.0, 1.0 - dot(uv, uv) * 4.0 * uVig);
+  c *= max(0.0, 1.0 - dist2 * 4.0 * uVig);
 
   gl_FragColor = vec4(c, 1.0);
 }`;
@@ -93,7 +102,8 @@ export class PostFXGL {
     }
     gl.uniform3fv(gl.getUniformLocation(prog, 'uPal'), new Float32Array(arr));
     gl.uniform1f(gl.getUniformLocation(prog, 'uScan'), opts.scanDim ?? 0.06);
-    gl.uniform1f(gl.getUniformLocation(prog, 'uVig'), opts.vignette ?? 0.25);
+    gl.uniform1f(gl.getUniformLocation(prog, 'uVig'), opts.vignette ?? 0.4);
+    gl.uniform1f(gl.getUniformLocation(prog, 'uChroma'), opts.chroma ?? 0.012);
 
     gl.viewport(0, 0, display.width, display.height);
   }

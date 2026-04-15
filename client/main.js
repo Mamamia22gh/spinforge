@@ -283,6 +283,7 @@ class App {
     if (state.run) {
       this.wheel.setWheel(state.run.wheel);
       this.wheel.placeBalls(state.run.ballsLeft);
+      this.wheel.setCorruption(state.run.corruption);
     }
   }
 
@@ -320,7 +321,7 @@ class App {
       true,
       meta.unlocks.includes('unlock_gauge_2'),
       meta.unlocks.includes('unlock_gauge_3'),
-      meta.unlocks.includes('unlock_gauge_4'),
+      true, // gauge 3 = corruption gauge, always visible
     ]);
   }
 

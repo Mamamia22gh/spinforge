@@ -89,6 +89,7 @@ export class PixelWheel {
     this._frameLights = [];
     this._bonusMode = false;
     this._gaugeUnlocks = [true, false, false, false]; // gauge 0 always unlocked
+    this._corruption = 0.5; // corruption fill 0..1
 
     this._tilt = 1.0;
     this._flip = null;
@@ -212,6 +213,9 @@ export class PixelWheel {
     this._gaugeUnlocks = unlocks;
   }
 
+  setCorruption(v) { this._corruption = Math.max(0, Math.min(1, v)); }
+  get corruption() { return this._corruption; }
+
   placeBalls(n) {
     this._placedBalls = [];
     this._balls = [];
@@ -222,9 +226,10 @@ export class PixelWheel {
 
     const GAUGE_MID = (RIM_R + 20 + RIM_R + 26) / 2;
 
-    // Collect unlocked gauges
+    // Collect unlocked gauges (exclude gauge 3 = corruption)
     const activeGauges = [];
     for (let g = 0; g < GAUGE_CONFIGS.length; g++) {
+      if (g === 3) continue; // corruption gauge — no balls
       if (this._gaugeUnlocks[g]) activeGauges.push(g);
     }
 
@@ -1227,6 +1232,12 @@ export class PixelWheel {
       ctx.stroke();
     }
 
+    // ── Corruption gauge (gauge 3) ──
+    if (gaugeIdx === 3) {
+      this._drawCorruptionGauge(ctx, cx, cy, cfg, INNER, OUTER);
+      return;
+    }
+
     if (!unlocked) {
       // Lock indicator (X) at center of gauge arc
       const midA = (cfg.start + cfg.end) / 2;
@@ -1255,6 +1266,63 @@ export class PixelWheel {
       this._frameLights.push({
         x: cx + pb.gaugeX, y: cy + pb.gaugeY * this.tilt,
         r: 6, color: PAL.white, a: 0.06,
+      });
+    }
+  }
+
+  _drawCorruptionGauge(ctx, cx, cy, cfg, INNER, OUTER) {
+    const fill = this._corruption; // 0..1
+    const totalArc = cfg.end - cfg.start;
+    const fillEnd = cfg.start + totalArc * fill;
+
+    // Background (empty part)
+    ctx.beginPath();
+    ctx.arc(cx, cy, OUTER, cfg.start, cfg.end);
+    ctx.arc(cx, cy, INNER, cfg.end, cfg.start, true);
+    ctx.closePath();
+    ctx.fillStyle = PAL.darkPurple;
+    ctx.fill();
+
+    // Filled part
+    if (fill > 0.001) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, OUTER, cfg.start, fillEnd);
+      ctx.arc(cx, cy, INNER, fillEnd, cfg.start, true);
+      ctx.closePath();
+      ctx.fillStyle = fill >= 0.85 ? PAL.neonPink : PAL.purple;
+      ctx.fill();
+    }
+
+    // Border
+    ctx.strokeStyle = fill >= 0.85 ? PAL.neonPink : PAL.purple;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, OUTER, cfg.start, cfg.end); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, INNER, cfg.start, cfg.end); ctx.stroke();
+    for (const a of [cfg.start, cfg.end]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * INNER, cy + Math.sin(a) * INNER);
+      ctx.lineTo(cx + Math.cos(a) * OUTER, cy + Math.sin(a) * OUTER);
+      ctx.stroke();
+    }
+
+    // Fill edge tick mark
+    if (fill > 0.01 && fill < 0.99) {
+      ctx.strokeStyle = PAL.white;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(fillEnd) * INNER, cy + Math.sin(fillEnd) * INNER);
+      ctx.lineTo(cx + Math.cos(fillEnd) * OUTER, cy + Math.sin(fillEnd) * OUTER);
+      ctx.stroke();
+    }
+
+    // Glow at high corruption
+    if (fill >= 0.85) {
+      const midA = (cfg.start + fillEnd) / 2;
+      const midR = (INNER + OUTER) / 2;
+      this._frameLights.push({
+        x: cx + Math.cos(midA) * midR,
+        y: cy + Math.sin(midA) * midR * Math.abs(this._tilt),
+        r: 12, color: PAL.neonPink, a: 0.15,
       });
     }
   }
