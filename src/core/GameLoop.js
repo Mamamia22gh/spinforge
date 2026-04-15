@@ -119,30 +119,25 @@ export class GameLoop {
     const symbol = segment.symbolId ? getSymbol(segment.symbolId) : null;
     const mods = this.#getMods();
 
-    // Base value = pocket number (1-indexed)
-    let value = (segmentIndex + 1) * segment.weight;
+    // Base value: relic override or pocket number (1-indexed)
+    let baseVal = mods.setBaseValue !== null ? mods.setBaseValue : (segmentIndex + 1);
+
+    // Even/odd segment bonuses from relics
+    if (segmentIndex % 2 === 0) baseVal += mods.addEven;
+    else                        baseVal += mods.addOdd;
+
+    let value = baseVal * segment.weight;
 
     // Payout bonus from upgrades
     if (run._payoutBonus > 0) {
       value = Math.floor(value * (1 + run._payoutBonus / 100));
     }
 
-    // Relic flat payout modifiers
-    const payoutMult = 1 + (mods.allPayoutPercent || 0) / 100;
-    value = Math.floor(value * payoutMult);
-
     // Symbol special effects (cherry, void, etc.)
     if (symbol?.specialEffect === 'double_payout') {
       value *= 2;
     } else if (symbol?.specialEffect === 'void_burst') {
       value = 0;
-    }
-
-    // Echo spin (relic effect — double once per round)
-    if (mods.echoSpins > 0 && !run._echoUsedThisRound && value > 0) {
-      value *= 2;
-      run._echoUsedThisRound = true;
-      this.events.emit('echo:triggered', { doubled: value });
     }
 
     return { segment, symbol, value };
@@ -152,11 +147,8 @@ export class GameLoop {
 
   #endRound() {
     const run = this.state.run;
-    const mods = this.#getMods();
 
     const { totalWon, quota, passed, surplus, shopCoins } = this.scoring.evaluateRound(run);
-
-    const moneyBonus = mods.moneyBonus || 0;
 
     run.lastRoundResult = {
       round: run.round,
@@ -164,10 +156,10 @@ export class GameLoop {
       quota,
       passed,
       surplus,
-      shopCoins: shopCoins + moneyBonus,
+      shopCoins,
     };
 
-    run.shopCurrency += shopCoins + moneyBonus;
+    run.shopCurrency += shopCoins;
 
     // Award tickets for passing the round
     if (passed) {
@@ -245,8 +237,12 @@ export class GameLoop {
   // ─── Shop ───
 
   shopBuyRelic(offeringIndex) {
+    return this.shopBuy(offeringIndex);
+  }
+
+  shopBuy(slotIndex) {
     if (this.state.phase !== PHASE.SHOP) return this.#error('Not in SHOP');
-    return this.shop.buyRelic(this.state.run, this.state.meta, offeringIndex);
+    return this.shop.buyItem(this.state.run, this.state.meta, slotIndex, this.wheel);
   }
 
   shopReroll() {
@@ -258,7 +254,6 @@ export class GameLoop {
     if (this.state.phase !== PHASE.SHOP) return false;
 
     const run = this.state.run;
-    const mods = this.#getMods();
 
     run.round++;
 
@@ -268,10 +263,9 @@ export class GameLoop {
     }
 
     // Reset for next round
-    run.ballsLeft = BALANCE.BALLS_PER_ROUND + (mods.extraSpins || 0);
+    run.ballsLeft = BALANCE.BALLS_PER_ROUND;
     run.spinResults = [];
-    run._echoUsedThisRound = false;
-    run.shopDiscount = Math.min(80, mods.shopDiscount || 0);
+    run.shopDiscount = 0;
 
     this.#setPhase(PHASE.IDLE);
     this.#emitRoundPreview();

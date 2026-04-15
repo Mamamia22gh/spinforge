@@ -459,15 +459,20 @@ class App {
         return;
       }
       this.wheel.shopRemoveOffering(hit.index);
-      const ok = this.game.shopBuyRelic(hit.index);
+      const ok = this.game.shopBuy(hit.index);
       if (ok) {
-        this._pop('BOUGHT!');
+        const label = offering.shopType === 'symbol' ? 'ADDED!'
+                    : offering.shopType === 'upgrade' ? 'UPGRADED!'
+                    : 'BOUGHT!';
+        this._pop(label);
         this._shakeStart(3, 0.2);
         // Refresh shop display
         const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
         this.wheel.setShop(run.shopOfferings, meta.tickets, rerollCost);
         // Update orbit slots with relics
         this._syncRelicSlots();
+        // Re-sync wheel in case a symbol was added
+        this._syncWheel();
       }
     } else if (hit.type === 'reroll') {
       const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);

@@ -1,8 +1,18 @@
 import { BALANCE } from '../data/balance.js';
-import { RELICS, RELIC_RARITY_WEIGHTS } from '../data/relics.js';
+import { RELICS, RELIC_RARITY_WEIGHTS, getRarityWeights } from '../data/relics.js';
+import { SYMBOLS } from '../data/symbols.js';
+import { CHOICES } from '../data/choices.js';
 
 /**
- * Forge (shop) — buy relics and wheel manipulations between rounds.
+ * Forge (shop) — buy relics, symbols and upgrades between rounds.
+ *
+ * Slot layout (8 slots, 4 quadrants × 2):
+ *   0-1  top-right     → relics
+ *   2-3  bottom-right  → relics
+ *   4    bottom-left/1 → REROLL (hardcoded, not in offerings)
+ *   5    bottom-left/2 → SYMBOL (ball)
+ *   6    top-left/1    → UPGRADE
+ *   7    top-left/2    → relic
  */
 export class ShopSystem {
   #events;
@@ -12,53 +22,155 @@ export class ShopSystem {
   }
 
   /**
-   * Generate random relic offerings.
-   * @param {object} run
-   * @param {import('../core/RNG.js').RNG} rng
-   * @returns {object[]}
+   * Generate shop offerings: 1 symbol + 1 upgrade + relics filling the rest.
+   * Slot 4 is reroll (not in array). Offerings are indexed by slot number.
    */
   generateOfferings(run, rng) {
     const round = run.round;
-    const count = round >= 9 ? 4 : round >= 5 ? 3 : 2;
+    const weights = getRarityWeights(round);
+    const discount = run.shopDiscount || 0;
+    const applyCost = (baseCost) => Math.max(1, Math.ceil(baseCost * (1 - discount / 100)));
 
-    const available = RELICS.filter(r => {
-      if (r.minRound > round) return false;
-      if (run.relics.some(owned => owned.id === r.id)) return false;
-      return true;
-    });
+    const offerings = new Array(8).fill(null);
+    // Slot 4 = reroll, stays null in the array
 
-    if (available.length === 0) return [];
+    // ── 1. Symbol slot (slot 5) ──
+    offerings[5] = this.#pickSymbol(run, rng, weights, applyCost);
 
-    const offerings = [];
-    const usedIds = new Set();
+    // ── 2. Upgrade slot (slot 6) ──
+    offerings[6] = this.#pickUpgrade(run, rng, weights, applyCost);
 
-    for (let i = 0; i < count && available.length > usedIds.size; i++) {
-      const pool = available.filter(r => !usedIds.has(r.id));
-      if (pool.length === 0) break;
-
-      const weights = pool.map(r => RELIC_RARITY_WEIGHTS[r.rarity] || 1);
-      const pick = rng.pickWeighted(pool, weights);
-
-      const discount = run.shopDiscount || 0;
-      const cost = Math.max(1, Math.ceil(pick.cost * (1 - discount / 100)));
-
-      offerings.push({ ...pick, finalCost: cost });
-      usedIds.add(pick.id);
+    // ── 3. Relic slots (0, 1, 2, 3, 7) ──
+    const relicSlots = [0, 1, 2, 3, 7];
+    const relicPicks = this.#pickRelics(run, rng, weights, applyCost, relicSlots.length);
+    for (let i = 0; i < relicSlots.length; i++) {
+      offerings[relicSlots[i]] = relicPicks[i] || null;
     }
 
     return offerings;
   }
 
+  #pickSymbol(run, rng, weights, applyCost) {
+    const available = SYMBOLS.filter(s => {
+      if (s.requiresUnlock) return false; // skip locked symbols
+      return true;
+    });
+    if (available.length === 0) return this.#makeGenericBall(applyCost);
+
+    // Weight by rarity
+    const w = available.map(s => weights[s.rarity] || 1);
+    const roll = rng.next();
+    // Chance to offer a plain ball (no symbol) vs a special symbol
+    // 60% plain ball, 40% special symbol (scales with round)
+    const specialChance = Math.min(0.7, 0.3 + (run.round - 1) * 0.04);
+    if (roll > specialChance || available.length === 0) {
+      return this.#makeGenericBall(applyCost);
+    }
+
+    const pick = rng.pickWeighted(available, w);
+    return {
+      shopType: 'symbol',
+      id: pick.id,
+      name: pick.name,
+      emoji: pick.emoji,
+      rarity: pick.rarity,
+      description: `Ajoute ${pick.name} à la roue`,
+      finalCost: applyCost(pick.cost),
+      symbolId: pick.id,
+    };
+  }
+
+  #makeGenericBall(applyCost) {
+    return {
+      shopType: 'symbol',
+      id: 'generic_ball',
+      name: 'Segment',
+      emoji: '⚪',
+      rarity: 'common',
+      description: 'Ajoute un pocket générique',
+      finalCost: applyCost(15),
+      symbolId: null,
+    };
+  }
+
+  #pickUpgrade(run, rng, weights, applyCost) {
+    const upgrades = CHOICES.filter(c => {
+      if (c.type !== 'upgrade') return false;
+      if (c.minRound && run.round < c.minRound) return false;
+      if (c.requiresUnlock) return false;
+      return true;
+    });
+    if (upgrades.length === 0) {
+      // Fallback: generic chips_10
+      const fb = CHOICES.find(c => c.id === 'chips_10') || CHOICES.find(c => c.type === 'upgrade');
+      return {
+        shopType: 'upgrade',
+        id: fb.id,
+        name: fb.name,
+        emoji: fb.emoji,
+        rarity: fb.rarity || 'common',
+        description: fb.description,
+        finalCost: applyCost(fb.cost || 20),
+        payload: fb.payload,
+      };
+    }
+
+    const w = upgrades.map(c => (weights[c.rarity] || 1) * c.weight);
+    const pick = rng.pickWeighted(upgrades, w);
+    return {
+      shopType: 'upgrade',
+      id: pick.id,
+      name: pick.name,
+      emoji: pick.emoji,
+      rarity: pick.rarity || 'common',
+      description: pick.description,
+      finalCost: applyCost(pick.cost || 20),
+      payload: pick.payload,
+    };
+  }
+
+  #pickRelics(run, rng, weights, applyCost, count) {
+    const available = RELICS.filter(r => {
+      if (r.minRound > run.round) return false;
+      if (run.relics.some(owned => owned.id === r.id)) return false;
+      return true;
+    });
+
+    const picks = [];
+    const usedIds = new Set();
+
+    for (let i = 0; i < count; i++) {
+      const pool = available.filter(r => !usedIds.has(r.id));
+      if (pool.length === 0) {
+        picks.push(null);
+        continue;
+      }
+
+      const w = pool.map(r => weights[r.rarity] || 1);
+      const pick = rng.pickWeighted(pool, w);
+      picks.push({
+        shopType: 'relic',
+        ...pick,
+        finalCost: applyCost(pick.cost),
+      });
+      usedIds.add(pick.id);
+    }
+
+    return picks;
+  }
+
   /**
-   * Buy a relic from offerings.
+   * Buy any item from shop offerings.
    * @param {object} run
-   * @param {number} offeringIndex
+   * @param {object} meta
+   * @param {number} slotIndex — slot in the 8-slot array
+   * @param {import('../systems/WheelSystem.js').WheelSystem} wheelSystem
    * @returns {boolean}
    */
-  buyRelic(run, meta, offeringIndex) {
-    const offering = run.shopOfferings[offeringIndex];
+  buyItem(run, meta, slotIndex, wheelSystem) {
+    const offering = run.shopOfferings[slotIndex];
     if (!offering) {
-      this.#events.emit('shop:invalid_offering', { offeringIndex });
+      this.#events.emit('shop:invalid_offering', { slotIndex });
       return false;
     }
 
@@ -68,22 +180,50 @@ export class ShopSystem {
     }
 
     meta.tickets -= offering.finalCost;
-    run.relics.push(offering);
-    run.shopOfferings.splice(offeringIndex, 1);
 
-    this.#events.emit('shop:relic_bought', {
-      relic: offering,
+    switch (offering.shopType) {
+      case 'relic':
+        run.relics.push(offering);
+        break;
+
+      case 'symbol':
+        wheelSystem.addSegment(run, offering.symbolId);
+        break;
+
+      case 'upgrade':
+        this.#applyUpgrade(run, offering.payload);
+        break;
+
+      default:
+        // Treat as relic for backwards compat
+        run.relics.push(offering);
+        break;
+    }
+
+    run.shopOfferings[slotIndex] = null;
+
+    this.#events.emit('shop:item_bought', {
+      item: offering,
       cost: offering.finalCost,
       remaining: meta.tickets,
     });
     return true;
   }
 
+  #applyUpgrade(run, payload) {
+    if (payload.chipsMax) {
+      run.maxChips = (run.maxChips || 0) + payload.chipsMax;
+    }
+    if (payload.extraSpins) {
+      run.ballsLeft = (run.ballsLeft || 0) + payload.extraSpins;
+    }
+    if (payload.payoutPercent) {
+      run._payoutBonus = (run._payoutBonus ?? 0) + payload.payoutPercent;
+    }
+  }
+
   /**
    * Reroll shop offerings.
-   * @param {object} run
-   * @param {import('../core/RNG.js').RNG} rng
-   * @returns {boolean}
    */
   reroll(run, meta, rng) {
     const cost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount);

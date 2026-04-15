@@ -6,63 +6,69 @@ describe('EffectSystem', () => {
 
   it('returns default mods with no relics', () => {
     const m = fx.compute([]);
-    expect(m.allPayoutPercent).toBe(0);
-    expect(m.echoSpins).toBe(0);
+    expect(m.setBaseValue).toBeNull();
+    expect(m.addEven).toBe(0);
+    expect(m.addOdd).toBe(0);
   });
 
-  it('accumulates level-0 effects', () => {
+  it('sets base value from a single relic', () => {
     const relics = [
-      { effects: [{ type: 'all_payout_percent', value: 10, metaLevel: 0 }] },
-      { effects: [{ type: 'all_payout_percent', value: 20, metaLevel: 0 }] },
+      { effects: [{ type: 'set_base_value', value: 20, metaLevel: 0 }] },
     ];
     const m = fx.compute(relics);
-    expect(m.allPayoutPercent).toBe(30);
+    expect(m.setBaseValue).toBe(20);
   });
 
-  it('applies level-1 percent multiplier', () => {
+  it('takes max when multiple set_base_value relics stack', () => {
     const relics = [
-      { effects: [{ type: 'all_payout_percent', value: 10, metaLevel: 0 }] },
-      { effects: [{ type: 'percent_multiplier', value: 2, metaLevel: 1 }] },
+      { effects: [{ type: 'set_base_value', value: 19, metaLevel: 0 }] },
+      { effects: [{ type: 'set_base_value', value: 20, metaLevel: 0 }] },
     ];
     const m = fx.compute(relics);
-    expect(m.allPayoutPercent).toBe(20); // 10 * 2
+    expect(m.setBaseValue).toBe(20);
   });
 
-  it('applies level-2 meta boost', () => {
+  it('accumulates add_even_segments', () => {
     const relics = [
-      { effects: [{ type: 'all_payout_percent', value: 10, metaLevel: 0 }] },
-      { effects: [{ type: 'percent_multiplier', value: 1.5, metaLevel: 1 }] },
-      { effects: [{ type: 'meta_boost', value: 50, metaLevel: 2 }] },
+      { effects: [{ type: 'add_even_segments', value: 1, metaLevel: 0 }] },
+      { effects: [{ type: 'add_even_segments', value: 5, metaLevel: 0 }] },
     ];
     const m = fx.compute(relics);
-    // percent_multiplier 1.5, meta_boost 50% boosts the multiplier: 1.5 + 50% of 0.5 = 1.75
-    // 10 * 1.75 = 17.5
-    expect(m.allPayoutPercent).toBeCloseTo(17.5, 1);
+    expect(m.addEven).toBe(6);
+    expect(m.addOdd).toBe(0);
   });
 
-  it('applies level-3 global boost', () => {
+  it('accumulates add_odd_segments', () => {
     const relics = [
-      { effects: [{ type: 'all_payout_percent', value: 20, metaLevel: 0 }] },
-      { effects: [{ type: 'global_boost', value: 25, metaLevel: 3 }] },
+      { effects: [{ type: 'add_odd_segments', value: 3, metaLevel: 0 }] },
+      { effects: [{ type: 'add_odd_segments', value: 10, metaLevel: 0 }] },
     ];
     const m = fx.compute(relics);
-    expect(m.allPayoutPercent).toBeCloseTo(25, 0); // 20 * 1.25
+    expect(m.addOdd).toBe(13);
+    expect(m.addEven).toBe(0);
   });
 
-  it('caps shop discount at 80', () => {
+  it('handles legendary with both even and odd effects', () => {
     const relics = [
-      { effects: [{ type: 'shop_discount', value: 50, metaLevel: 0 }] },
-      { effects: [{ type: 'shop_discount', value: 50, metaLevel: 0 }] },
+      { effects: [
+        { type: 'add_even_segments', value: 25, metaLevel: 0 },
+        { type: 'add_odd_segments', value: 50, metaLevel: 0 },
+      ] },
     ];
     const m = fx.compute(relics);
-    expect(m.shopDiscount).toBe(80);
+    expect(m.addEven).toBe(25);
+    expect(m.addOdd).toBe(50);
   });
 
-  it('handles echo spins', () => {
+  it('combines set_base_value with additive bonuses', () => {
     const relics = [
-      { effects: [{ type: 'echo_spin', value: 1, metaLevel: 1 }] },
+      { effects: [{ type: 'set_base_value', value: 20, metaLevel: 0 }] },
+      { effects: [{ type: 'add_even_segments', value: 5, metaLevel: 0 }] },
+      { effects: [{ type: 'add_odd_segments', value: 10, metaLevel: 0 }] },
     ];
     const m = fx.compute(relics);
-    expect(m.echoSpins).toBe(1);
+    expect(m.setBaseValue).toBe(20);
+    expect(m.addEven).toBe(5);
+    expect(m.addOdd).toBe(10);
   });
 });

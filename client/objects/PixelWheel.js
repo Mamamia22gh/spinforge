@@ -931,6 +931,22 @@ export class PixelWheel {
     legendary: { fg: PAL.neonPink,  bg: PAL.darkPurple, border: PAL.gold,      sprite: 'relic_legendary' },
   };
 
+  /** Resolve sprite name for a shop offering */
+  static _offeringSprite(offering) {
+    if (!offering) return 'ball';
+    switch (offering.shopType) {
+      case 'symbol':
+        return offering.symbolId || 'ball';
+      case 'upgrade':
+        return 'arrow_right';
+      case 'relic':
+      default: {
+        const rc = PixelWheel.RARITY_COLORS[offering.rarity];
+        return rc ? rc.sprite : 'relic_common';
+      }
+    }
+  }
+
   _drawForgeFace(ctx, cx, cy) {
     const shop = this._shop;
 
@@ -1036,6 +1052,7 @@ export class PixelWheel {
         if (offering) {
           const rarity = PixelWheel.RARITY_COLORS[offering.rarity] || PixelWheel.RARITY_COLORS.common;
           const tooExpensive = shop.currency < offering.finalCost;
+          const spriteName = PixelWheel._offeringSprite(offering);
 
           // Semi-transparent tinted fill
           ctx.beginPath();
@@ -1064,7 +1081,7 @@ export class PixelWheel {
           } else if (tooExpensive) {
             ctx.globalAlpha = 0.35;
           }
-          drawSpriteCentered(ctx, rarity.sprite, Math.round(sx), Math.round(sy), 2);
+          drawSpriteCentered(ctx, spriteName, Math.round(sx), Math.round(sy), 2);
           ctx.globalAlpha = 1;
 
           // Price below sprite (screen-space Y offset, not radial)

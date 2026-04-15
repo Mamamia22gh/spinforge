@@ -68,6 +68,5 @@ export function createRunState() {
 
     // Upgrades accumulated
     _payoutBonus: 0,
-    _echoUsedThisRound: false,
   };
 }

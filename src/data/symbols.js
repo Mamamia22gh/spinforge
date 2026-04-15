@@ -15,10 +15,10 @@
 /** @type {SymbolDef[]} */
 export const SYMBOLS = [
   // ── Uncommons ──
-  { id: 'cherry',   name: 'Cerise',    emoji: '🍒', color: 'red',    baseValue: 20,  rarity: 'uncommon',  startsUnlocked: false, specialEffect: 'double_payout' },
+  { id: 'cherry',   name: 'Cerise',    emoji: '🍒', color: 'red',    baseValue: 20,  rarity: 'uncommon',  startsUnlocked: false, specialEffect: 'double_payout', cost: 40 },
 
   // ── Legendaries ──
-  { id: 'void',     name: 'Void',      emoji: '🌀', color: 'void',   baseValue: 0,   rarity: 'legendary', startsUnlocked: false, specialEffect: 'void_burst' },
+  { id: 'void',     name: 'Void',      emoji: '🌀', color: 'void',   baseValue: 0,   rarity: 'legendary', startsUnlocked: false, specialEffect: 'void_burst', cost: 150 },
 ];
 
 export const SYMBOL_MAP = new Map(SYMBOLS.map(s => [s.id, s]));

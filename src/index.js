@@ -24,7 +24,8 @@ export function createGame(options = {}) {
     continueFromResults: ()                      => loop.continueFromResults(),
     makeChoice:          (index, target)         => loop.makeChoice(index, target),
     skipChoice:          ()                      => loop.skipChoice(),
-    shopBuyRelic:        (index)                 => loop.shopBuyRelic(index),
+    shopBuyRelic:        (index)                 => loop.shopBuy(index),
+    shopBuy:             (index)                 => loop.shopBuy(index),
     shopReroll:          ()                      => loop.shopReroll(),
     endShop:             ()                      => loop.endShop(),
 
