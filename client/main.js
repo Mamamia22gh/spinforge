@@ -20,8 +20,7 @@ const BG_PAD = 4;                      // background oversize for parallax shift
 const HIERO_INNER = 155;           // inner radius of hieroglyph ring
 const HIERO_OUTER = 170;           // outer radius (15px height, matches label ring)
 const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
-const NUM_HIERO_SEGS = 16;             // fixed segment count for hieroglyph ring
-const WHEEL_INIT_ANGLE = -Math.PI / 2 - Math.PI / NUM_HIERO_SEGS;
+
 
 // ── Hieroglyph pixel art glyphs (7×7, '#'=foreground, '.'=transparent) ──
 const HIERO_GLYPHS = {
@@ -602,12 +601,15 @@ class App {
     const ORBIT_OUTER = 115;       // matches RING_R in _drawUIRing — transparent inside
     const AURA_TRANS = 8;          // transition from orbit edge to full aura
 
-    // ── Precompute hiero ring segment arcs (16 equal segments) ──
-    const numSegs = NUM_HIERO_SEGS;
+    // ── Precompute hiero ring segment arcs (matching wheel wedges) ──
+    const numSegs = wheelData.length;
+    const tw = wheelData.reduce((s, w) => s + w.weight, 0);
     const TWO_PI = Math.PI * 2;
+    const initAngle = -Math.PI / 2 - (wheelData[0].weight / tw) * Math.PI;
     const hieroArcs = new Float64Array(numSegs + 1);
-    for (let i = 0; i <= numSegs; i++) {
-      hieroArcs[i] = i * TWO_PI / numSegs;
+    hieroArcs[0] = 0;
+    for (let i = 0; i < numSegs; i++) {
+      hieroArcs[i + 1] = hieroArcs[i] + (wheelData[i].weight / tw) * TWO_PI;
     }
     // Menu segment lookup { segIndex → { id, glyph } }
     const menuSegs = {};
@@ -666,32 +668,39 @@ class App {
         const ringDist = (dist - ORBIT_OUTER) % 32;
         const ring = (dist > ORBIT_OUTER && ringDist < 1.0) ? 0.25 : 0;
 
-        // ── Hieroglyph ring — solid fill, no dithering ──
+        // ── Hieroglyph ring — detect segment for dithered rendering ──
+        let hieroSeg = -1;
         if (dist >= HIERO_INNER && dist <= HIERO_OUTER) {
-          let ha = angle - WHEEL_INIT_ANGLE;
+          let ha = angle - initAngle;
           ha = ((ha % TWO_PI) + TWO_PI) % TWO_PI;
-          let hieroSeg = numSegs - 1;
           for (let i = 0; i < numSegs; i++) {
             if (ha < hieroArcs[i + 1]) { hieroSeg = i; break; }
           }
-          buf[idx] = (hieroSeg % 2 === 0) ? PAL32.darkRed : PAL32.black;
-          continue;
+          if (hieroSeg < 0) hieroSeg = numSegs - 1;
         }
 
         // ── Combined brightness ──
+        const inHiero = hieroSeg >= 0;
         const brightness = zoneAtt * vignette *
           (0.08 + 0.28 * radialFade + 0.35 * ray * radialFade
-           + 0.15 * ray2 * radialFade + ring * radialFade);
+           + 0.15 * ray2 * radialFade + ring * radialFade
+           + (inHiero ? 0.15 : 0));
         const threshold = brightness * 16;
 
         if (bayer < threshold) {
-          buf[idx] = (radialFade > 0.35 && ray > 0.15)
-            ? PAL32.darkGold
-            : (radialFade > 0.35 && ray2 > 0.15)
-              ? PAL32.midGray
-              : PAL32.darkGray;
+          if (inHiero) {
+            buf[idx] = menuSegs[hieroSeg] ? PAL32.midGray
+              : (hieroSeg % 2 === 0) ? PAL32.darkRed : PAL32.darkGray;
+          } else {
+            buf[idx] = (radialFade > 0.35 && ray > 0.15)
+              ? PAL32.darkGold
+              : (radialFade > 0.35 && ray2 > 0.15)
+                ? PAL32.midGray
+                : PAL32.darkGray;
+          }
         } else {
-          buf[idx] = (radialFade > 0.35 && ray2 > 0.15) ? PAL32.darkGray : PAL32.black;
+          buf[idx] = inHiero ? PAL32.black
+            : (radialFade > 0.35 && ray2 > 0.15) ? PAL32.darkGray : PAL32.black;
         }
       }
     }
@@ -710,7 +719,7 @@ class App {
     // ── Stamp segment labels into ring (numbers + menu icons) ──
     bgCtx.imageSmoothingEnabled = false;
     for (let s = 0; s < numSegs; s++) {
-      const midAngle = WHEEL_INIT_ANGLE + (hieroArcs[s] + hieroArcs[s + 1]) / 2;
+      const midAngle = initAngle + (hieroArcs[s] + hieroArcs[s + 1]) / 2;
       const gcx = CX + Math.cos(midAngle) * HIERO_MID;
       const gcy = CY + Math.sin(midAngle) * HIERO_MID;
       const rot = midAngle + Math.PI / 2;
@@ -750,8 +759,8 @@ class App {
           id: menu.id,
           glyph: menu.glyph,
           segIdx: s,
-          startAngle: WHEEL_INIT_ANGLE + hieroArcs[s],
-          endAngle: WHEEL_INIT_ANGLE + hieroArcs[s + 1],
+          startAngle: initAngle + hieroArcs[s],
+          endAngle: initAngle + hieroArcs[s + 1],
         });
       }
     }
