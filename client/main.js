@@ -14,8 +14,6 @@ const W = 480, H = 270;
 const PX = 2;                          // pixel scale — each art pixel = PX×PX canvas pixels
 const CW = W * PX, CH = H * PX;       // canvas resolution (960×540)
 const WHEEL_CX = 240, WHEEL_CY = 140;
-const IND_ARC_R = 92;             // indicator arc radius (between rim 82 and ring 115)
-const IND_ARC_STEP = Math.PI / 11; // ~16.4° between each indicator
 const BG_PAD = 4;                      // background oversize for parallax shift
 
 // ── Hieroglyph Ring constants ──
@@ -475,6 +473,10 @@ class App {
       this.wheel.placeBalls(state.run.ballsLeft);
       this.wheel.setCorruption(state.run.corruption);
     }
+    this.wheel.setCounters(
+      state.run ? state.run.score : 0,
+      this.game.getState().meta.tickets,
+    );
   }
 
   _onAction() {
@@ -1126,8 +1128,6 @@ class App {
   // ── UI Ring (gold + tickets + balls along right arc) ──
   _drawUIRing(ctx, cx, cy) {
     const RING_R = 115;
-    const run = this.game.getState().run;
-    const score = run ? run.score : 0;
 
     // Ring outline
     ctx.beginPath();
@@ -1136,33 +1136,7 @@ class App {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // 3 indicators along arc on right side, inside ring
-    const items = [
-      { angle: -IND_ARC_STEP / 2, sprite: 'coin',   anim: true,  val: score, col: PAL.gold },
-      { angle:  IND_ARC_STEP / 2, sprite: 'ticket', anim: false, val: this.game.getState().meta.tickets, col: PAL.green },
-    ];
-
-    for (const it of items) {
-      const ix = Math.round(cx + IND_ARC_R * Math.cos(it.angle));
-      const iy = Math.round(cy + IND_ARC_R * Math.sin(it.angle));
-
-      const txt = String(it.val);
-      const tw = measureText(txt);
-      const gap = 2;
-      const totalW = tw + gap + SPRITE_SIZE;
-      const sx = ix - Math.floor(totalW / 2);
-
-      // Number first (left)
-      drawText(ctx, txt, sx, iy - Math.floor(CHAR_H / 2), it.col, 1);
-
-      // Sprite second (right of number)
-      const sprCX = sx + tw + gap + Math.floor(SPRITE_SIZE / 2);
-      if (it.anim) {
-        drawAnimSpriteCentered(ctx, it.sprite, sprCX, iy, 1, this._time, 6);
-      } else {
-        drawSpriteCentered(ctx, it.sprite, sprCX, iy, 1);
-      }
-    }
+    // Counters moved to PixelWheel rim (bottom gauge area)
   }
 
   // ── Popups ──

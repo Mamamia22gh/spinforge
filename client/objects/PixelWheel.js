@@ -90,6 +90,8 @@ export class PixelWheel {
     this._bonusMode = false;
     this._gaugeUnlocks = [true, false, false, false]; // gauge 0 always unlocked
     this._corruption = 0.5; // corruption fill 0..1
+    this._counterGold = 0;
+    this._counterTickets = 0;
 
     this._tilt = 1.0;
     this._flip = null;
@@ -226,10 +228,10 @@ export class PixelWheel {
 
     const GAUGE_MID = (RIM_R + 16 + RIM_R + 21) / 2;
 
-    // Collect unlocked gauges (exclude gauge 3 = corruption)
+    // Collect unlocked gauges (exclude gauge 1=top, 2=bottom, 3=corruption)
     const activeGauges = [];
     for (let g = 0; g < GAUGE_CONFIGS.length; g++) {
-      if (g === 3) continue; // corruption gauge — no balls
+      if (g === 1 || g === 2 || g === 3) continue;
       if (this._gaugeUnlocks[g]) activeGauges.push(g);
     }
 
@@ -1232,10 +1234,17 @@ export class PixelWheel {
     ctx.restore();
   }
 
+  setCounters(gold, tickets) {
+    this._counterGold = gold;
+    this._counterTickets = tickets;
+  }
+
   _drawGauges(ctx, cx, cy) {
     for (let g = 0; g < GAUGE_CONFIGS.length; g++) {
+      if (g === 1 || g === 2) continue; // removed: top & bottom gauges
       this._drawOneGauge(ctx, cx, cy, g);
     }
+    this._drawRimCounters(ctx, cx, cy);
   }
 
   _drawOneGauge(ctx, cx, cy, gaugeIdx) {
@@ -1374,6 +1383,95 @@ export class PixelWheel {
     const sx = Math.round(cx + Math.cos(cfg.center) * skullR);
     const sy = Math.round(cy + Math.sin(cfg.center) * skullR);
     drawSpriteCentered(ctx, 'skull', sx, sy, 1);
+  }
+
+  _drawRimCounters(ctx, cx, cy) {
+    const cfg = GAUGE_CONFIGS[2]; // bottom position
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const arcLen = cfg.end - cfg.start; // 0.60 rad
+
+    // ── Dithered background (Bayer 4×4) ──
+    const BAYER = [
+      [ 0, 8, 2,10],
+      [12, 4,14, 6],
+      [ 3,11, 1, 9],
+      [15, 7,13, 5],
+    ];
+    // Rasterize a bounding box around the arc
+    const x0 = Math.floor(cx - OUTER - 2);
+    const y0 = Math.floor(cy - OUTER - 2);
+    const x1 = Math.ceil(cx + OUTER + 2);
+    const y1 = Math.ceil(cy + OUTER + 2);
+    for (let py = y0; py <= y1; py++) {
+      for (let px = x0; px <= x1; px++) {
+        const dx = px - cx, dy = py - cy;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < INNER * INNER || d2 > OUTER * OUTER) continue;
+        let a = Math.atan2(dy, dx);
+        // Normalize to [cfg.start, cfg.start + 2π)
+        while (a < cfg.start) a += Math.PI * 2;
+        while (a >= cfg.start + Math.PI * 2) a -= Math.PI * 2;
+        if (a > cfg.end) continue;
+
+        const bayer = BAYER[py & 3][px & 3];
+        // Radial gradient: brighter at center of arc thickness
+        const dist = Math.sqrt(d2);
+        const radNorm = (dist - INNER) / (OUTER - INNER); // 0..1
+        const radBright = 1 - 4 * (radNorm - 0.5) * (radNorm - 0.5); // peak at center
+        const brightness = 0.35 * radBright;
+        const threshold = brightness * 16;
+        if (bayer < threshold) {
+          ctx.fillStyle = PAL.darkGray;
+        } else {
+          ctx.fillStyle = PAL.black;
+        }
+        ctx.fillRect(px, py, 1, 1);
+      }
+    }
+
+    // ── Border arcs ──
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, OUTER, cfg.start, cfg.end); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, INNER, cfg.start, cfg.end); ctx.stroke();
+    for (const a of [cfg.start, cfg.end]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * INNER, cy + Math.sin(a) * INNER);
+      ctx.lineTo(cx + Math.cos(a) * OUTER, cy + Math.sin(a) * OUTER);
+      ctx.stroke();
+    }
+
+    // ── Divider line at center of arc ──
+    const midA = cfg.center;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(midA) * INNER, cy + Math.sin(midA) * INNER);
+    ctx.lineTo(cx + Math.cos(midA) * OUTER, cy + Math.sin(midA) * OUTER);
+    ctx.stroke();
+
+    // ── Gold counter (left half) ──
+    const goldA = cfg.start + arcLen * 0.25;
+    const gx = Math.round(cx + Math.cos(goldA) * MID_R);
+    const gy = Math.round(cy + Math.sin(goldA) * MID_R);
+    const goldTxt = String(this._counterGold);
+    const goldTW = measureText(goldTxt);
+    const gap = 2;
+    const goldTotalW = goldTW + gap + SPRITE_SIZE;
+    const gsx = gx - Math.floor(goldTotalW / 2);
+    drawText(ctx, goldTxt, gsx, gy - Math.floor(CHAR_H / 2), PAL.gold, 1);
+    drawAnimSpriteCentered(ctx, 'coin', gsx + goldTW + gap + Math.floor(SPRITE_SIZE / 2), gy, 1, this._time, 6);
+
+    // ── Ticket counter (right half) ──
+    const tickA = cfg.start + arcLen * 0.75;
+    const tx = Math.round(cx + Math.cos(tickA) * MID_R);
+    const ty = Math.round(cy + Math.sin(tickA) * MID_R);
+    const tickTxt = String(this._counterTickets);
+    const tickTW = measureText(tickTxt);
+    const tickTotalW = tickTW + gap + SPRITE_SIZE;
+    const tsx = tx - Math.floor(tickTotalW / 2);
+    drawText(ctx, tickTxt, tsx, ty - Math.floor(CHAR_H / 2), PAL.green, 1);
+    drawSpriteCentered(ctx, 'ticket', tsx + tickTW + gap + Math.floor(SPRITE_SIZE / 2), ty, 1);
   }
 
   _drawOrbitSlots(ctx, cx, cy) {
