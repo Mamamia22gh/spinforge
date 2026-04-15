@@ -22,11 +22,73 @@ const HIERO_OUTER = 220;           // outer radius (44px height — enlarged seg
 const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 
 
+// Pixel-art glyphs for menu icons in hieroglyph ring
+const HIERO_GLYPHS = {
+  gear: [
+    '...........................',
+    '..........#######..........',
+    '.......#..#######..#.......',
+    '......##..#######..##......',
+    '....#####..#####..#####....',
+    '....#####..#####..#####....',
+    '...#######.#####.#######...',
+    '..#######################..',
+    '....###################....',
+    '......###############......',
+    '.###...#####...#####...###.',
+    '.##########.....##########.',
+    '.#########.......#########.',
+    '.#########.......#########.',
+    '.#########.......#########.',
+    '.##########.....##########.',
+    '.###...#####...#####...###.',
+    '......###############......',
+    '....###################....',
+    '..#######################..',
+    '...#######.#####.#######...',
+    '....#####..#####..#####....',
+    '....#####..#####..#####....',
+    '......##..#######..##......',
+    '.......#..#######..#.......',
+    '..........#######..........',
+    '...........................',
+  ],
+  exit: [
+    '..............#############',
+    '..............#...........#',
+    '..............#...........#',
+    '..............#..#######..#',
+    '..............#..#.....#..#',
+    '..............#..#.....#..#',
+    '..............#..#.....#..#',
+    '..............#..#.....#..#',
+    '.....##.......#..#.....#..#',
+    '....###.......#..#.....#..#',
+    '...###........#..#######..#',
+    '..###.........#...........#',
+    '.############.#.........###',
+    '#############.#.........###',
+    '.############.#.........###',
+    '..###.........#...........#',
+    '...###........#..#######..#',
+    '....###.......#..#.....#..#',
+    '.....##.......#..#.....#..#',
+    '..............#..#.....#..#',
+    '..............#..#.....#..#',
+    '..............#..#.....#..#',
+    '..............#..#.....#..#',
+    '..............#..#######..#',
+    '..............#...........#',
+    '..............#...........#',
+    '..............#############',
+  ],
+};
+
 // Menu segment definitions (indices relative to wheel segment count)
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
-  { offsetFromEnd: 6, id: 'settings' },
-  { offsetFromEnd: 5, id: 'exit' },
+  { offsetFromEnd: 6, id: 'settings', glyph: 'gear' },
+  { offsetFromEnd: 5, id: 'exit',     glyph: 'exit' },
 ];
 
 class App {
@@ -502,7 +564,7 @@ class App {
     const menuSegs = {};
     for (const def of HIERO_MENU_DEFS) {
       const idx = numSegs - def.offsetFromEnd;
-      if (idx >= 0 && idx < numSegs) menuSegs[idx] = { id: def.id };
+      if (idx >= 0 && idx < numSegs) menuSegs[idx] = { id: def.id, glyph: def.glyph };
     }
 
     // Bayer 4×4 ordered dither matrix (values 0..15)
@@ -604,6 +666,37 @@ class App {
 
     bgCtx.putImageData(imgData, 0, 0);
 
+    // ── Stamp segment labels into ring (menu icons) ──
+    bgCtx.imageSmoothingEnabled = false;
+    for (let s = 0; s < numSegs; s++) {
+      const midAngle = initAngle + (hieroArcs[s] + hieroArcs[s + 1]) / 2;
+      const gcx = CX + Math.cos(midAngle) * HIERO_MID;
+      const gcy = CY + Math.sin(midAngle) * HIERO_MID;
+
+      bgCtx.save();
+      bgCtx.translate(gcx, gcy);
+
+      const menu = menuSegs[s];
+      if (menu) {
+        // Menu icon: pixel art glyph (drawn upright, no rotation)
+        const glyphData = HIERO_GLYPHS[menu.glyph];
+        if (glyphData) {
+          const gw = glyphData[0].length, gh = glyphData.length;
+          const pxSize = Math.max(1, Math.floor(27 / Math.max(gw, gh)));
+          const ox = Math.floor(gw * pxSize / 2), oy = Math.floor(gh * pxSize / 2);
+          bgCtx.fillStyle = PAL.white;
+          for (let gy = 0; gy < gh; gy++) {
+            for (let gx = 0; gx < gw; gx++) {
+              if (glyphData[gy][gx] === '#')
+                bgCtx.fillRect(gx * pxSize - ox, gy * pxSize - oy, pxSize, pxSize);
+            }
+          }
+        }
+      }
+
+      bgCtx.restore();
+    }
+
     // Store menu segment data for hit-testing
     this._menuSegments = [];
     for (let s = 0; s < numSegs; s++) {
@@ -611,6 +704,7 @@ class App {
       if (menu) {
         this._menuSegments.push({
           id: menu.id,
+          glyph: menu.glyph,
           segIdx: s,
           startAngle: initAngle + hieroArcs[s],
           endAngle: initAngle + hieroArcs[s + 1],
@@ -897,7 +991,6 @@ class App {
     const RING_R = 115;
     const run = this.game.getState().run;
     const score = run ? run.score : 0;
-    const balls = this.wheel.gaugeBallCount;
 
     // Ring outline
     ctx.beginPath();
@@ -908,9 +1001,8 @@ class App {
 
     // 3 indicators along arc on right side, inside ring
     const items = [
-      { angle: -IND_ARC_STEP, sprite: 'coin',   anim: true,  val: score, col: PAL.gold },
-      { angle:  0,            sprite: 'ticket', anim: false, val: this.game.getState().meta.tickets, col: PAL.green },
-      { angle:  IND_ARC_STEP, sprite: 'ball',   anim: false, val: balls, col: PAL.white },
+      { angle: -IND_ARC_STEP / 2, sprite: 'coin',   anim: true,  val: score, col: PAL.gold },
+      { angle:  IND_ARC_STEP / 2, sprite: 'ticket', anim: false, val: this.game.getState().meta.tickets, col: PAL.green },
     ];
 
     for (const it of items) {

@@ -43,14 +43,14 @@ const DROP_HEIGHT = 130;     // pixels above final position
 const GAUGE_TRAVEL = 0.15;   // seconds for phase 1 (slide to gauge exit)
 
 // ── Gauge (ball magazine) ──
-const GAUGE_SPAN = 0.80;     // total arc per gauge (~46°)
+const GAUGE_SPAN = 0.60;     // total arc per gauge (~34°)
 const GAUGE_CONFIGS = [
-  { center: 0,              start: -0.40,               end: 0.40 },               // right (default)
-  { center: -Math.PI / 2,   start: -Math.PI / 2 - 0.40, end: -Math.PI / 2 + 0.40 }, // top
-  { center:  Math.PI / 2,   start:  Math.PI / 2 - 0.40, end:  Math.PI / 2 + 0.40 }, // bottom
-  { center:  Math.PI,       start:  Math.PI - 0.40,     end:  Math.PI + 0.40 },     // left
+  { center: 0,              start: -0.30,               end: 0.30 },               // right (default)
+  { center: -Math.PI / 2,   start: -Math.PI / 2 - 0.30, end: -Math.PI / 2 + 0.30 }, // top
+  { center:  Math.PI / 2,   start:  Math.PI / 2 - 0.30, end:  Math.PI / 2 + 0.30 }, // bottom
+  { center:  Math.PI,       start:  Math.PI - 0.30,     end:  Math.PI + 0.30 },     // left
 ];
-const MAX_BALLS_PER_GAUGE = 20;
+const MAX_BALLS_PER_GAUGE = 14;
 const GAUGE_BALL_SPACING = 0.04; // radians between ball centers
 
 function _bounce(t) {
@@ -224,7 +224,7 @@ export class PixelWheel {
     this._dropping = false;
     this._inGauge = true;
 
-    const GAUGE_MID = (RIM_R + 20 + RIM_R + 26) / 2;
+    const GAUGE_MID = (RIM_R + 16 + RIM_R + 21) / 2;
 
     // Collect unlocked gauges (exclude gauge 3 = corruption)
     const activeGauges = [];
@@ -1209,8 +1209,8 @@ export class PixelWheel {
   _drawOneGauge(ctx, cx, cy, gaugeIdx) {
     const cfg = GAUGE_CONFIGS[gaugeIdx];
     const unlocked = this._gaugeUnlocks[gaugeIdx];
-    const INNER = RIM_R + 20;
-    const OUTER = RIM_R + 26;
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
 
     // Channel fill
     ctx.beginPath();
@@ -1267,6 +1267,17 @@ export class PixelWheel {
         x: cx + pb.gaugeX, y: cy + pb.gaugeY * this.tilt,
         r: 6, color: PAL.white, a: 0.06,
       });
+    }
+
+    // Ball count label just past the arc end
+    let ballCount = 0;
+    for (const pb of gaugeBalls) { if (pb.gaugeIdx === gaugeIdx) ballCount++; }
+    if (ballCount > 0) {
+      const la = cfg.end + 0.12;
+      const lr = (INNER + OUTER) / 2;
+      const lx = Math.round(cx + Math.cos(la) * lr);
+      const ly = Math.round(cy + Math.sin(la) * lr);
+      drawTextCentered(ctx, String(ballCount), lx, ly - Math.floor(CHAR_H / 2), PAL.white, 1);
     }
   }
 
