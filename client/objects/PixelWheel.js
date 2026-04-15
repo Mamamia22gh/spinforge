@@ -740,6 +740,7 @@ export class PixelWheel {
     for (let i = 0; i < data.length; i++) {
       const seg = data[i], angle = (seg.weight / tw) * Math.PI * 2;
       const isBlue = seg.symbolId === 'blue';
+      const isGold = seg.symbolId === 'gold';
       const dark = i % 2 === 0;
       const mid = off + angle / 2;
 
