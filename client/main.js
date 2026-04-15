@@ -459,13 +459,13 @@ class App {
         this._pop('BOUGHT!');
         this._shakeStart(3, 0.2);
         // Refresh shop display
-        const rerollCost = BALANCE.SHOP_REROLL_BASE + (run.rerollCount || 0) * BALANCE.SHOP_REROLL_INCREMENT;
+        const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
         this.wheel.setShop(run.shopOfferings, meta.tickets, rerollCost);
         // Update orbit slots with relics
         this._syncRelicSlots();
       }
     } else if (hit.type === 'reroll') {
-      const rerollCost = BALANCE.SHOP_REROLL_BASE + (run.rerollCount || 0) * BALANCE.SHOP_REROLL_INCREMENT;
+      const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
       if (meta.tickets < rerollCost) {
         this._pop('NO TICKETS!');
         return;
@@ -474,7 +474,7 @@ class App {
       if (ok) {
         this._pop('REROLL!');
         this._shakeStart(2, 0.15);
-        const newRerollCost = BALANCE.SHOP_REROLL_BASE + (run.rerollCount || 0) * BALANCE.SHOP_REROLL_INCREMENT;
+        const newRerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
         this.wheel.setShop(run.shopOfferings, meta.tickets, newRerollCost);
       }
     } else if (hit.type === 'leave') {
@@ -650,7 +650,7 @@ class App {
     const state = this.game.getState();
     const run = state.run;
     if (!run) return;
-    const rerollCost = BALANCE.SHOP_REROLL_BASE + (run.rerollCount || 0) * BALANCE.SHOP_REROLL_INCREMENT;
+    const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
     this.wheel.placeBalls(run.ballsLeft);
     this.wheel.setShop(run.shopOfferings, state.meta.tickets, rerollCost);
     this._inShop = true;

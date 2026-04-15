@@ -15,7 +15,7 @@ export const BALANCE = Object.freeze({
   ],
 
   // Quota scaling — quota(round) = BASE × GROWTH^(round-1)
-  QUOTA_BASE: 30,
+  QUOTA_BASE: 59,
   QUOTA_GROWTH: 1.2,
 
   // Economy
@@ -36,12 +36,11 @@ export const BALANCE = Object.freeze({
   MAX_WEIGHT_PER_SEGMENT: 5,
 
   // Shop
-  SHOP_REROLL_BASE: 15,
-  SHOP_REROLL_INCREMENT: 10,
+  SHOP_REROLL_BASE: 5,
   SHOP_PRICE_SCALING: 0.5,
 
   // Tickets (meta-progression currency)
-  TICKETS_PER_ROUND: 1,
+  TICKETS_PER_ROUND: 15,
   TICKETS_BONUS_WIN: 10,
   TICKETS_BONUS_PERFECT: 5,
 

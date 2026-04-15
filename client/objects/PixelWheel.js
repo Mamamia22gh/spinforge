@@ -1372,10 +1372,11 @@ export class PixelWheel {
       });
     }
 
-    // Skull icon centered below gauge
-    const skullMidR = (INNER + OUTER) / 2;
-    const sx = Math.round(cx + Math.cos(cfg.center) * skullMidR);
-    const sy = Math.round(cy + Math.sin(cfg.center) * skullMidR) + 14;
+    // Skull icon below gauge
+    const skullA = cfg.end + 0.18;
+    const skullR = (INNER + OUTER) / 2;
+    const sx = Math.round(cx + Math.cos(skullA) * skullR);
+    const sy = Math.round(cy + Math.sin(skullA) * skullR);
     drawSpriteCentered(ctx, 'skull', sx, sy, 1);
   }
 
@@ -1386,8 +1387,8 @@ export class PixelWheel {
     const MID_R = (INNER + OUTER) / 2;
     const arcLen = cfg.end - cfg.start; // 0.60 rad
 
-    // ── Gold counter (left half) ──
-    const goldA = cfg.start + arcLen * 0.25;
+    // ── Gold counter (right half) ──
+    const goldA = cfg.start + arcLen * 0.75;
     const gx = Math.round(cx + Math.cos(goldA) * MID_R);
     const gy = Math.round(cy + Math.sin(goldA) * MID_R);
     const goldTxt = String(this._counterGold);
@@ -1398,8 +1399,8 @@ export class PixelWheel {
     drawText(ctx, goldTxt, gsx, gy - Math.floor(CHAR_H / 2), PAL.gold, 1);
     drawAnimSpriteCentered(ctx, 'coin', gsx + goldTW + gap + Math.floor(SPRITE_SIZE / 2), gy, 1, this._time, 6);
 
-    // ── Ticket counter (right half) ──
-    const tickA = cfg.start + arcLen * 0.75;
+    // ── Ticket counter (left half) ──
+    const tickA = cfg.start + arcLen * 0.25;
     const tx = Math.round(cx + Math.cos(tickA) * MID_R);
     const ty = Math.round(cy + Math.sin(tickA) * MID_R);
     const tickTxt = String(this._counterTickets);

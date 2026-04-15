@@ -86,7 +86,7 @@ export class ShopSystem {
    * @returns {boolean}
    */
   reroll(run, meta, rng) {
-    const cost = BALANCE.SHOP_REROLL_BASE + run.rerollCount * BALANCE.SHOP_REROLL_INCREMENT;
+    const cost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount);
 
     if (meta.tickets < cost) {
       this.#events.emit('shop:insufficient_funds', { cost, available: meta.tickets });
