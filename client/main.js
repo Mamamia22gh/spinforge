@@ -17,8 +17,8 @@ const IND_ARC_STEP = Math.PI / 11; // ~16.4° between each indicator
 const BG_PAD = 4;                      // background oversize for parallax shift
 
 // ── Hieroglyph Ring constants ──
-const HIERO_INNER = 149;           // inner radius of hieroglyph ring
-const HIERO_OUTER = 176;           // outer radius (27px height, matches full wedge pocket+label)
+const HIERO_INNER = 120;           // inner radius of hieroglyph ring (just outside ORBIT_OUTER=115)
+const HIERO_OUTER = 150;           // outer radius (30px height, matches wedge radial size)
 const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 
 
