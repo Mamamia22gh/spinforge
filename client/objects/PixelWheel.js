@@ -1220,7 +1220,7 @@ export class PixelWheel {
     ctx.strokeStyle = leaveHover ? PAL.lightGray : PAL.midGray;
     ctx.lineWidth = 1;
     ctx.stroke();
-    drawSpriteCentered(ctx, 'ball', cx, Math.round(cy - 8), 1);
+    drawSpriteCentered(ctx, 'arrow_right', cx, Math.round(cy - 8), 1);
     drawTextCentered(ctx, 'CONTINUER', cx, Math.round(cy), PAL.lightGray, 1);
     if (shop.nextQuota) {
       drawTextCentered(ctx, 'QUOTA ' + shop.nextQuota, cx, Math.round(cy + 10), PAL.midGray, 1, false);

@@ -28,10 +28,14 @@ const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
   { offsetFromEnd: 12, id: 'catalogue', glyph: 'book' },
-  { offsetFromEnd: 3,  id: 'retry',     glyph: 'retry' },
+  { offsetFromEnd: 3,  id: 'retry',     glyph: 'arrow_right', scale: 3 },
   { offsetFromEnd: 4,  id: 'settings',  glyph: 'gear' },
   { offsetFromEnd: 5,  id: 'exit',      glyph: 'exit' },
 ];
+
+const _BASE = import.meta.env.BASE_URL ?? '/';
+const _CURSOR_DEFAULT = `url('${_BASE}assets/cursors/cursor_default.png') 0 0, auto`;
+const _CURSOR_POINTER = `url('${_BASE}assets/cursors/cursor_pointer.png') 6 0, pointer`;
 
 class App {
   constructor() {
@@ -44,6 +48,7 @@ class App {
     this._display = document.getElementById('game');
     this._display.width = CW;
     this._display.height = CH;
+    this._display.style.cursor = _CURSOR_DEFAULT;
 
     this.game = createGame({ seed: Date.now() });
     this.wheel = new PixelWheel();
@@ -172,7 +177,7 @@ class App {
       const hit = this.wheel.shopHitTest(x, y, WHEEL_CX, WHEEL_CY);
       this.wheel.shopSetHover(hit);
       if (this.wheel._shop.hoverIdx !== -1 && this.wheel._shop.hoverIdx !== oldShopHover) this._playHover();
-      this._display.style.cursor = (hit || relicHit) ? 'pointer' : 'default';
+      this._display.style.cursor = (hit || relicHit) ? _CURSOR_POINTER : _CURSOR_DEFAULT;
       return;
     }
 
@@ -187,7 +192,7 @@ class App {
     const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
     const wasHover = this._hubHover;
     this._hubHover = dx * dx + dy * dy < 40 * 40;
-    this._display.style.cursor = (relicHit || menuHit || (this._hubHover && !this._spinning)) ? 'pointer' : 'default';
+    this._display.style.cursor = (relicHit || menuHit || (this._hubHover && !this._spinning)) ? _CURSOR_POINTER : _CURSOR_DEFAULT;
 
     // Trigger sweep on hover enter
     if (this._hubHover && !wasHover) { this._sweepTrigger = this._time; this._playHover(); }
@@ -913,9 +918,9 @@ class App {
       const menu = menuSegs[s];
       if (menu) {
         // Menu icon: sprite from assets/menu/ (drawn upright, no rotation)
-        drawSpriteCentered(bgCtx, menu.glyph, 0, 0, 1);
+        drawSpriteCentered(bgCtx, menu.glyph, 0, 0, menu.scale || 1);
         if (menu.id === 'retry') {
-          drawTextCentered(bgCtx, 'RETRY', 0, 16, PAL.lightGray, 1);
+          drawTextCentered(bgCtx, 'RETRY', 0, 16, PAL.gold, 2);
         }
       }
 
@@ -1286,7 +1291,7 @@ class App {
     drawTextCentered(ctx, go.score + '/' + go.quota, 0, Math.floor(CHAR_H * 0.8), PAL.red, 1);
 
     // RETRY label
-    drawTextCentered(ctx, 'RETRY', 0, Math.floor(r * 0.55), PAL.gold, 1);
+    drawTextCentered(ctx, 'RETRY', 0, Math.floor(r * 0.55), PAL.gold, 2);
 
     ctx.restore();
   }

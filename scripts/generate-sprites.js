@@ -210,6 +210,42 @@ const SPRITES = {
     '.........',
     '.........',
   ],
+  cursor_default: [
+    'WK..............',
+    'WWK.............',
+    'WLWK............',
+    'WLLWK...........',
+    'WLLLWK..........',
+    'WLLLLWK.........',
+    'WLLLLLWK........',
+    'WLLLLLLWK.......',
+    'WLLLLLLLWK......',
+    'WLLLLWKKKK......',
+    'WLLWLLWK........',
+    'WLWKWLLWK.......',
+    'WWK..WLLWK......',
+    'WK...WLLWK......',
+    '.K....WLLWK.....',
+    '......KWKK......',
+  ],
+  cursor_pointer: [
+    '......GK........',
+    '.....GGYK.......',
+    '.....GGYK.......',
+    '.....GGYK.......',
+    '.....GGYGGK.....',
+    '.....GGYGGYGYK..',
+    '.GK..GGYGGYGYYK.',
+    'GGYK.GGYGGGGGYK.',
+    'GGYYKGGGGGGGGYK.',
+    '.GYYGGGGGGGGGGYK',
+    '.KGGGGGGGGGGGGYK',
+    '..KGGGGGGGGGGGYK',
+    '..KGGGGGGGGGGGYK',
+    '...KGGGGGGGGYK..',
+    '...KGGGGGGGGYK..',
+    '....KKKKKKKKK...',
+  ],
 };
 
 const ANIM_SPRITES = {
@@ -534,6 +570,9 @@ const CATEGORIES = {
   relic_legendary:  'relics',
 
   ticket:           'currencies',
+
+  cursor_default:   'cursors',
+  cursor_pointer:   'cursors',
 };
 
 // ── Main ──
