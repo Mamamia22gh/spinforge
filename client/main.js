@@ -28,6 +28,7 @@ const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
   { offsetFromEnd: 12, id: 'catalogue', glyph: 'book' },
+  { offsetFromEnd: 3,  id: 'retry',     glyph: 'arrow_right' },
   { offsetFromEnd: 4,  id: 'settings',  glyph: 'gear' },
   { offsetFromEnd: 5,  id: 'exit',      glyph: 'exit' },
 ];
@@ -226,6 +227,8 @@ class App {
       this._openCatalogue();
     } else if (menuId === 'settings') {
       this._pop('SETTINGS');
+    } else if (menuId === 'retry') {
+      this._pop('RETRY');
     } else if (menuId === 'exit') {
       this._pop('EXIT');
     }
@@ -862,6 +865,9 @@ class App {
       if (menu) {
         // Menu icon: sprite from assets/menu/ (drawn upright, no rotation)
         drawSpriteCentered(bgCtx, menu.glyph, 0, 0, 1);
+        if (menu.id === 'retry') {
+          drawTextCentered(bgCtx, 'RETRY', 0, 10, PAL.lightGray, 1, false);
+        }
       }
 
       bgCtx.restore();
