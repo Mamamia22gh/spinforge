@@ -1010,10 +1010,10 @@ export class PixelWheel {
           ctx.globalAlpha = 1;
 
           // Price below sprite
-          const priceR = slotMidR + 10;
+          const priceR = slotMidR + 18;
           const rpx = cx + Math.cos(mid) * priceR;
           const rpy = cy + Math.sin(mid) * priceR;
-          const priceColor = rerollAfford ? PAL.gold : PAL.darkRed;
+          const priceColor = rerollAfford ? PAL.gold : PAL.red;
           drawTextCentered(ctx, String(shop.rerollCost), Math.round(rpx), Math.round(rpy) - Math.floor(CHAR_H / 2), priceColor, 1);
 
           // Hover highlight
@@ -1068,11 +1068,11 @@ export class PixelWheel {
           ctx.globalAlpha = 1;
 
           // Price below sprite
-          const priceR = slotMidR + 14;
+          const priceR = slotMidR + 18;
           const px = cx + Math.cos(mid) * priceR;
           const py = cy + Math.sin(mid) * priceR;
           const priceStr = String(offering.finalCost);
-          const priceColor = tooExpensive ? PAL.darkRed : PAL.gold;
+          const priceColor = tooExpensive ? PAL.red : PAL.gold;
           const textW = measureText(priceStr);
           const gap = 2;
           const ticketW = TICKET_W;
