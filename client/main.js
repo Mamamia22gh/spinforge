@@ -8,6 +8,7 @@ import { SYMBOLS, getSymbol } from '../src/data/symbols.js';
 import { RELICS, RELIC_MAP } from '../src/data/relics.js';
 import { CHOICES } from '../src/data/choices.js';
 import { PostFXGL } from './gfx/PostFXGL.js';
+import { playIntro, getIntroAudioCtx } from './intro.js';
 
 // ── Canvas resolution (CSS scales this to viewport with nearest-neighbor) ──
 const W = 480, H = 270;
@@ -1472,7 +1473,7 @@ class App {
   }
 
   // ── Audio ──
-  _initAudio() { if (this._audioCtx) return; this._audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  _initAudio() { if (this._audioCtx) return; this._audioCtx = getIntroAudioCtx() || new (window.AudioContext || window.webkitAudioContext)(); }
 
   _tone(freq, dur, type = 'square', vol = 0.06) {
     if (!this._audioCtx) return;
@@ -1587,4 +1588,8 @@ class App {
 
 }
 
-window.addEventListener('DOMContentLoaded', () => preloadSprites().then(() => new App()));
+window.addEventListener('DOMContentLoaded', () =>
+  preloadSprites()
+    .then(() => playIntro())
+    .then(() => new App())
+);
