@@ -4,7 +4,9 @@ import { PixelWheel } from './objects/PixelWheel.js';
 import { PAL, PAL32, SYM_COLORS } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextCenteredOutlined, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
 import { drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, SPRITE_SIZE, getTicketVariants, getActiveTicketIdx, setActiveTicket, drawTicketVariantCentered, TICKET_W, TICKET_H } from './gfx/PixelSprites.js';
-import { getSymbol } from '../src/data/symbols.js';
+import { SYMBOLS, getSymbol } from '../src/data/symbols.js';
+import { RELICS } from '../src/data/relics.js';
+import { CHOICES } from '../src/data/choices.js';
 import { PostFXGL } from './gfx/PostFXGL.js';
 
 // ── Canvas resolution (CSS scales this to viewport with nearest-neighbor) ──
@@ -82,13 +84,43 @@ const HIERO_GLYPHS = {
     '..............#...........#',
     '..............#############',
   ],
+  book: [
+    '...........................',
+    '...######################.',
+    '..#######################.',
+    '..##.....................#.',
+    '..##.###.###.###.###.###.#.',
+    '..##.....................#.',
+    '..##.###.###.###.###.###.#.',
+    '..##.....................#.',
+    '..##.###.###.###.###.###.#.',
+    '..##.....................#.',
+    '..##.###.###.###.###.....#.',
+    '..##.....................#.',
+    '..##.###.###.###.###.###.#.',
+    '..##.....................#.',
+    '..##.###.###.###.###.###.#.',
+    '..##.....................#.',
+    '..##.###.###.###.###.....#.',
+    '..##.....................#.',
+    '..##.###.###.###.###.###.#.',
+    '..##.....................#.',
+    '..##.###.###.###.###.###.#.',
+    '..##.....................#.',
+    '..##.###.###.###.........#.',
+    '..##.....................#.',
+    '..#######################.',
+    '...######################.',
+    '...........................',
+  ],
 };
 
 // Menu segment definitions (indices relative to wheel segment count)
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
-  { offsetFromEnd: 6, id: 'settings', glyph: 'gear' },
-  { offsetFromEnd: 5, id: 'exit',     glyph: 'exit' },
+  { offsetFromEnd: 12, id: 'catalogue', glyph: 'book' },
+  { offsetFromEnd: 6,  id: 'settings',  glyph: 'gear' },
+  { offsetFromEnd: 5,  id: 'exit',      glyph: 'exit' },
 ];
 
 class App {
@@ -159,6 +191,16 @@ class App {
     // Input (on display canvas)
     this._display.addEventListener('click', e => this._handleClick(e));
     this._display.addEventListener('mousemove', e => this._handleMouse(e));
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && this._catalogueOpen) { this._closeCatalogue(); e.preventDefault(); }
+    });
+    this._display.addEventListener('wheel', e => {
+      if (!this._catalogueOpen) return;
+      const TAB_DATA_LENS = [SYMBOLS.length, RELICS.length, CHOICES.length];
+      const maxScroll = Math.max(0, TAB_DATA_LENS[this._catalogueTab] - 18);
+      this._catalogueScroll = Math.max(0, Math.min(maxScroll, this._catalogueScroll + (e.deltaY > 0 ? 1 : -1)));
+      e.preventDefault();
+    }, { passive: false });
 
     // Render loop
     this._lastTime = 0;
@@ -213,6 +255,12 @@ class App {
   _handleClick(e) {
     this._initAudio();
     const { x, y } = this._mapCoords(e);
+
+    // Catalogue overlay intercepts all clicks when open
+    if (this._catalogueOpen) {
+      this._catalogueClick(x, y);
+      return;
+    }
 
     // ── Sprite select click ──
     if (this._inSpriteSelect) {
@@ -270,10 +318,117 @@ class App {
 
   _onMenuClick(menuId) {
     this._playSelect();
-    if (menuId === 'settings') {
+    if (menuId === 'catalogue') {
+      this._openCatalogue();
+    } else if (menuId === 'settings') {
       this._pop('SETTINGS');
     } else if (menuId === 'exit') {
       this._pop('EXIT');
+    }
+  }
+
+  // ── Catalogue overlay ──
+  _openCatalogue() {
+    this._catalogueOpen = true;
+    this._catalogueTab = 0;        // 0=symbols, 1=relics, 2=upgrades
+    this._catalogueScroll = 0;
+  }
+
+  _closeCatalogue() {
+    this._catalogueOpen = false;
+  }
+
+  _drawCatalogue(ctx) {
+    if (!this._catalogueOpen) return;
+    const TAB_NAMES = ['BILLES', 'RELIQUES', 'UPGRADES'];
+    const TAB_DATA = [
+      SYMBOLS.map(s => ({ name: s.name, emoji: s.emoji, rarity: s.rarity, desc: `${s.color} — val ${s.baseValue}${s.specialEffect ? ' — ' + s.specialEffect : ''}` })),
+      RELICS.map(r => ({ name: r.name, emoji: r.emoji, rarity: r.rarity, desc: r.description })),
+      CHOICES.map(c => ({ name: c.name, emoji: c.emoji, rarity: null, desc: c.description })),
+    ];
+
+    // Dims
+    const PW = 320, PH = 200;
+    const PX0 = Math.floor((W - PW) / 2), PY0 = Math.floor((H - PH) / 2);
+    const TAB_H = 14, HEAD_H = 12, ROW_H = 10;
+    const BODY_Y = PY0 + TAB_H + HEAD_H;
+    const BODY_H = PH - TAB_H - HEAD_H - 6;
+    const MAX_ROWS = Math.floor(BODY_H / ROW_H);
+
+    // Backdrop
+    ctx.fillStyle = 'rgba(0,0,0,0.82)';
+    ctx.fillRect(PX0 - 2, PY0 - 2, PW + 4, PH + 4);
+    ctx.fillStyle = PAL.black;
+    ctx.fillRect(PX0, PY0, PW, PH);
+
+    // Border
+    ctx.strokeStyle = PAL.darkGold;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PX0 + 0.5, PY0 + 0.5, PW - 1, PH - 1);
+
+    // Tabs
+    const tabW = Math.floor(PW / TAB_NAMES.length);
+    for (let t = 0; t < TAB_NAMES.length; t++) {
+      const tx = PX0 + t * tabW;
+      if (t === this._catalogueTab) {
+        ctx.fillStyle = PAL.darkRed;
+        ctx.fillRect(tx, PY0, tabW, TAB_H);
+      }
+      ctx.strokeStyle = PAL.darkGold;
+      ctx.strokeRect(tx + 0.5, PY0 + 0.5, tabW - 1, TAB_H - 1);
+      drawTextCentered(ctx, TAB_NAMES[t], tx + Math.floor(tabW / 2), PY0 + 3, t === this._catalogueTab ? PAL.gold : PAL.midGray);
+    }
+
+    // Column header
+    const hdrY = PY0 + TAB_H + 1;
+    drawText(ctx, 'NOM', PX0 + 4, hdrY, PAL.gold);
+    drawText(ctx, 'DESCRIPTION', PX0 + 100, hdrY, PAL.gold);
+
+    // Rows
+    const items = TAB_DATA[this._catalogueTab];
+    const scroll = this._catalogueScroll;
+    const visible = items.slice(scroll, scroll + MAX_ROWS);
+    const RARITY_COL = { common: PAL.white, uncommon: PAL.green, rare: PAL.blue, legendary: PAL.gold };
+    for (let i = 0; i < visible.length; i++) {
+      const it = visible[i];
+      const ry = BODY_Y + i * ROW_H;
+      const col = it.rarity ? (RARITY_COL[it.rarity] || PAL.white) : PAL.white;
+      drawText(ctx, `${it.emoji} ${it.name}`, PX0 + 4, ry, col);
+      drawText(ctx, it.desc, PX0 + 100, ry, PAL.midGray);
+    }
+
+    // Scrollbar hint
+    if (items.length > MAX_ROWS) {
+      const pct = scroll / Math.max(1, items.length - MAX_ROWS);
+      const sbH = Math.max(8, Math.floor(BODY_H * MAX_ROWS / items.length));
+      const sbY = BODY_Y + Math.floor((BODY_H - sbH) * pct);
+      ctx.fillStyle = PAL.darkGold;
+      ctx.fillRect(PX0 + PW - 5, sbY, 3, sbH);
+    }
+
+    // Close hint
+    drawTextCentered(ctx, '[ESC] FERMER', PX0 + Math.floor(PW / 2), PY0 + PH - 9, PAL.darkGold);
+  }
+
+  _catalogueClick(x, y) {
+    const PW = 320, PH = 200;
+    const PX0 = Math.floor((W - PW) / 2), PY0 = Math.floor((H - PH) / 2);
+    const TAB_H = 14;
+
+    // Outside panel → close
+    if (x < PX0 || x > PX0 + PW || y < PY0 || y > PY0 + PH) {
+      this._closeCatalogue();
+      return;
+    }
+
+    // Tab row click
+    if (y >= PY0 && y < PY0 + TAB_H) {
+      const tabW = Math.floor(PW / 3);
+      const t = Math.floor((x - PX0) / tabW);
+      if (t >= 0 && t < 3) {
+        this._catalogueTab = t;
+        this._catalogueScroll = 0;
+      }
     }
   }
 
@@ -835,6 +990,7 @@ class App {
     }
 
     // ── GPU post-process (quantize + scanlines + vignette) ──
+    this._drawCatalogue(ctx);
     this._postfx.apply(this._canvas);
 
     // ── Lights overlay (smooth, NOT quantized) ──
