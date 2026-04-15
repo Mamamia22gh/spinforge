@@ -20,7 +20,8 @@ const BG_PAD = 4;                      // background oversize for parallax shift
 const HIERO_INNER = 155;           // inner radius of hieroglyph ring
 const HIERO_OUTER = 170;           // outer radius (15px height, matches label ring)
 const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
-const WHEEL_INIT_ANGLE = -Math.PI / 2 - Math.PI / 40; // must match PixelWheel._angle initial
+const NUM_HIERO_SEGS = 16;             // fixed segment count for hieroglyph ring
+const WHEEL_INIT_ANGLE = -Math.PI / 2 - Math.PI / NUM_HIERO_SEGS;
 
 // ── Hieroglyph pixel art glyphs (7×7, '#'=foreground, '.'=transparent) ──
 const HIERO_GLYPHS = {
@@ -601,15 +602,12 @@ class App {
     const ORBIT_OUTER = 115;       // matches RING_R in _drawUIRing — transparent inside
     const AURA_TRANS = 8;          // transition from orbit edge to full aura
 
-    // ── Precompute hiero ring segment arcs (matching wheel wedges) ──
-    const numSegs = wheelData.length;
-    const tw = wheelData.reduce((s, w) => s + w.weight, 0);
+    // ── Precompute hiero ring segment arcs (16 equal segments) ──
+    const numSegs = NUM_HIERO_SEGS;
     const TWO_PI = Math.PI * 2;
-    // Cumulative arc boundaries (relative to WHEEL_INIT_ANGLE)
     const hieroArcs = new Float64Array(numSegs + 1);
-    hieroArcs[0] = 0;
-    for (let i = 0; i < numSegs; i++) {
-      hieroArcs[i + 1] = hieroArcs[i] + (wheelData[i].weight / tw) * TWO_PI;
+    for (let i = 0; i <= numSegs; i++) {
+      hieroArcs[i] = i * TWO_PI / numSegs;
     }
     // Menu segment lookup { segIndex → { id, glyph } }
     const menuSegs = {};
