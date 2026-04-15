@@ -59,6 +59,9 @@ export function createRunState() {
     // Relics (permanent run items)
     relics: [],
 
+    // Purchased upgrades (for display in orbit slots)
+    purchasedUpgrades: [],
+
     // Between-round
     currentChoices: [],
     lastRoundResult: null,

@@ -143,6 +143,18 @@ export class GameLoop {
     return { segment, symbol, value };
   }
 
+  getSegmentDisplayValues() {
+    const run = this.state.run;
+    if (!run) return [];
+    const mods = this.#getMods();
+    return run.wheel.map((seg, i) => {
+      let v = mods.setBaseValue !== null ? mods.setBaseValue : (i + 1);
+      if (i % 2 === 0) v += mods.addEven;
+      else             v += mods.addOdd;
+      return v;
+    });
+  }
+
   // ─── End of round → Results ───
 
   #endRound() {

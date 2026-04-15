@@ -93,6 +93,7 @@ export class PixelWheel {
     this._counterGold = 0;
     this._counterTickets = 0;
     this._relics = []; // array of { rarity } objects from run.relics
+    this._segmentValues = []; // resolved display values per segment
 
     this._tilt = 1.0;
     this._flip = null;
@@ -220,6 +221,7 @@ export class PixelWheel {
   get corruption() { return this._corruption; }
 
   setRelics(relics) { this._relics = relics || []; }
+  setSegmentValues(values) { this._segmentValues = values || []; }
 
   placeBalls(n) {
     this._placedBalls = [];
@@ -853,7 +855,8 @@ export class PixelWheel {
       ctx.save();
       ctx.translate(Math.cos(mid) * numR, Math.sin(mid) * numR);
       ctx.rotate(mid + Math.PI / 2);
-      drawTextCentered(ctx, String(i + 1), 0, -Math.floor(CHAR_H / 2), PAL.white, 1);
+      const label = this._segmentValues[i] != null ? String(this._segmentValues[i]) : String(i + 1);
+      drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), PAL.white, 1);
       ctx.restore();
 
       // Divider (gold 1px)

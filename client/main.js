@@ -153,16 +153,16 @@ class App {
     const y = Math.floor((e.clientY - rect.top) / rect.height * H);
 
 
+    // Relic bar hover detection (top gauge area) — always active, even in shop
+    const relicHit = this.wheel.relicBarHitTest(x, y, WHEEL_CX, WHEEL_CY);
+    this._relicHoverRarity = relicHit;
+
     if (this._inShop && this.wheel.flipped) {
       const hit = this.wheel.shopHitTest(x, y, WHEEL_CX, WHEEL_CY);
       this.wheel.shopSetHover(hit);
-      this._display.style.cursor = hit ? 'pointer' : 'default';
+      this._display.style.cursor = (hit || relicHit) ? 'pointer' : 'default';
       return;
     }
-
-    // Relic bar hover detection (top gauge area)
-    const relicHit = this.wheel.relicBarHitTest(x, y, WHEEL_CX, WHEEL_CY);
-    this._relicHoverRarity = relicHit;
 
     // Menu button hover detection (hieroglyph ring)
     const menuHit = this._hieroHitTest(x, y);
@@ -500,14 +500,11 @@ class App {
     const run = this.game.getState().run;
     if (!run) return;
     const slots = [];
+    const upgrades = run.purchasedUpgrades || [];
     for (let i = 0; i < 8; i++) {
-      if (run.relics[i]) {
-        const r = run.relics[i];
-        const raritySprite = {
-          common: 'relic_common', uncommon: 'relic_uncommon',
-          rare: 'relic_rare', legendary: 'relic_legendary',
-        };
-        slots.push({ id: raritySprite[r.rarity] || 'ball' });
+      if (upgrades[i]) {
+        const u = upgrades[i];
+        slots.push({ id: u.sprite || 'ball', label: u.name });
       } else {
         slots.push(null);
       }
@@ -528,6 +525,7 @@ class App {
       this.game.getState().meta.tickets,
     );
     this.wheel.setRelics(state.run ? state.run.relics : []);
+    this.wheel.setSegmentValues(this.game.getSegmentDisplayValues());
   }
 
   _onAction() {
@@ -1197,20 +1195,49 @@ class App {
 
     // Gather owned relics of this rarity
     const owned = run.relics.filter(r => r.rarity === rarity);
-    // Also list all possible relics of this rarity (for reference)
-    const allOfRarity = RELICS.filter(r => r.rarity === rarity);
 
-    const ROW_H = 10;
+    const LINE_H = 8; // (H + 2) * scale for wrapped text
     const PAD = 4;
     const HEADER_H = 12;
-    const lines = owned.length > 0 ? owned : []; 
-    const contentH = HEADER_H + Math.max(1, lines.length) * ROW_H + PAD;
     const PW = 200;
-    const PH = contentH + PAD * 2;
+    const DESC_X_OFF = 90;
+    const descMaxW = PW - DESC_X_OFF - PAD;
 
-    // Position: centered above wheel top
+    // Pre-calculate row heights (name line + wrapped description lines)
+    const rowInfos = owned.map(r => {
+      const def = RELIC_MAP.get(r.id);
+      const desc = def ? def.description : '';
+      const descUpper = desc.toUpperCase();
+      const words = descUpper.split(' ');
+      let descLines = 0;
+      let line = '';
+      for (const word of words) {
+        const test = line ? line + ' ' + word : word;
+        if (measureText(test) > descMaxW && line) {
+          descLines++;
+          line = word;
+        } else {
+          line = test;
+        }
+      }
+      if (line) descLines++;
+      return { name: def ? def.name : r.id, desc, descLines: Math.max(1, descLines), relic: r };
+    });
+
+    const ROW_H = 10; // base row for sprite + name
+    let totalBodyH = 0;
+    if (owned.length === 0) {
+      totalBodyH = ROW_H;
+    } else {
+      for (const info of rowInfos) {
+        totalBodyH += Math.max(ROW_H, info.descLines * LINE_H) + 2;
+      }
+    }
+    const PH = HEADER_H + totalBodyH + PAD * 3;
+
+    // Position: below the relic bar (top gauge), centered horizontally
     const PX0 = Math.floor((W - PW) / 2);
-    const PY0 = Math.max(2, WHEEL_CY - 90 - PH);
+    const PY0 = WHEEL_CY - 60;
 
     // Backdrop
     ctx.fillStyle = 'rgba(0,0,0,0.88)';
@@ -1225,25 +1252,17 @@ class App {
     drawTextCentered(ctx, RARITY_NAMES[rarity], PX0 + Math.floor(PW / 2), PY0 + PAD, col);
 
     // Relic list
-    const bodyY = PY0 + PAD + HEADER_H;
+    let curY = PY0 + PAD + HEADER_H;
     if (owned.length === 0) {
-      drawTextCentered(ctx, 'AUCUNE', PX0 + Math.floor(PW / 2), bodyY, PAL.midGray);
+      drawTextCentered(ctx, 'AUCUNE', PX0 + Math.floor(PW / 2), curY, PAL.midGray);
     } else {
-      for (let i = 0; i < owned.length; i++) {
-        const r = owned[i];
-        const ry = bodyY + i * ROW_H;
-        const def = RELIC_MAP.get(r.id);
-        const name = def ? def.name : r.id;
-        const desc = def ? def.description : '';
+      for (const info of rowInfos) {
         // Sprite + name
-        drawSpriteCentered(ctx, 'relic_' + rarity, PX0 + PAD + Math.floor(SPRITE_SIZE / 2), ry + Math.floor(ROW_H / 2), 1);
-        drawText(ctx, name, PX0 + PAD + SPRITE_SIZE + 2, ry, col);
-        // Description (truncated)
-        const descX = PX0 + 90;
-        const maxDescW = PW - 90 - PAD;
-        const maxChars = Math.floor(maxDescW / CHAR_W);
-        const truncDesc = desc.length > maxChars ? desc.slice(0, maxChars - 2) + '..' : desc;
-        drawText(ctx, truncDesc, descX, ry, PAL.midGray, 1, false);
+        drawSpriteCentered(ctx, 'relic_' + rarity, PX0 + PAD + Math.floor(SPRITE_SIZE / 2), curY + Math.floor(ROW_H / 2), 1);
+        drawText(ctx, info.name, PX0 + PAD + SPRITE_SIZE + 2, curY, col);
+        // Description (word-wrapped)
+        drawTextWrapped(ctx, info.desc, PX0 + DESC_X_OFF, curY, descMaxW, PAL.midGray, 1);
+        curY += Math.max(ROW_H, info.descLines * LINE_H) + 2;
       }
     }
   }

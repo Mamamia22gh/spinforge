@@ -192,6 +192,13 @@ export class ShopSystem {
 
       case 'upgrade':
         this.#applyUpgrade(run, offering.payload);
+        if (!run.purchasedUpgrades) run.purchasedUpgrades = [];
+        run.purchasedUpgrades.push({
+          id: offering.id,
+          name: offering.name || offering.id,
+          sprite: offering.sprite || 'ball',
+          payload: offering.payload,
+        });
         break;
 
       default:

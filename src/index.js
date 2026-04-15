@@ -37,6 +37,7 @@ export function createGame(options = {}) {
     // ─── State ───
     getState:            ()                      => loop.state,
     getPhase:            ()                      => loop.state.phase,
+    getSegmentDisplayValues: ()                    => loop.getSegmentDisplayValues(),
 
     // ─── Meta ───
     getMeta:             ()                      => loop.state.meta,
