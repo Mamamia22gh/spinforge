@@ -1,5 +1,5 @@
 import { PAL, PAL32, SEG_A, SEG_B, DIVIDER_COLOR, HUB_BG, HUB_BORDER, RIM_COLOR } from '../gfx/PaletteDB.js';
-import { drawTextCentered, CHAR_H } from '../gfx/BitmapFont.js';
+import { drawText, drawTextCentered, measureText, CHAR_H } from '../gfx/BitmapFont.js';
 import { drawSpriteCentered, drawAnimSpriteCentered, SPRITE_SIZE } from '../gfx/PixelSprites.js';
 
 // ── Layout (proportional to wheel radius R) ──
@@ -1070,7 +1070,14 @@ export class PixelWheel {
           const py = cy + Math.sin(mid) * priceR;
           const priceStr = String(offering.finalCost);
           const priceColor = tooExpensive ? PAL.darkRed : PAL.gold;
-          drawTextCentered(ctx, priceStr, Math.round(px), Math.round(py) - Math.floor(CHAR_H / 2), priceColor, 1);
+          const textW = measureText(priceStr);
+          const gap = 2;
+          const ticketW = 13;
+          const totalW = textW + gap + ticketW;
+          const startX = Math.round(px - totalW / 2);
+          const textY = Math.round(py) - Math.floor(CHAR_H / 2);
+          drawText(ctx, priceStr, startX, textY, priceColor, 1);
+          drawSpriteCentered(ctx, 'ticket', startX + textW + gap + Math.floor(ticketW / 2), Math.round(py), 1);
 
           // Hover highlight
           if (isHover && !tooExpensive) {

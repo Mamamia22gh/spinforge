@@ -768,8 +768,7 @@ class App {
 
         if (bayer < threshold) {
           if (inHiero) {
-            buf[idx] = menuSegs[hieroSeg] ? PAL32.midGray
-              : (hieroSeg % 2 === 0) ? PAL32.darkRed : PAL32.darkGray;
+            buf[idx] = (hieroSeg % 2 === 0) ? PAL32.darkRed : PAL32.darkGray;
           } else {
             buf[idx] = (radialFade > 0.35 && ray > 0.15)
               ? PAL32.darkGold
@@ -779,8 +778,7 @@ class App {
           }
         } else {
           if (inHiero) {
-            buf[idx] = menuSegs[hieroSeg] ? PAL32.darkGray
-              : (hieroSeg % 2 === 0) ? PAL32.darkGray : PAL32.black;
+            buf[idx] = (hieroSeg % 2 === 0) ? PAL32.darkGray : PAL32.black;
           } else {
             buf[idx] = (radialFade > 0.35 && ray2 > 0.15) ? PAL32.darkGray : PAL32.black;
           }
