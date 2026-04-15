@@ -1009,10 +1009,9 @@ export class PixelWheel {
           drawSpriteCentered(ctx, 'reroll', Math.round(rx), Math.round(ry), 2);
           ctx.globalAlpha = 1;
 
-          // Price below sprite
-          const priceR = slotMidR + 18;
-          const rpx = cx + Math.cos(mid) * priceR;
-          const rpy = cy + Math.sin(mid) * priceR;
+          // Price below sprite (screen-space Y offset, not radial)
+          const rpx = rx;
+          const rpy = ry + 14;
           const priceColor = rerollAfford ? PAL.gold : PAL.red;
           drawTextCentered(ctx, String(shop.rerollCost), Math.round(rpx), Math.round(rpy) - Math.floor(CHAR_H / 2), priceColor, 1);
 
@@ -1067,10 +1066,9 @@ export class PixelWheel {
           drawSpriteCentered(ctx, rarity.sprite, Math.round(sx), Math.round(sy), 2);
           ctx.globalAlpha = 1;
 
-          // Price below sprite
-          const priceR = slotMidR + 18;
-          const px = cx + Math.cos(mid) * priceR;
-          const py = cy + Math.sin(mid) * priceR;
+          // Price below sprite (screen-space Y offset, not radial)
+          const px = sx;
+          const py = sy + 14;
           const priceStr = String(offering.finalCost);
           const priceColor = tooExpensive ? PAL.red : PAL.gold;
           const textW = measureText(priceStr);
