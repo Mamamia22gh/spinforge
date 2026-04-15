@@ -119,7 +119,7 @@ const HIERO_GLYPHS = {
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
   { offsetFromEnd: 12, id: 'catalogue', glyph: 'book' },
-  { offsetFromEnd: 6,  id: 'settings',  glyph: 'gear' },
+  { offsetFromEnd: 4,  id: 'settings',  glyph: 'gear' },
   { offsetFromEnd: 5,  id: 'exit',      glyph: 'exit' },
 ];
 

@@ -27,8 +27,9 @@ void main() {
   vec2 uv = vUv - 0.5;
   float dist2 = dot(uv, uv);
 
-  // Chromatic aberration — R/B X-offset scales with distance from center
-  float off = uChroma * dist2;
+  // Chromatic aberration — smoothstep deadzone in center, ramps at edges
+  float edge = smoothstep(0.05, 0.30, dist2);
+  float off = uChroma * edge * dist2;
   vec3 c = vec3(
     texture2D(uSrc, vUv + vec2(off, 0.0)).r,
     texture2D(uSrc, vUv).g,
@@ -103,7 +104,7 @@ export class PostFXGL {
     gl.uniform3fv(gl.getUniformLocation(prog, 'uPal'), new Float32Array(arr));
     gl.uniform1f(gl.getUniformLocation(prog, 'uScan'), opts.scanDim ?? 0.06);
     gl.uniform1f(gl.getUniformLocation(prog, 'uVig'), opts.vignette ?? 0.4);
-    gl.uniform1f(gl.getUniformLocation(prog, 'uChroma'), opts.chroma ?? 0.012);
+    gl.uniform1f(gl.getUniformLocation(prog, 'uChroma'), opts.chroma ?? 0.03);
 
     gl.viewport(0, 0, display.width, display.height);
   }
