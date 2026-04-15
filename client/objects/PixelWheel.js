@@ -1666,9 +1666,9 @@ export class PixelWheel {
     const srcX = Math.cos(ta.fromA) * ta.fromMidR;
     const srcY = Math.sin(ta.fromA) * ta.fromMidR;
 
-    // Target position (screen center, relative to wheel cx/cy)
+    // Target position (above hub, relative to wheel cx/cy)
     const tgtX = 0;
-    const tgtY = -10;
+    const tgtY = -(HUB_R + 14);
 
     let t, x, y, scale, alpha;
 
