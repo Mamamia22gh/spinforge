@@ -170,6 +170,17 @@ const SPRITES = {
     '...W.....',
     '.........',
   ],
+  ticket: [ // ticket stub
+    '..EEEEE..',
+    '.E.E.E.E.',
+    '.EEEEEEE.',
+    'EEWEEEEEE',
+    '.EEEEEEE.',
+    '.E.E.E.E.',
+    '..EEEEE..',
+    '.........',
+    '.........',
+  ],
   skull: [ // corruption skull
     '..pWWWp..',
     '.pWWWWWp.',

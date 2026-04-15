@@ -717,6 +717,15 @@ class App {
         // Inside UI ring — fully transparent (inner disc drawn separately with own parallax)
         if (dist2 < ORBIT_OUTER * ORBIT_OUTER) { buf[idx] = 0; continue; }
 
+        // Rim-counter cutout (bottom arc — GAUGE_CONFIGS[2])
+        // RIM_R=82.5, counter radii 98.5–103.5, with padding for parallax
+        if (dist >= 94 && dist <= 108) {
+          const ca = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+          if (ca >= Math.PI / 2 - 0.38 && ca <= Math.PI / 2 + 0.38) {
+            buf[idx] = 0; continue;
+          }
+        }
+
         const dist = Math.sqrt(dist2);
         const bayer = BAYER[y & 3][x & 3];
 
