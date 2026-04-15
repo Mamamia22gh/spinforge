@@ -927,10 +927,7 @@ export class PixelWheel {
 
     ctx.restore(); // end base pass
 
-    // ── Gauge (ball magazine) ──
-    this._drawGauges(ctx, cx + pox, cy + poy);
-
-    // ── Active balls (world space) ──
+    // ── Active balls (world space, inside tilt) ──
     for (const b of this._balls) {
       if (b.settled) continue;
       this._drawPixelBall(ctx, cx + b.x, cy + b.y, false, b.special?.effect);
@@ -941,6 +938,9 @@ export class PixelWheel {
     }
 
     ctx.restore(); // end tilt
+
+    // ── Gauge (ball magazine) — outside tilt so gauges stay static during flip ──
+    this._drawGauges(ctx, cx + pox, cy + poy);
 
     // ── Relic slots orbiting outside rim (not affected by flip) ──
     this._drawOrbitSlots(ctx, cx + pox, cy + poy);

@@ -985,8 +985,32 @@ class App {
     // UI Ring (parallax layer 2.5 — between slots and title)
     this._drawUIRing(ctx, WHEEL_CX + uiOx, WHEEL_CY + uiOy);
 
-    // Title (parallax layer 3 — moves most)
-    drawTextCenteredOutlined(ctx, 'SPINFORGE', W / 2 + hudOx, 6 + hudOy, PAL.gold, 5);
+    // Title (parallax layer 3 — moves most) with animated "O" flip
+    {
+      const scale = 5;
+      const fullW = measureText('SPINFORGE') * scale;
+      const tx = Math.round(W / 2 + hudOx - fullW / 2);
+      const ty = 6 + hudOy;
+      const charStep = (CHAR_W + 1) * scale;
+
+      drawText(ctx, 'SPINF', tx, ty, PAL.gold, scale);
+
+      // Periodic flip: every 4s, full 360° rotation over 0.6s
+      const flipT = this._time % 4.0;
+      const flipDur = 0.6;
+      let sY = 1;
+      if (flipT < flipDur) sY = Math.cos(flipT / flipDur * Math.PI * 2);
+      const oX = tx + 5 * charStep;
+      const oCX = oX + CHAR_W * scale / 2;
+      const oCY = ty + CHAR_H * scale / 2;
+      ctx.save();
+      ctx.translate(oCX, oCY);
+      ctx.scale(1, sY);
+      drawText(ctx, 'O', -CHAR_W * scale / 2, -CHAR_H * scale / 2, PAL.gold, scale);
+      ctx.restore();
+
+      drawText(ctx, 'RGE', tx + 6 * charStep, ty, PAL.gold, scale);
+    }
 
     // Commit hash (bottom right)
     drawText(ctx, typeof __COMMIT__ !== 'undefined' ? __COMMIT__ : '???', W - 40, H - 8, PAL.midGray, 1);
