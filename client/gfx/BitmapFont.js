@@ -75,7 +75,7 @@ for (const [ch, rows] of Object.entries(GLYPHS)) {
  * @param {string} color — fillStyle color
  * @param {number} [scale=1] — pixel size multiplier
  */
-export function drawText(ctx, text, x, y, color, scale = 1) {
+function _drawTextRaw(ctx, text, x, y, color, scale) {
   ctx.fillStyle = color;
   const str = text.toUpperCase();
   let cx = x;
@@ -91,6 +91,13 @@ export function drawText(ctx, text, x, y, color, scale = 1) {
     }
     cx += (W + 1) * scale;
   }
+}
+
+export function drawText(ctx, text, x, y, color, scale = 1) {
+  for (const [ox, oy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    _drawTextRaw(ctx, text, x + ox * scale, y + oy * scale, '#000', scale);
+  }
+  _drawTextRaw(ctx, text, x, y, color, scale);
 }
 
 /**
@@ -134,28 +141,8 @@ export function drawTextWrapped(ctx, text, x, y, maxW, color, scale = 1) {
 /**
  * Draw text centered with a 1px black outline.
  */
-export function drawTextCenteredOutlined(ctx, text, cx, y, color, scale = 1, outline = '#000') {
-  const w = measureText(text) * scale;
-  const x = Math.round(cx - w / 2);
-  ctx.fillStyle = outline;
-  const str = text.toUpperCase();
-  // 4-direction outline
-  for (const [ox, oy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-    let px = x + ox * scale;
-    for (let c = 0; c < str.length; c++) {
-      const bits = PARSED[str[c]];
-      if (!bits) { px += (W + 1) * scale; continue; }
-      for (let row = 0; row < H; row++) {
-        for (let col = 0; col < W; col++) {
-          if (bits[row] & (1 << (W - 1 - col))) {
-            ctx.fillRect(px + col * scale, y + oy * scale + row * scale, scale, scale);
-          }
-        }
-      }
-      px += (W + 1) * scale;
-    }
-  }
-  drawText(ctx, text, x, y, color, scale);
+export function drawTextCenteredOutlined(ctx, text, cx, y, color, scale = 1) {
+  drawTextCentered(ctx, text, cx, y, color, scale);
 }
 
 export const CHAR_W = W;

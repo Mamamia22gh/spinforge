@@ -1153,11 +1153,6 @@ export class PixelWheel {
     ctx.stroke();
     drawSpriteCentered(ctx, 'arrow_right', cx, Math.round(cy - 4), 1);
     drawTextCentered(ctx, 'CONTINUER', cx, Math.round(cy + 4), PAL.lightGray, 1);
-
-    // ── Currency display at hub top ──
-    const currStr = String(shop.currency);
-    drawTextCentered(ctx, currStr, cx - 6, Math.round(cy - hubR - 8), PAL.gold, 1);
-    drawAnimSpriteCentered(ctx, 'coin', cx + (currStr.length * 5) / 2 + 1, Math.round(cy - hubR - 6), 1, this._time, 6);
   }
 
 
