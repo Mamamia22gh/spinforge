@@ -92,6 +92,7 @@ export class PixelWheel {
     this._corruption = 0.5; // corruption fill 0..1
     this._counterGold = 0;
     this._counterTickets = 0;
+    this._relics = []; // array of { rarity } objects from run.relics
 
     this._tilt = 1.0;
     this._flip = null;
@@ -217,6 +218,8 @@ export class PixelWheel {
 
   setCorruption(v) { this._corruption = Math.max(0, Math.min(1, v)); }
   get corruption() { return this._corruption; }
+
+  setRelics(relics) { this._relics = relics || []; }
 
   placeBalls(n) {
     this._placedBalls = [];
@@ -1222,7 +1225,8 @@ export class PixelWheel {
 
   _drawGauges(ctx, cx, cy) {
     for (let g = 0; g < GAUGE_CONFIGS.length; g++) {
-      if (g === 1 || g === 2) continue; // removed: top & bottom gauges
+      if (g === 2) continue; // removed: bottom gauge (now rim counters)
+      if (g === 1) { this._drawRelicBar(ctx, cx, cy); continue; }
       this._drawOneGauge(ctx, cx, cy, g);
     }
     this._drawRimCounters(ctx, cx, cy);
@@ -1365,6 +1369,62 @@ export class PixelWheel {
     const sx = Math.round(cx + Math.cos(skullA) * skullR);
     const sy = Math.round(cy + Math.sin(skullA) * skullR);
     drawSpriteCentered(ctx, 'skull', sx, sy, 1);
+  }
+
+  _drawRelicBar(ctx, cx, cy) {
+    const cfg = GAUGE_CONFIGS[1]; // top position
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const RARITIES = ['common', 'uncommon', 'rare', 'legendary'];
+    const RARITY_COL = { common: PAL.white, uncommon: PAL.green, rare: PAL.blue, legendary: PAL.gold };
+    const arcLen = cfg.end - cfg.start; // 0.60 rad
+    const spacing = arcLen / (RARITIES.length + 1);
+
+    // Count relics per rarity
+    const counts = { common: 0, uncommon: 0, rare: 0, legendary: 0 };
+    for (const r of this._relics) {
+      if (counts[r.rarity] !== undefined) counts[r.rarity]++;
+    }
+
+    for (let i = 0; i < RARITIES.length; i++) {
+      const rarity = RARITIES[i];
+      const a = cfg.start + spacing * (i + 1);
+      const sx = Math.round(cx + Math.cos(a) * MID_R);
+      const sy = Math.round(cy + Math.sin(a) * MID_R);
+
+      // Sprite
+      drawSpriteCentered(ctx, 'relic_' + rarity, sx, sy, 1);
+
+      // Count badge (bottom-right of sprite)
+      const count = counts[rarity];
+      const badgeX = sx + 3;
+      const badgeY = sy + 1;
+      drawText(ctx, String(count), badgeX, badgeY, count > 0 ? RARITY_COL[rarity] : PAL.midGray, 1);
+    }
+  }
+
+  relicBarHitTest(x, y, cx, cy) {
+    const cfg = GAUGE_CONFIGS[1];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const RARITIES = ['common', 'uncommon', 'rare', 'legendary'];
+    const arcLen = cfg.end - cfg.start;
+    const spacing = arcLen / (RARITIES.length + 1);
+    const HIT_RADIUS = 7; // pixel hit radius around each sprite center
+
+    for (let i = 0; i < RARITIES.length; i++) {
+      const a = cfg.start + spacing * (i + 1);
+      const sx = cx + Math.cos(a) * MID_R;
+      const sy = cy + Math.sin(a) * MID_R;
+      const dx = x - sx;
+      const dy = y - sy;
+      if (dx * dx + dy * dy <= HIT_RADIUS * HIT_RADIUS) {
+        return RARITIES[i];
+      }
+    }
+    return null;
   }
 
   _drawRimCounters(ctx, cx, cy) {

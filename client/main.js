@@ -5,7 +5,7 @@ import { PAL, PAL32 } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextCenteredOutlined, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
 import { preloadSprites, drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, getSpriteIds, getAnimSpriteIds, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { SYMBOLS, getSymbol } from '../src/data/symbols.js';
-import { RELICS } from '../src/data/relics.js';
+import { RELICS, RELIC_MAP } from '../src/data/relics.js';
 import { CHOICES } from '../src/data/choices.js';
 import { PostFXGL } from './gfx/PostFXGL.js';
 
@@ -59,6 +59,7 @@ class App {
     this._shopResolve = null;
     this._debugSpritesOpen = false;
     this._debugScroll = 0;
+    this._relicHoverRarity = null; // hovered relic rarity for tooltip
 
     // Build default wheel data BEFORE background (background needs segment info)
     const defaultWheel = Array.from({ length: BALANCE.INITIAL_SEGMENTS }, (_, i) => ({
@@ -158,6 +159,10 @@ class App {
       return;
     }
 
+    // Relic bar hover detection (top gauge area)
+    const relicHit = this.wheel.relicBarHitTest(x, y, WHEEL_CX, WHEEL_CY);
+    this._relicHoverRarity = relicHit;
+
     // Menu button hover detection (hieroglyph ring)
     const menuHit = this._hieroHitTest(x, y);
     this._menuHover = menuHit;
@@ -167,7 +172,7 @@ class App {
     const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
     const wasHover = this._hubHover;
     this._hubHover = dx * dx + dy * dy < 40 * 40;
-    this._display.style.cursor = (menuHit || (this._hubHover && !this._spinning)) ? 'pointer' : 'default';
+    this._display.style.cursor = (relicHit || menuHit || (this._hubHover && !this._spinning)) ? 'pointer' : 'default';
 
     // Trigger sweep on hover enter
     if (this._hubHover && !wasHover) this._sweepTrigger = this._time;
@@ -514,6 +519,7 @@ class App {
       state.run ? state.run.score : 0,
       this.game.getState().meta.tickets,
     );
+    this.wheel.setRelics(state.run ? state.run.relics : []);
   }
 
   _onAction() {
@@ -1000,6 +1006,7 @@ class App {
     uiCtx.scale(PX, PX);
     this._drawCatalogue(uiCtx);
     this._drawDebugSprites(uiCtx);
+    this._drawRelicTooltip(uiCtx);
 
     uiCtx.restore();
 
@@ -1164,6 +1171,70 @@ class App {
     ctx.stroke();
 
     // Counters moved to PixelWheel rim (bottom gauge area)
+  }
+
+  _drawRelicTooltip(ctx) {
+    const rarity = this._relicHoverRarity;
+    if (!rarity) return;
+    const state = this.game.getState();
+    const run = state.run;
+    if (!run) return;
+
+    const RARITY_NAMES = { common: 'COMMUNE', uncommon: 'PEU COMMUNE', rare: 'RARE', legendary: 'LEGENDAIRE' };
+    const RARITY_COL = { common: PAL.white, uncommon: PAL.green, rare: PAL.blue, legendary: PAL.gold };
+    const col = RARITY_COL[rarity] || PAL.white;
+
+    // Gather owned relics of this rarity
+    const owned = run.relics.filter(r => r.rarity === rarity);
+    // Also list all possible relics of this rarity (for reference)
+    const allOfRarity = RELICS.filter(r => r.rarity === rarity);
+
+    const ROW_H = 10;
+    const PAD = 4;
+    const HEADER_H = 12;
+    const lines = owned.length > 0 ? owned : []; 
+    const contentH = HEADER_H + Math.max(1, lines.length) * ROW_H + PAD;
+    const PW = 200;
+    const PH = contentH + PAD * 2;
+
+    // Position: centered above wheel top
+    const PX0 = Math.floor((W - PW) / 2);
+    const PY0 = Math.max(2, WHEEL_CY - 90 - PH);
+
+    // Backdrop
+    ctx.fillStyle = 'rgba(0,0,0,0.88)';
+    ctx.fillRect(PX0 - 1, PY0 - 1, PW + 2, PH + 2);
+    ctx.fillStyle = PAL.black;
+    ctx.fillRect(PX0, PY0, PW, PH);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PX0 + 0.5, PY0 + 0.5, PW - 1, PH - 1);
+
+    // Header
+    drawTextCentered(ctx, RARITY_NAMES[rarity], PX0 + Math.floor(PW / 2), PY0 + PAD, col);
+
+    // Relic list
+    const bodyY = PY0 + PAD + HEADER_H;
+    if (owned.length === 0) {
+      drawTextCentered(ctx, 'AUCUNE', PX0 + Math.floor(PW / 2), bodyY, PAL.midGray);
+    } else {
+      for (let i = 0; i < owned.length; i++) {
+        const r = owned[i];
+        const ry = bodyY + i * ROW_H;
+        const def = RELIC_MAP.get(r.id);
+        const name = def ? def.name : r.id;
+        const desc = def ? def.description : '';
+        // Sprite + name
+        drawSpriteCentered(ctx, 'relic_' + rarity, PX0 + PAD + Math.floor(SPRITE_SIZE / 2), ry + Math.floor(ROW_H / 2), 1);
+        drawText(ctx, name, PX0 + PAD + SPRITE_SIZE + 2, ry, col);
+        // Description (truncated)
+        const descX = PX0 + 90;
+        const maxDescW = PW - 90 - PAD;
+        const maxChars = Math.floor(maxDescW / CHAR_W);
+        const truncDesc = desc.length > maxChars ? desc.slice(0, maxChars - 2) + '..' : desc;
+        drawText(ctx, truncDesc, descX, ry, PAL.midGray, 1, false);
+      }
+    }
   }
 
   // ── Popups ──
