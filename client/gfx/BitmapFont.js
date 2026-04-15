@@ -93,9 +93,11 @@ function _drawTextRaw(ctx, text, x, y, color, scale) {
   }
 }
 
-export function drawText(ctx, text, x, y, color, scale = 1) {
-  for (const [ox, oy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-    _drawTextRaw(ctx, text, x + ox * scale, y + oy * scale, '#000', scale);
+export function drawText(ctx, text, x, y, color, scale = 1, outline = true) {
+  if (outline) {
+    for (const [ox, oy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      _drawTextRaw(ctx, text, x + ox * scale, y + oy * scale, '#000', scale);
+    }
   }
   _drawTextRaw(ctx, text, x, y, color, scale);
 }
@@ -110,9 +112,9 @@ export function measureText(text) {
 /**
  * Draw text centered horizontally at cx.
  */
-export function drawTextCentered(ctx, text, cx, y, color, scale = 1) {
+export function drawTextCentered(ctx, text, cx, y, color, scale = 1, outline = true) {
   const w = measureText(text) * scale;
-  drawText(ctx, text, Math.round(cx - w / 2), y, color, scale);
+  drawText(ctx, text, Math.round(cx - w / 2), y, color, scale, outline);
 }
 
 /**

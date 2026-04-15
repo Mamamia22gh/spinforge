@@ -257,7 +257,7 @@ class App {
       }
       ctx.strokeStyle = PAL.darkGold;
       ctx.strokeRect(tx + 0.5, PY0 + 0.5, tabW - 1, TAB_H - 1);
-      drawTextCentered(ctx, TAB_NAMES[t], tx + Math.floor(tabW / 2), PY0 + 3, t === this._catalogueTab ? PAL.gold : PAL.midGray);
+      drawTextCentered(ctx, TAB_NAMES[t], tx + Math.floor(tabW / 2), PY0 + 3, t === this._catalogueTab ? PAL.gold : PAL.midGray, 1, t === this._catalogueTab);
     }
 
     // Column header
@@ -276,7 +276,7 @@ class App {
       const col = it.rarity ? (RARITY_COL[it.rarity] || PAL.white) : PAL.white;
       drawSpriteCentered(ctx, it.sprite, PX0 + 4 + Math.floor(SPRITE_SIZE / 2), ry + Math.floor(ROW_H / 2), 1);
       drawText(ctx, it.name, PX0 + 4 + SPRITE_SIZE + 2, ry, col);
-      drawText(ctx, it.desc, PX0 + 100, ry, PAL.midGray);
+      drawText(ctx, it.desc, PX0 + 100, ry, PAL.midGray, 1, false);
     }
 
     // Scrollbar hint
@@ -1000,7 +1000,7 @@ class App {
       if (quotaReached) {
         // Quota reached: BONUS + surplus with coin on right (scale 2)
         const surplus = score - quota;
-        drawTextCentered(ctx, 'BONUS', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 1);
+        drawTextCentered(ctx, 'BONUS', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 1, false);
         const bStr = '+' + surplus;
         const bW = bStr.length * CHAR_W * 2;
         const bY = Math.floor(CHAR_H * 0.5);
@@ -1015,18 +1015,18 @@ class App {
         const sY = -Math.floor(CHAR_H * 1.5);
         drawTextCentered(ctx, sStr, 0, sY, PAL.gold, 2);
         drawAnimSpriteCentered(ctx, 'coin', Math.round(sW / 2 + 2 + SPRITE_SIZE), sY + CHAR_H, 2, t, 8);
-        drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 1.5), PAL.darkGray, 2);
+        drawTextCentered(ctx, '/' + quota, 0, Math.floor(CHAR_H * 1.5), PAL.darkGray, 2, false);
       }
     } else {
       // Idle: SPIN label + quota with coin on right
-      drawTextCentered(ctx, 'SPIN', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 2);
+      drawTextCentered(ctx, 'SPIN', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 2, false);
       const qStr = 'QUOTA ' + quota;
       const qW = qStr.length * CHAR_W;
       const qY = Math.floor(CHAR_H * 0.5);
       const coinSz = SPRITE_SIZE;
       const qGap = 1;
       const qOx = Math.round(-(qGap + coinSz) / 2);
-      drawTextCentered(ctx, qStr, qOx, qY, PAL.darkGray, 1);
+      drawTextCentered(ctx, qStr, qOx, qY, PAL.darkGray, 1, false);
       drawAnimSpriteCentered(ctx, 'coin', Math.round(qOx + qW / 2 + qGap + coinSz / 2) + 2, qY + Math.floor(CHAR_H / 2) - 1, 1, t, 4);
     }
 

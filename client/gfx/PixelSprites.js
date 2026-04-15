@@ -31,7 +31,7 @@ const SPRITE_MANIFEST = {
   relic_legendary:  { path: 'assets/relics/relic_legendary.png',   w: 9,  h: 9 },
 
   // Currencies
-  ticket:           { path: 'assets/currencies/ticket.png',        w: 13, h: 7 },
+  ticket:           { path: 'assets/currencies/ticket.png',        w: 15, h: 9 },
 
   // Menu glyphs (from hieroglyph ring)
   gear:             { path: 'assets/menu/gear.png',                w: 27, h: 27 },
@@ -159,5 +159,5 @@ export function getAnimFrameCount(id) {
 }
 
 export const SPRITE_SIZE = SIZE;
-export const TICKET_W = 13;
-export const TICKET_H = 7;
+export const TICKET_W = 15;
+export const TICKET_H = 9;
