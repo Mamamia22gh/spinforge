@@ -13,9 +13,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@dimforge/rapier3d-compat": "^0.19.3",
-    "nes.css": "^2.2.1",
-    "three": "^0.173.0"
+    "nes.css": "^2.2.1"
   },
   "devDependencies": {
     "vite": "^6.2.0",

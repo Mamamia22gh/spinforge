@@ -18,11 +18,6 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'client/index.html'),
       },
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules/three')) return 'three';
-        },
-      },
     },
   },
   server: { port: 3000, open: true },
