@@ -1381,7 +1381,7 @@ export class PixelWheel {
     }
 
     // Skull icon below gauge
-    const skullA = cfg.start - 0.18;
+    const skullA = cfg.start - 0.08;
     const skullR = (INNER + OUTER) / 2;
     const sx = Math.round(cx + Math.cos(skullA) * skullR);
     const sy = Math.round(cy + Math.sin(skullA) * skullR);
@@ -1396,7 +1396,6 @@ export class PixelWheel {
     const RARITIES = ['common', 'uncommon', 'rare', 'legendary'];
     const RARITY_COL = { common: PAL.white, uncommon: PAL.green, rare: PAL.blue, legendary: PAL.gold };
     const arcLen = cfg.end - cfg.start; // 0.60 rad
-    const spacing = arcLen / (RARITIES.length + 1);
 
     // Count relics per rarity
     const counts = { common: 0, uncommon: 0, rare: 0, legendary: 0 };
@@ -1406,9 +1405,9 @@ export class PixelWheel {
 
     for (let i = 0; i < RARITIES.length; i++) {
       const rarity = RARITIES[i];
-      const a = cfg.start + spacing * (i + 1);
+      const a = cfg.start + arcLen * (i + 0.5) / RARITIES.length;
       const sx = Math.round(cx + Math.cos(a) * MID_R);
-      const sy = Math.round(cy + Math.sin(a) * MID_R);
+      const sy = Math.round(cy + Math.sin(a) * MID_R) + 4;
 
       // Sprite
       drawSpriteCentered(ctx, 'relic_' + rarity, sx, sy, 1);
@@ -1428,13 +1427,12 @@ export class PixelWheel {
     const MID_R = (INNER + OUTER) / 2;
     const RARITIES = ['common', 'uncommon', 'rare', 'legendary'];
     const arcLen = cfg.end - cfg.start;
-    const spacing = arcLen / (RARITIES.length + 1);
     const HIT_RADIUS = 7; // pixel hit radius around each sprite center
 
     for (let i = 0; i < RARITIES.length; i++) {
-      const a = cfg.start + spacing * (i + 1);
+      const a = cfg.start + arcLen * (i + 0.5) / RARITIES.length;
       const sx = cx + Math.cos(a) * MID_R;
-      const sy = cy + Math.sin(a) * MID_R;
+      const sy = cy + Math.sin(a) * MID_R + 4;
       const dx = x - sx;
       const dy = y - sy;
       if (dx * dx + dy * dy <= HIT_RADIUS * HIT_RADIUS) {
