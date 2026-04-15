@@ -179,7 +179,7 @@ export class PixelWheel {
 
         if (bayer < threshold) {
           buf[idx] = (ray > 0.15 && radialFade > 0.3)
-            ? PAL32.darkGold
+            ? PAL32.midGray
             : PAL32.darkGray;
         } else {
           buf[idx] = PAL32.black;
@@ -970,7 +970,7 @@ export class PixelWheel {
         ctx.arc(cx, cy, slotOuter, a0, a1);
         ctx.arc(cx, cy, slotInner, a1, a0, true);
         ctx.closePath();
-        ctx.strokeStyle = PAL.darkGold;
+        ctx.strokeStyle = PAL.midGray;
         ctx.lineWidth = 1;
         ctx.stroke();
 
@@ -1069,7 +1069,7 @@ export class PixelWheel {
       ctx.beginPath();
       ctx.moveTo(cx + dc * slotInner, cy + ds * slotInner);
       ctx.lineTo(cx + dc * slotOuter, cy + ds * slotOuter);
-      ctx.strokeStyle = PAL.darkGold;
+      ctx.strokeStyle = PAL.midGray;
       ctx.lineWidth = 1;
       ctx.stroke();
     }
@@ -1087,7 +1087,7 @@ export class PixelWheel {
     ctx.globalAlpha = rerollHover ? 0.8 : 0.5;
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = rerollHover ? PAL.gold : PAL.darkGold;
+    ctx.strokeStyle = rerollHover ? PAL.lightGray : PAL.midGray;
     ctx.lineWidth = 1;
     ctx.stroke();
     // Reroll icon + cost
@@ -1104,7 +1104,7 @@ export class PixelWheel {
     ctx.globalAlpha = leaveHover ? 0.8 : 0.5;
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = leaveHover ? PAL.gold : PAL.darkGold;
+    ctx.strokeStyle = leaveHover ? PAL.lightGray : PAL.midGray;
     ctx.lineWidth = 1;
     ctx.stroke();
     // Leave arrow + label
@@ -1115,7 +1115,7 @@ export class PixelWheel {
     ctx.beginPath();
     ctx.moveTo(cx - hubR + 1, cy);
     ctx.lineTo(cx + hubR - 1, cy);
-    ctx.strokeStyle = PAL.darkGold;
+    ctx.strokeStyle = PAL.midGray;
     ctx.lineWidth = 1;
     ctx.stroke();
 

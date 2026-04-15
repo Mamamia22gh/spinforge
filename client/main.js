@@ -181,6 +181,14 @@ class App {
     document.body.appendChild(this._lightsCanvas);
     this._lightsCtx = this._lightsCanvas.getContext('2d');
 
+    // UI overlay (popups/menus — drawn AFTER postfx, NOT affected by shader)
+    this._uiCanvas = document.createElement('canvas');
+    this._uiCanvas.width = CW;
+    this._uiCanvas.height = CH;
+    this._uiCanvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;image-rendering:pixelated;image-rendering:crisp-edges;';
+    document.body.appendChild(this._uiCanvas);
+    this._uiCtx = this._uiCanvas.getContext('2d');
+
     // Audio
     this._audioCtx = null;
     this.wheel.onPegHit = () => this._tick();
@@ -957,17 +965,14 @@ class App {
     this._drawUIRing(ctx, WHEEL_CX + uiOx, WHEEL_CY + uiOy);
 
     // Title (parallax layer 3 — moves most)
-    drawTextCentered(ctx, 'SPINFORGE', W / 2 + hudOx, 6 + hudOy, PAL.gold, 3);
+    drawTextCenteredOutlined(ctx, 'SPINFORGE', W / 2 + hudOx, 6 + hudOy, PAL.gold, 5);
 
     // Commit hash (bottom right)
     drawText(ctx, typeof __COMMIT__ !== 'undefined' ? __COMMIT__ : '???', W - 40, H - 8, PAL.midGray, 1);
 
     this._drawPops(ctx);
 
-    // Sprite selection overlay
-    if (this._inSpriteSelect) {
-      this._drawSpriteSelect(ctx);
-    }
+
 
     // Hub button (own parallax layer — faster than labels, slower than rim)
     const hubBtnOx = px * 1.7;
@@ -990,8 +995,18 @@ class App {
     }
 
     // ── GPU post-process (quantize + scanlines + vignette) ──
-    this._drawCatalogue(ctx);
     this._postfx.apply(this._canvas);
+
+    // ── UI overlay (popups — NOT affected by postfx shader) ──
+    const uiCtx = this._uiCtx;
+    uiCtx.clearRect(0, 0, CW, CH);
+    uiCtx.save();
+    uiCtx.scale(PX, PX);
+    this._drawCatalogue(uiCtx);
+    if (this._inSpriteSelect) {
+      this._drawSpriteSelect(uiCtx);
+    }
+    uiCtx.restore();
 
     // ── Lights overlay (smooth, NOT quantized) ──
     this._drawLights(wheelOx, wheelOy);

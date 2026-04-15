@@ -104,7 +104,7 @@ export class PostFXGL {
     gl.uniform3fv(gl.getUniformLocation(prog, 'uPal'), new Float32Array(arr));
     gl.uniform1f(gl.getUniformLocation(prog, 'uScan'), opts.scanDim ?? 0.06);
     gl.uniform1f(gl.getUniformLocation(prog, 'uVig'), opts.vignette ?? 0.4);
-    gl.uniform1f(gl.getUniformLocation(prog, 'uChroma'), opts.chroma ?? 0.012);
+    gl.uniform1f(gl.getUniformLocation(prog, 'uChroma'), opts.chroma ?? 0.005);
 
     gl.viewport(0, 0, display.width, display.height);
   }
