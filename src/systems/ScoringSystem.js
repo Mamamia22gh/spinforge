@@ -11,7 +11,7 @@ export class ScoringSystem {
    * @returns {{ totalWon: number, quota: number, passed: boolean, surplus: number, shopCoins: number }}
    */
   evaluateRound(run) {
-    const totalWon = run.spinResults.reduce((sum, r) => sum + r.value, 0);
+    const totalWon = run.score;
     const quota = getQuota(run.round);
     const passed = totalWon >= quota;
     const surplus = Math.max(0, totalWon - quota);

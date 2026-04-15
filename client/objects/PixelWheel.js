@@ -471,6 +471,7 @@ export class PixelWheel {
   }
   hubSetMulti(m) { this._hub.multi = m; }
   hubSetScore(s) { this._hub.scoreTarget = s; }
+  hubSnapScore(s) { this._hub.score = s; this._hub.scoreTarget = s; }
   hubMessage(msg) { this._hub.message = msg; this._hub.messageFade = 2.5; }
   setSlots(data) { this._slots = data || []; }
   setBonusMode(b) { this._bonusMode = b; }

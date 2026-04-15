@@ -610,9 +610,10 @@ class App {
 
     this._playSpin();
     this._shakeStart(4, 0.3);
-    this.wheel.hubSetScore(0);
-    this._goldDisplay = 0;
-    this.wheel.setCounters(0, this._lastTicketDisplay);
+    const startScore = this.game.getState().run.score;
+    this.wheel.hubSnapScore(startScore);
+    this._goldDisplay = startScore;
+    this.wheel.setCounters(startScore, this._lastTicketDisplay);
     const results = await this.wheel.spinAndEject();
     this._stopSpin();
 
@@ -682,6 +683,7 @@ class App {
     await this._delay(500);
     this._openForgeShop();
     this.wheel.startFlip();
+    this._playFlipToShop();
     await this._delay(600);
 
     // Wait for shop interaction (resolved by _closeForgeShop)
@@ -689,6 +691,7 @@ class App {
 
     // Flip back
     this.wheel.startFlip();
+    this._playFlipBack();
     await this._delay(600);
 
     // Auto-advance remaining phases (SHOP→IDLE for next round)
@@ -924,7 +927,7 @@ class App {
         // Menu icon: sprite from assets/menu/ (drawn upright, no rotation)
         drawSpriteCentered(bgCtx, menu.glyph, 0, 0, menu.scale || 1);
         if (menu.id === 'retry') {
-          drawTextCentered(bgCtx, 'RETRY', 0, 16, PAL.gold, 3);
+          drawTextCentered(bgCtx, 'RETRY', 0, 16, PAL.gold, 2);
         }
       }
 
@@ -1032,9 +1035,6 @@ class App {
     };
     this.wheel.draw(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy, periOx - wheelOx, periOy - wheelOy, _layers);
 
-    // Ticket animation overlay (above wheel, below UI)
-    this.wheel.drawTicketAnim(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
-
     // UI Ring (parallax layer 2.5 — between slots and title)
     this._drawUIRing(ctx, WHEEL_CX + uiOx, WHEEL_CY + uiOy);
 
@@ -1085,6 +1085,9 @@ class App {
         this._drawHubBtn(ctx, hubBtnOx, hubBtnOy);
       }
     }
+
+    // Ticket animation overlay (above hub, below UI)
+    this.wheel.drawTicketAnim(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
 
     ctx.restore(); // end PX scale
 
@@ -1298,7 +1301,7 @@ class App {
     drawTextCentered(ctx, go.score + '/' + go.quota, 0, Math.floor(CHAR_H * 0.8), PAL.red, 1);
 
     // RETRY label
-    drawTextCentered(ctx, 'RETRY', 0, Math.floor(r * 0.55), PAL.gold, 3);
+    drawTextCentered(ctx, 'RETRY', 0, Math.floor(r * 0.55), PAL.gold, 2);
 
     ctx.restore();
   }
@@ -1572,6 +1575,66 @@ class App {
     setTimeout(() => this._tone(1175, 0.10, 'square', 0.07), 60);
     setTimeout(() => this._tone(1760, 0.18, 'sine', 0.09), 120);
     setTimeout(() => this._tone(2640, 0.12, 'sine', 0.04), 180);
+  }
+
+  _playFlipToShop() {
+    if (!this._audioCtx) return;
+    const ctx = this._audioCtx;
+    // Ascending whoosh (inverse of _playFlipBack)
+    const bufLen = ctx.sampleRate * 0.25;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'bandpass'; flt.Q.value = 3;
+    flt.frequency.setValueAtTime(200, ctx.currentTime);
+    flt.frequency.exponentialRampToValueAtTime(1400, ctx.currentTime + 0.20);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.06, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    src.connect(flt).connect(g).connect(ctx.destination);
+    src.start(); src.stop(ctx.currentTime + 0.25);
+    // Mid-flip metallic clunk
+    setTimeout(() => this._tone(250, 0.08, 'square', 0.07), 200);
+    setTimeout(() => this._tone(190, 0.06, 'triangle', 0.05), 220);
+    // Landing impact
+    setTimeout(() => {
+      this._tone(130, 0.12, 'square', 0.08);
+      this._tone(95, 0.15, 'triangle', 0.06);
+    }, 420);
+  }
+
+  _playFlipBack() {
+    if (!this._audioCtx) return;
+    // Descending whoosh (filtered noise burst)
+    const ctx = this._audioCtx;
+    const bufLen = ctx.sampleRate * 0.25;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'bandpass'; flt.Q.value = 3;
+    flt.frequency.setValueAtTime(1400, ctx.currentTime);
+    flt.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.20);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.06, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    src.connect(flt).connect(g).connect(ctx.destination);
+    src.start(); src.stop(ctx.currentTime + 0.25);
+    // Mid-flip metallic clunk (synced with onFlipMid ~0.22s)
+    setTimeout(() => this._tone(220, 0.08, 'square', 0.07), 200);
+    setTimeout(() => this._tone(165, 0.06, 'triangle', 0.05), 220);
+    // Landing impact (synced with onFlipDone ~0.45s)
+    setTimeout(() => {
+      this._tone(110, 0.12, 'square', 0.08);
+      this._tone(85, 0.15, 'triangle', 0.06);
+    }, 420);
   }
 
   _playTicketFanfare() {

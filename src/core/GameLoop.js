@@ -308,6 +308,11 @@ export class GameLoop {
       return true;
     }
 
+    // Deduct quota from accumulated score (surplus carries over to next round)
+    if (run.lastRoundResult?.passed) {
+      run.score -= run.lastRoundResult.quota;
+    }
+
     // Reset for next round — special balls + generic balls bought carry over
     run.ballsLeft = BALANCE.BALLS_PER_ROUND + run.specialBalls.length + (run.genericBallsBought || 0);
     run.spinResults = [];

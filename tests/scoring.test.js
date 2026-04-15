@@ -11,14 +11,9 @@ describe('ScoringSystem', () => {
     scoring = new ScoringSystem();
   });
 
-  it('calculates correct total from spin results', () => {
+  it('calculates correct total from accumulated score', () => {
     const run = createRunState();
-    // Simulate 3 spins on pockets 0, 9, 19 (values 1, 10, 20)
-    run.spinResults = [
-      { segmentIndex: 0, segment: run.wheel[0], symbol: null, value: 1 },
-      { segmentIndex: 9, segment: run.wheel[9], symbol: null, value: 10 },
-      { segmentIndex: 19, segment: run.wheel[19], symbol: null, value: 20 },
-    ];
+    run.score = 31; // accumulated from spins
 
     const result = scoring.evaluateRound(run);
     expect(result.totalWon).toBe(31);
@@ -28,26 +23,35 @@ describe('ScoringSystem', () => {
   it('calculates surplus correctly', () => {
     const run = createRunState();
     const quota = getQuota(1);
-    const over = quota + 40;
-
-    run.spinResults = [
-      { segmentIndex: 0, segment: run.wheel[0], symbol: null, value: over },
-    ];
+    run.score = quota + 40;
 
     const result = scoring.evaluateRound(run);
-    expect(result.totalWon).toBe(over);
+    expect(result.totalWon).toBe(quota + 40);
     expect(result.surplus).toBe(40);
     expect(result.passed).toBe(true);
   });
 
   it('fails when below quota', () => {
     const run = createRunState();
-    run.spinResults = [
-      { segmentIndex: 0, segment: run.wheel[0], symbol: null, value: 1 },
-    ];
+    run.score = 1;
 
     const result = scoring.evaluateRound(run);
     expect(result.passed).toBe(false);
     expect(result.surplus).toBe(0);
+  });
+
+  it('surplus carries over after quota deduction', () => {
+    const run = createRunState();
+    const quota = getQuota(1);
+    run.score = quota + 25;
+
+    const result = scoring.evaluateRound(run);
+    expect(result.passed).toBe(true);
+    expect(result.surplus).toBe(25);
+
+    // Simulate endShop deduction
+    run.lastRoundResult = result;
+    run.score -= result.quota;
+    expect(run.score).toBe(25);
   });
 });
