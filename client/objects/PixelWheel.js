@@ -1361,6 +1361,12 @@ export class PixelWheel {
         r: 12, color: PAL.neonPink, a: 0.15,
       });
     }
+
+    // Skull icon centered radially outside the gauge
+    const skullR = OUTER + 8;
+    const sx = Math.round(cx + Math.cos(cfg.center) * skullR);
+    const sy = Math.round(cy + Math.sin(cfg.center) * skullR);
+    drawSpriteCentered(ctx, 'skull', sx, sy, 1);
   }
 
   _drawOrbitSlots(ctx, cx, cy) {

@@ -3,7 +3,7 @@ import { BALANCE, getQuota } from '../src/data/balance.js';
 import { PixelWheel } from './objects/PixelWheel.js';
 import { PAL, PAL32, SYM_COLORS } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextCenteredOutlined, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
-import { drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, SPRITE_SIZE, getTicketVariants, getActiveTicketIdx, setActiveTicket, drawTicketVariantCentered, TICKET_W, TICKET_H } from './gfx/PixelSprites.js';
+import { drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, SPRITE_SIZE, TICKET_W, TICKET_H } from './gfx/PixelSprites.js';
 import { SYMBOLS, getSymbol } from '../src/data/symbols.js';
 import { RELICS } from '../src/data/relics.js';
 import { CHOICES } from '../src/data/choices.js';
@@ -148,9 +148,6 @@ class App {
     this._goldDisplay = 0; // animated gold counter // invert flash timer (>0 = active)
     this._inShop = false;
     this._shopResolve = null;
-    this._inSpriteSelect = false;
-    this._spriteSelectScroll = 0;
-    this._spriteHoverIdx = -1;
 
     // Build default wheel data BEFORE background (background needs segment info)
     const defaultWheel = BALANCE.INITIAL_WHEEL.map((id, i) => ({
@@ -232,12 +229,7 @@ class App {
     const x = Math.floor((e.clientX - rect.left) / rect.width * W);
     const y = Math.floor((e.clientY - rect.top) / rect.height * H);
 
-    // Sprite select hover
-    if (this._inSpriteSelect) {
-      this._spriteHoverIdx = this._spriteSelectHitTest(x, y);
-      this._display.style.cursor = this._spriteHoverIdx >= 0 || (x < 50 && y < 20) ? 'pointer' : 'default';
-      return;
-    }
+
     if (this._inShop && this.wheel.flipped) {
       const hit = this.wheel.shopHitTest(x, y, WHEEL_CX, WHEEL_CY);
       this.wheel.shopSetHover(hit);
@@ -270,39 +262,11 @@ class App {
       return;
     }
 
-    // ── Sprite select click ──
-    if (this._inSpriteSelect) {
-      const hit = this._spriteSelectHitTest(x, y);
-      if (hit >= 0) {
-        setActiveTicket(hit);
-        this._playSelect();
-      }
-      if (x < 50 && y < 20) {
-        this._inSpriteSelect = false;
-        this._display.style.cursor = 'default';
-        this._playSelect();
-      }
-      return;
-    }
-
     // ── Shop click handling ──
     if (this._inShop && this.wheel.flipped) {
       const hit = this.wheel.shopHitTest(x, y, WHEEL_CX, WHEEL_CY);
       if (hit) {
         this._handleShopClick(hit);
-        return;
-      }
-    }
-
-    // Ticket icon click in UI ring → open sprite selector
-    if (!this._spinning && !this._inShop) {
-      const sx = WHEEL_CX + Math.round(IND_ARC_R);  // ticket at angle 0 on arc
-      const sy = WHEEL_CY;
-      const sdx = x - sx, sdy = y - sy;
-      if (sdx * sdx + sdy * sdy < 12 * 12) {
-        this._inSpriteSelect = true;
-        this._spriteHoverIdx = -1;
-        this._playSelect();
         return;
       }
     }
@@ -979,7 +943,7 @@ class App {
     // Hub button (own parallax layer — faster than labels, slower than rim)
     const hubBtnOx = px * 1.7;
     const hubBtnOy = py * 1.1;
-    if (!this.wheel.flipped && !this._inSpriteSelect) {
+    if (!this.wheel.flipped) {
       this._drawHubBtn(ctx, hubBtnOx, hubBtnOy);
     }
 
@@ -1005,9 +969,7 @@ class App {
     uiCtx.save();
     uiCtx.scale(PX, PX);
     this._drawCatalogue(uiCtx);
-    if (this._inSpriteSelect) {
-      this._drawSpriteSelect(uiCtx);
-    }
+
     uiCtx.restore();
 
     // ── Lights overlay (smooth, NOT quantized) ──
@@ -1315,88 +1277,7 @@ class App {
     this._shake.time = 0;
   }
 
-  // ── Sprite Selection Screen ──
 
-  _spriteSelectHitTest(mx, my) {
-    const variants = getTicketVariants();
-    const cols = 10;
-    const cellW = 32;
-    const cellH = 20;
-    const totalW = cols * cellW;
-    const ox = Math.floor((W - totalW) / 2);
-    const oy = 35;
-
-    for (let i = 0; i < variants.length; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const cx = ox + col * cellW + cellW / 2;
-      const cy = oy + row * cellH + cellH / 2;
-      if (Math.abs(mx - cx) < cellW / 2 && Math.abs(my - cy) < cellH / 2) return i;
-    }
-    return -1;
-  }
-
-  _drawSpriteSelect(ctx) {
-    const variants = getTicketVariants();
-    const activeIdx = getActiveTicketIdx();
-    const cols = 10;
-    const cellW = 32;
-    const cellH = 20;
-    const scale = 2;
-    const totalW = cols * cellW;
-    const ox = Math.floor((W - totalW) / 2);
-    const oy = 35;
-    const spriteHW = (TICKET_W * scale) / 2;
-    const spriteHH = (TICKET_H * scale) / 2;
-
-    // Dim background
-    ctx.fillStyle = 'rgba(0,0,0,0.88)';
-    ctx.fillRect(0, 0, W, H);
-
-    // Title
-    drawTextCentered(ctx, 'SELECT TICKET SPRITE', W / 2, 8, PAL.gold, 2);
-
-    // Back button
-    drawText(ctx, '< BACK', 4, 6, PAL.lightGray, 1);
-
-    // Grid
-    for (let i = 0; i < variants.length; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const cx = ox + col * cellW + cellW / 2;
-      const cy = oy + row * cellH + cellH / 2;
-
-      // Active selection border (gold)
-      if (i === activeIdx) {
-        ctx.fillStyle = PAL.gold;
-        ctx.fillRect(Math.round(cx - spriteHW - 2), Math.round(cy - spriteHH - 2),
-                     TICKET_W * scale + 4, TICKET_H * scale + 4);
-      }
-
-      // Hover highlight
-      if (i === this._spriteHoverIdx && i !== activeIdx) {
-        ctx.fillStyle = PAL.midGray;
-        ctx.fillRect(Math.round(cx - spriteHW - 1), Math.round(cy - spriteHH - 1),
-                     TICKET_W * scale + 2, TICKET_H * scale + 2);
-      }
-
-      // Cell background
-      ctx.fillStyle = PAL.darkGray;
-      ctx.fillRect(Math.round(cx - spriteHW), Math.round(cy - spriteHH),
-                   TICKET_W * scale, TICKET_H * scale);
-
-      // Draw variant sprite
-      drawTicketVariantCentered(ctx, i, cx, cy, scale);
-    }
-
-    // Name label at bottom
-    const showIdx = this._spriteHoverIdx >= 0 ? this._spriteHoverIdx : activeIdx;
-    if (showIdx >= 0 && showIdx < variants.length) {
-      const name = variants[showIdx].name;
-      const label = showIdx === activeIdx ? '> ' + name + ' <' : name;
-      drawTextCentered(ctx, label, W / 2, H - 14, showIdx === activeIdx ? PAL.gold : PAL.white, 1);
-    }
-  }
 }
 
 window.addEventListener('DOMContentLoaded', () => new App());
