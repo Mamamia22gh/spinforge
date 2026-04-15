@@ -3,7 +3,7 @@ import { BALANCE, getQuota } from '../src/data/balance.js';
 import { PixelWheel } from './objects/PixelWheel.js';
 import { PAL, PAL32, SYM_COLORS } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextCenteredOutlined, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
-import { drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, SPRITE_SIZE } from './gfx/PixelSprites.js';
+import { preloadSprites, drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { SYMBOLS, getSymbol } from '../src/data/symbols.js';
 import { RELICS } from '../src/data/relics.js';
 import { CHOICES } from '../src/data/choices.js';
@@ -22,96 +22,7 @@ const HIERO_OUTER = 220;           // outer radius (44px height — enlarged seg
 const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 
 
-// Pixel-art glyphs for menu icons in hieroglyph ring
-const HIERO_GLYPHS = {
-  gear: [
-    '...........................',
-    '..........#######..........',
-    '.......#..#######..#.......',
-    '......##..#######..##......',
-    '....#####..#####..#####....',
-    '....#####..#####..#####....',
-    '...#######.#####.#######...',
-    '..#######################..',
-    '....###################....',
-    '......###############......',
-    '.###...#####...#####...###.',
-    '.##########.....##########.',
-    '.#########.......#########.',
-    '.#########.......#########.',
-    '.#########.......#########.',
-    '.##########.....##########.',
-    '.###...#####...#####...###.',
-    '......###############......',
-    '....###################....',
-    '..#######################..',
-    '...#######.#####.#######...',
-    '....#####..#####..#####....',
-    '....#####..#####..#####....',
-    '......##..#######..##......',
-    '.......#..#######..#.......',
-    '..........#######..........',
-    '...........................',
-  ],
-  exit: [
-    '..............#############',
-    '..............#...........#',
-    '..............#...........#',
-    '..............#..#######..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '.....##.......#..#.....#..#',
-    '....###.......#..#.....#..#',
-    '...###........#..#######..#',
-    '..###.........#...........#',
-    '.############.#.........###',
-    '#############.#.........###',
-    '.############.#.........###',
-    '..###.........#...........#',
-    '...###........#..#######..#',
-    '....###.......#..#.....#..#',
-    '.....##.......#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#.....#..#',
-    '..............#..#######..#',
-    '..............#...........#',
-    '..............#...........#',
-    '..............#############',
-  ],
-  book: [
-    '...........................',
-    '...######################.',
-    '..#######################.',
-    '..##.....................#.',
-    '..##.###.###.###.###.###.#.',
-    '..##.....................#.',
-    '..##.###.###.###.###.###.#.',
-    '..##.....................#.',
-    '..##.###.###.###.###.###.#.',
-    '..##.....................#.',
-    '..##.###.###.###.###.....#.',
-    '..##.....................#.',
-    '..##.###.###.###.###.###.#.',
-    '..##.....................#.',
-    '..##.###.###.###.###.###.#.',
-    '..##.....................#.',
-    '..##.###.###.###.###.....#.',
-    '..##.....................#.',
-    '..##.###.###.###.###.###.#.',
-    '..##.....................#.',
-    '..##.###.###.###.###.###.#.',
-    '..##.....................#.',
-    '..##.###.###.###.........#.',
-    '..##.....................#.',
-    '..#######################.',
-    '...######################.',
-    '...........................',
-  ],
-};
+// Menu glyphs (gear, exit, book) are now loaded as sprites from assets/menu/
 
 // Menu segment definitions (indices relative to wheel segment count)
 // Placed ~85% around the ring = upper-left quadrant
@@ -820,20 +731,8 @@ class App {
 
       const menu = menuSegs[s];
       if (menu) {
-        // Menu icon: pixel art glyph (drawn upright, no rotation)
-        const glyphData = HIERO_GLYPHS[menu.glyph];
-        if (glyphData) {
-          const gw = glyphData[0].length, gh = glyphData.length;
-          const pxSize = Math.max(1, Math.floor(27 / Math.max(gw, gh)));
-          const ox = Math.floor(gw * pxSize / 2), oy = Math.floor(gh * pxSize / 2);
-          bgCtx.fillStyle = PAL.white;
-          for (let gy = 0; gy < gh; gy++) {
-            for (let gx = 0; gx < gw; gx++) {
-              if (glyphData[gy][gx] === '#')
-                bgCtx.fillRect(gx * pxSize - ox, gy * pxSize - oy, pxSize, pxSize);
-            }
-          }
-        }
+        // Menu icon: sprite from assets/menu/ (drawn upright, no rotation)
+        drawSpriteCentered(bgCtx, menu.glyph, 0, 0, 1);
       }
 
       bgCtx.restore();
@@ -1265,4 +1164,4 @@ class App {
 
 }
 
-window.addEventListener('DOMContentLoaded', () => new App());
+window.addEventListener('DOMContentLoaded', () => preloadSprites().then(() => new App()));

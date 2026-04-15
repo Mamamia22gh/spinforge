@@ -1,236 +1,114 @@
-﻿/**
- * Symbol sprites — pixel art, drawn procedurally.
- * Each sprite is an array of strings: '.' = transparent, letter = palette key.
- * Standard symbols are 9×9.
+/**
+ * Symbol sprites — loaded from PNG assets in public/assets/.
+ * Each sprite is pre-rendered to an offscreen canvas for fast blitting.
  *
- * Palette keys:
- *   R = red, B = blue, G = gold, E = green, P = purple,
- *   W = white, K = black, D = darkGray, N = neonPink,
- *   Y = darkGold, r = darkRed, b = darkBlue, g = darkGreen, p = darkPurple
+ * Call `preloadSprites()` before game start to load all assets.
  */
-
-import { PAL } from './PaletteDB.js';
-
-const COLOR_KEY = {
-  'R': PAL.red,      'r': PAL.darkRed,
-  'B': PAL.blue,     'b': PAL.darkBlue,
-  'G': PAL.gold,     'Y': PAL.darkGold,
-  'E': PAL.green,    'g': PAL.darkGreen,
-  'P': PAL.purple,   'p': PAL.darkPurple,
-  'W': PAL.white,    'D': PAL.midGray,
-  'K': PAL.black,    'N': PAL.neonPink,
-  'L': PAL.lightGray,
-  'C': PAL.cyan,     'c': PAL.darkCyan,
-  '1': PAL.deepBlue,  '2': PAL.shadedBlue, '3': PAL.shadedCyan,
-};
 
 const SIZE = 9;
 
-// prettier-ignore
-const SPRITES = {
-  // ── Commons ──
-  red: [ // red gem
-    '....R....',
-    '...RRR...',
-    '..RRWRR..',
-    '.RRRWRRR.',
-    'RRRRrRRRR',
-    '.RRRrRRR.',
-    '..RRrRR..',
-    '...RRR...',
-    '....R....',
-  ],
-  blue: [ // blue orb
-    '...BBB...',
-    '..BWBBB..',
-    '.BWBBBB..',
-    '.BBBBBBB.',
-    '.BBBBBBB.',
-    '.BBBBbBB.',
-    '..BBbBB..',
-    '...BBB...',
-    '.........',
-  ],
+// ── Sprite manifest: id → { path, w, h } ──
+const BASE = import.meta.env.BASE_URL ?? '/';
 
-  // ── Uncommons ──
-  cherry: [ // cherries
-    '....ggg..',
-    '...g..g..',
-    '..g...g..',
-    '.RR..RR..',
-    'RRWR.RRW.',
-    'RRRR.RRRR',
-    '.RRr..RRr',
-    '..RR...RR',
-    '.........',
-  ],
-  // ── UI ──
-  ball: [ // roulette ball
-    '.........',
-    '.........',
-    '...WWW...',
-    '..WWWWW..',
-    '..WWWWW..',
-    '..WWWWW..',
-    '...WWW...',
-    '.........',
-    '.........',
-  ],
+const SPRITE_MANIFEST = {
+  // Symbols
+  red:              { path: 'assets/symbols/red.png',              w: 9,  h: 9 },
+  blue:             { path: 'assets/symbols/blue.png',             w: 9,  h: 9 },
+  cherry:           { path: 'assets/symbols/cherry.png',           w: 9,  h: 9 },
+  void:             { path: 'assets/symbols/void.png',             w: 9,  h: 9 },
 
-  // ── Rares ──
+  // UI
+  ball:             { path: 'assets/ui/ball.png',                  w: 9,  h: 9 },
+  anvil:            { path: 'assets/ui/anvil.png',                 w: 9,  h: 9 },
+  reroll:           { path: 'assets/ui/reroll.png',                w: 9,  h: 9 },
+  arrow_right:      { path: 'assets/ui/arrow_right.png',           w: 9,  h: 9 },
+  skull:            { path: 'assets/ui/skull.png',                 w: 9,  h: 9 },
 
-  // ── Legendaries ──
-  void: [ // void spiral
-    '...ppp...',
-    '..p...p..',
-    '.p.PPP.p.',
-    '.p.P.P.p.',
-    '.p.P...p.',
-    '.p.PPPp..',
-    '.p.....p.',
-    '..p...p..',
-    '...ppp...',
-  ],
+  // Relics
+  relic_common:     { path: 'assets/relics/relic_common.png',      w: 9,  h: 9 },
+  relic_uncommon:   { path: 'assets/relics/relic_uncommon.png',    w: 9,  h: 9 },
+  relic_rare:       { path: 'assets/relics/relic_rare.png',        w: 9,  h: 9 },
+  relic_legendary:  { path: 'assets/relics/relic_legendary.png',   w: 9,  h: 9 },
 
-  // ── Relic sprites (for forge shop) ──
-  relic_common: [ // small potion
-    '...LLL...',
-    '...LWL...',
-    '...LLL...',
-    '..LLWLL..',
-    '..LLLLL..',
-    '..LLLLL..',
-    '..LLLLL..',
-    '...LLL...',
-    '.........',
-  ],
-  relic_uncommon: [ // green gem
-    '....E....',
-    '...EWE...',
-    '..EWWWE..',
-    '.EEWWEEE.',
-    '.EEEEEEE.',
-    '..EEgEE..',
-    '...EgE...',
-    '....E....',
-    '.........',
-  ],
-  relic_rare: [ // blue crystal
-    '....B....',
-    '...BWB...',
-    '..BWWWB..',
-    '..BWWBB..',
-    '.BBBBBBB.',
-    '..BBbBB..',
-    '...BbB...',
-    '....B....',
-    '.........',
-  ],
-  relic_legendary: [ // golden crown
-    '.N.N.N.N.',
-    '.NNNNNNN.',
-    '.NWWNWWN.',
-    '.NNNNNNN.',
-    '..NNNNN..',
-    '..GGGGG..',
-    '..GWGWG..',
-    '..GGGGG..',
-    '.........',
-  ],
-  anvil: [ // forge anvil
-    '.........',
-    '.DDDDDDD.',
-    'DDDWWDDDD',
-    'DDDDDDDDD',
-    '..DDDDD..',
-    '..DDDDD..',
-    '.DDDDDDD.',
-    'DDDDDDDDD',
-    '.........',
-  ],
-  reroll: [ // dice reroll icon
-    '.........',
-    '.WWWWWWW.',
-    '.W.W.W.W.',
-    '.WWWWWWW.',
-    '.W.W.W.W.',
-    '.WWWWWWW.',
-    '.W.W.W.W.',
-    '.WWWWWWW.',
-    '.........',
-  ],
-  arrow_right: [ // leave/next arrow
-    '.........',
-    '...W.....',
-    '...WW....',
-    '...WWW...',
-    '...WWWW..',
-    '...WWW...',
-    '...WW....',
-    '...W.....',
-    '.........',
-  ],
-  ticket: [ // ticket stub
-    '..EEEEE..',
-    '.E.E.E.E.',
-    '.EEEEEEE.',
-    'EEWEEEEEE',
-    '.EEEEEEE.',
-    '.E.E.E.E.',
-    '..EEEEE..',
-    '.........',
-    '.........',
-  ],
-  skull: [ // corruption skull
-    '..pWWWp..',
-    '.pWWWWWp.',
-    'pWK.W.KWp',
-    'pWWWWWWWp',
-    '.pWK.KWp.',
-    '..pWWWp..',
-    '...W.W...',
-    '..W...W..',
-    '.........',
-  ],
+  // Currencies
+  ticket:           { path: 'assets/currencies/ticket.png',        w: 13, h: 7 },
+
+  // Menu glyphs (from hieroglyph ring)
+  gear:             { path: 'assets/menu/gear.png',                w: 27, h: 27 },
+  exit:             { path: 'assets/menu/exit.png',                w: 27, h: 27 },
+  book:             { path: 'assets/menu/book.png',                w: 27, h: 27 },
 };
 
+// Animated sprite manifest: id → { frames: [path, ...], w, h }
+const ANIM_MANIFEST = {
+  coin: {
+    frames: [
+      'assets/currencies/coin_0.png',
+      'assets/currencies/coin_1.png',
+      'assets/currencies/coin_2.png',
+      'assets/currencies/coin_3.png',
+    ],
+    w: 9, h: 9,
+  },
+};
 
-// Pre-render each sprite to an offscreen canvas for fast blitting
+// ── Internal caches ──
 const _cache = new Map();
+const _animCache = new Map();
+const _animFrameCounts = new Map();
 
-function _render(id) {
-  if (_cache.has(id)) return _cache.get(id);
-  const data = SPRITES[id];
-  if (!data) return null;
+function _loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0);
+      resolve(c);
+    };
+    img.onerror = () => reject(new Error(`Failed to load sprite: ${src}`));
+    img.src = src;
+  });
+}
 
-  const h = data.length;
-  const w = data[0].length;
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const ctx = c.getContext('2d');
+/**
+ * Preload all sprite assets. Must be called (and awaited) before drawing.
+ */
+export async function preloadSprites() {
+  const promises = [];
 
-  for (let y = 0; y < h; y++) {
-    const row = data[y];
-    for (let x = 0; x < w; x++) {
-      const ch = row[x];
-      if (ch === '.') continue;
-      const col = COLOR_KEY[ch];
-      if (!col) continue;
-      ctx.fillStyle = col;
-      ctx.fillRect(x, y, 1, 1);
+  // Static sprites
+  for (const [id, info] of Object.entries(SPRITE_MANIFEST)) {
+    promises.push(
+      _loadImage(BASE + info.path).then(canvas => {
+        _cache.set(id, canvas);
+      })
+    );
+  }
+
+  // Animated sprites
+  for (const [id, info] of Object.entries(ANIM_MANIFEST)) {
+    _animFrameCounts.set(id, info.frames.length);
+    for (let f = 0; f < info.frames.length; f++) {
+      promises.push(
+        _loadImage(BASE + info.frames[f]).then(canvas => {
+          _animCache.set(id + '_' + f, canvas);
+        })
+      );
     }
   }
 
-  _cache.set(id, c);
-  return c;
+  await Promise.all(promises);
 }
 
 /**
  * Draw a symbol sprite onto ctx at (dx, dy) with given pixel scale.
  */
 export function drawSprite(ctx, symbolId, dx, dy, scale = 1) {
-  const src = _render(symbolId);
+  const src = _cache.get(symbolId);
   if (!src) return;
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(src, 0, 0, src.width, src.height, dx, dy, src.width * scale, src.height * scale);
@@ -240,94 +118,12 @@ export function drawSprite(ctx, symbolId, dx, dy, scale = 1) {
  * Draw sprite centered at (cx, cy).
  */
 export function drawSpriteCentered(ctx, symbolId, cx, cy, scale = 1) {
-  const src = _render(symbolId);
+  const src = _cache.get(symbolId);
   if (!src) return;
   ctx.imageSmoothingEnabled = false;
   const hw = (src.width * scale) / 2;
   const hh = (src.height * scale) / 2;
   ctx.drawImage(src, 0, 0, src.width, src.height, Math.round(cx - hw), Math.round(cy - hh), src.width * scale, src.height * scale);
-}
-
-export const SPRITE_SIZE = SIZE;
-
-
-
-// ═══ Animated sprites (multi-frame) ═══
-
-// prettier-ignore
-const ANIM_SPRITES = {
-  coin: [
-    [ // Frame 0: full face
-      '...KKK...',
-      '..KWGGK..',
-      '.KGGGGGK.',
-      '.KGGGGGK.',
-      '.KGGGGGK.',
-      '.KGGGGGK.',
-      '..KYYYK..',
-      '...KKK...',
-      '.........',
-    ],
-    [ // Frame 1: face cropped 1px each side
-      '....K....',
-      '...KWK...',
-      '..KGGGK..',
-      '..KGGGK..',
-      '..KGGGK..',
-      '..KGGGK..',
-      '...KYK...',
-      '....K....',
-      '.........',
-    ],
-    [ // Frame 2: edge
-      '....K....',
-      '....K....',
-      '....K....',
-      '....K....',
-      '....K....',
-      '....K....',
-      '....K....',
-      '....K....',
-      '.........',
-    ],
-    [ // Frame 3: face cropped 1px each side
-      '....K....',
-      '...KWK...',
-      '..KGGGK..',
-      '..KGGGK..',
-      '..KGGGK..',
-      '..KGGGK..',
-      '...KYK...',
-      '....K....',
-      '.........',
-    ],
-  ],
-};
-
-const _animCache = new Map();
-
-function _renderAnimFrame(id, frame) {
-  const key = id + '_' + frame;
-  if (_animCache.has(key)) return _animCache.get(key);
-  const frames = ANIM_SPRITES[id];
-  if (!frames || !frames[frame]) return null;
-  const data = frames[frame];
-  const c = document.createElement('canvas');
-  c.width = SIZE; c.height = SIZE;
-  const ctx = c.getContext('2d');
-  for (let y = 0; y < SIZE; y++) {
-    const row = data[y];
-    for (let x = 0; x < SIZE; x++) {
-      const ch = row[x];
-      if (ch === '.') continue;
-      const col = COLOR_KEY[ch];
-      if (!col) continue;
-      ctx.fillStyle = col;
-      ctx.fillRect(x, y, 1, 1);
-    }
-  }
-  _animCache.set(key, c);
-  return c;
 }
 
 /**
@@ -337,10 +133,10 @@ function _renderAnimFrame(id, frame) {
  * @param {number} fps  animation speed (default 6)
  */
 export function drawAnimSpriteCentered(ctx, id, cx, cy, scale = 1, time = 0, fps = 6) {
-  const frames = ANIM_SPRITES[id];
-  if (!frames) return;
-  const frame = Math.floor(time * fps) % frames.length;
-  const src = _renderAnimFrame(id, frame);
+  const count = _animFrameCounts.get(id);
+  if (!count) return;
+  const frame = Math.floor(time * fps) % count;
+  const src = _animCache.get(id + '_' + frame);
   if (!src) return;
   ctx.imageSmoothingEnabled = false;
   const half = (SIZE * scale) / 2;
@@ -351,7 +147,7 @@ export function drawAnimSpriteCentered(ctx, id, cx, cy, scale = 1, time = 0, fps
  * Draw a specific frame of an animated sprite centered at (cx, cy).
  */
 export function drawAnimFrameCentered(ctx, id, frame, cx, cy, scale = 1) {
-  const src = _renderAnimFrame(id, frame);
+  const src = _animCache.get(id + '_' + frame);
   if (!src) return;
   ctx.imageSmoothingEnabled = false;
   const half = (SIZE * scale) / 2;
@@ -359,5 +155,9 @@ export function drawAnimFrameCentered(ctx, id, frame, cx, cy, scale = 1) {
 }
 
 export function getAnimFrameCount(id) {
-  return ANIM_SPRITES[id]?.length ?? 0;
+  return _animFrameCounts.get(id) ?? 0;
 }
+
+export const SPRITE_SIZE = SIZE;
+export const TICKET_W = 13;
+export const TICKET_H = 7;

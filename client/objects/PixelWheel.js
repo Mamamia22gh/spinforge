@@ -1,6 +1,6 @@
 import { PAL, PAL32, SEG_A, SEG_B, DIVIDER_COLOR, HUB_BG, HUB_BORDER, RIM_COLOR } from '../gfx/PaletteDB.js';
 import { drawText, drawTextCentered, measureText, CHAR_H } from '../gfx/BitmapFont.js';
-import { drawSpriteCentered, drawAnimSpriteCentered, SPRITE_SIZE } from '../gfx/PixelSprites.js';
+import { drawSpriteCentered, drawAnimSpriteCentered, SPRITE_SIZE, TICKET_W } from '../gfx/PixelSprites.js';
 
 // ── Layout (proportional to wheel radius R) ──
 const HUB_P = 0.28;
@@ -1075,7 +1075,7 @@ export class PixelWheel {
           const priceColor = tooExpensive ? PAL.darkRed : PAL.gold;
           const textW = measureText(priceStr);
           const gap = 2;
-          const ticketW = SPRITE_SIZE;
+          const ticketW = TICKET_W;
           const totalW = textW + gap + ticketW;
           const startX = Math.round(px - totalW / 2);
           const textY = Math.round(py) - Math.floor(CHAR_H / 2);
@@ -1425,10 +1425,10 @@ export class PixelWheel {
     const ty = Math.round(cy + Math.sin(tickA) * MID_R);
     const tickTxt = String(this._counterTickets);
     const tickTW = measureText(tickTxt);
-    const tickTotalW = tickTW + gap + SPRITE_SIZE;
+    const tickTotalW = tickTW + gap + TICKET_W;
     const tsx = tx - Math.floor(tickTotalW / 2);
     drawText(ctx, tickTxt, tsx, ty - Math.floor(CHAR_H / 2), PAL.green, 1);
-    drawSpriteCentered(ctx, 'ticket', tsx + tickTW + gap + Math.floor(SPRITE_SIZE / 2) + 2, ty - 1, 1);
+    drawSpriteCentered(ctx, 'ticket', tsx + tickTW + gap + Math.floor(TICKET_W / 2) + 2, ty - 1, 1);
   }
 
   _drawOrbitSlots(ctx, cx, cy) {
