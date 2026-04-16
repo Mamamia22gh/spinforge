@@ -1,0 +1,5168 @@
+// src/core/EventBus.js
+var EventBus = class {
+  #listeners = /* @__PURE__ */ new Map();
+  #queue = [];
+  #dispatching = false;
+  on(event, fn) {
+    if (typeof fn !== "function") throw new TypeError("Listener must be a function");
+    if (!this.#listeners.has(event)) this.#listeners.set(event, []);
+    this.#listeners.get(event).push({ fn, once: false });
+    return () => this.off(event, fn);
+  }
+  once(event, fn) {
+    if (typeof fn !== "function") throw new TypeError("Listener must be a function");
+    if (!this.#listeners.has(event)) this.#listeners.set(event, []);
+    this.#listeners.get(event).push({ fn, once: true });
+    return () => this.off(event, fn);
+  }
+  off(event, fn) {
+    const entries = this.#listeners.get(event);
+    if (!entries) return;
+    const idx = entries.findIndex((e) => e.fn === fn);
+    if (idx !== -1) entries.splice(idx, 1);
+    if (entries.length === 0) this.#listeners.delete(event);
+  }
+  emit(event, ...args) {
+    if (this.#dispatching) {
+      this.#queue.push({ event, args });
+      return;
+    }
+    this.#dispatching = true;
+    try {
+      this.#dispatch(event, args);
+      while (this.#queue.length > 0) {
+        const { event: e, args: a } = this.#queue.shift();
+        this.#dispatch(e, a);
+      }
+    } finally {
+      this.#dispatching = false;
+    }
+  }
+  removeAll(event) {
+    event ? this.#listeners.delete(event) : this.#listeners.clear();
+  }
+  listenerCount(event) {
+    return this.#listeners.get(event)?.length ?? 0;
+  }
+  #dispatch(event, args) {
+    const entries = this.#listeners.get(event);
+    if (!entries) return;
+    for (const entry of [...entries]) {
+      entry.fn(...args);
+      if (entry.once) this.off(event, entry.fn);
+    }
+  }
+};
+
+// src/core/RNG.js
+var RNG = class _RNG {
+  #state;
+  #initialSeed;
+  constructor(seed) {
+    this.#initialSeed = seed >>> 0;
+    this.#state = this.#initialSeed;
+  }
+  get seed() {
+    return this.#initialSeed;
+  }
+  next() {
+    let t = this.#state += 1831565813;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+  nextInt(min, max) {
+    return Math.floor(this.next() * (max - min + 1)) + min;
+  }
+  nextFloat(min, max) {
+    return this.next() * (max - min) + min;
+  }
+  chance(p) {
+    return this.next() < p;
+  }
+  pick(arr) {
+    if (!arr.length) throw new RangeError("Cannot pick from empty array");
+    return arr[this.nextInt(0, arr.length - 1)];
+  }
+  pickWeighted(items, weights) {
+    if (!items.length) throw new RangeError("Cannot pick from empty array");
+    const total = weights.reduce((s, w) => s + w, 0);
+    if (total <= 0) throw new RangeError("Total weight must be positive");
+    let roll = this.next() * total;
+    for (let i = 0; i < items.length; i++) {
+      roll -= weights[i];
+      if (roll <= 0) return items[i];
+    }
+    return items[items.length - 1];
+  }
+  shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = this.nextInt(0, i);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+  pickN(arr, n) {
+    if (n > arr.length) throw new RangeError(`Cannot pick ${n} from ${arr.length}`);
+    return this.shuffle([...arr]).slice(0, n);
+  }
+  fork() {
+    return new _RNG(this.next() * 4294967296 >>> 0);
+  }
+};
+
+// src/data/balance.js
+var BALANCE = Object.freeze({
+  // Run structure
+  ROUNDS_PER_RUN: 12,
+  BALLS_PER_ROUND: 5,
+  // Starting wheel — 40 generic pockets (no symbol, scored by pocket number)
+  INITIAL_SEGMENTS: 40,
+  // Quota scaling — quota(round) = BASE × GROWTH^(round-1)
+  QUOTA_BASE: 69,
+  QUOTA_GROWTH: 1.2,
+  // Economy
+  SURPLUS_CONVERSION_RATE: 20,
+  // surplus ÷ 20 = 💵
+  // Wheel limits
+  MAX_SEGMENTS: 48,
+  MIN_SEGMENTS: 20,
+  MAX_WEIGHT_PER_SEGMENT: 5,
+  // Shop
+  SHOP_REROLL_BASE: 5,
+  SHOP_PRICE_SCALING: 0.5,
+  // Tickets (meta-progression currency)
+  TICKETS_PER_ROUND: 15,
+  TICKETS_BONUS_WIN: 10,
+  TICKETS_BONUS_PERFECT: 5,
+  // Corruption
+  CORRUPTION_START: 0.5,
+  // 50% at run start
+  CORRUPTION_PER_SPIN: 0.02,
+  // +2% per spin
+  CORRUPTION_CRITICAL: 0.85,
+  // above this = danger zone
+  // Coins visual
+  MAX_COIN_DROP: 40,
+  COINS_PER_SURPLUS: 5
+});
+function getQuota(round) {
+  return Math.floor(BALANCE.QUOTA_BASE * Math.pow(BALANCE.QUOTA_GROWTH, round - 1));
+}
+
+// src/core/GameState.js
+var PHASE = Object.freeze({
+  IDLE: "IDLE",
+  SPINNING: "SPINNING",
+  RESULTS: "RESULTS",
+  CHOICE: "CHOICE",
+  SHOP: "SHOP",
+  GAME_OVER: "GAME_OVER",
+  VICTORY: "VICTORY"
+});
+var _nextId = 0;
+function uid(prefix = "id") {
+  return `${prefix}_${++_nextId}`;
+}
+function createGameState(seed) {
+  return {
+    phase: PHASE.IDLE,
+    seed,
+    run: null,
+    meta: createMetaState()
+  };
+}
+function createMetaState() {
+  return {
+    tickets: 0,
+    totalTickets: 0,
+    runsCompleted: 0,
+    bestRound: 0,
+    unlocks: []
+  };
+}
+function createRunState() {
+  const wheel = Array.from({ length: BALANCE.INITIAL_SEGMENTS }, () => ({
+    id: uid("seg"),
+    symbolId: null,
+    weight: 1,
+    modifiers: []
+  }));
+  return {
+    round: 1,
+    score: 0,
+    wheel,
+    ballsLeft: BALANCE.BALLS_PER_ROUND,
+    spinResults: [],
+    // { segmentIndex, segment, symbol, value }
+    // Economy
+    shopCurrency: 0,
+    shopOfferings: [],
+    rerollCount: 0,
+    shopDiscount: 0,
+    // Relics (permanent run items)
+    relics: [],
+    // Purchased upgrades (for display in orbit slots)
+    purchasedUpgrades: [],
+    // Special balls queue (fire first, consumed on use)
+    specialBalls: [],
+    // Generic balls bought in shop (persist across shop reset)
+    genericBallsBought: 0,
+    // Between-round
+    currentChoices: [],
+    lastRoundResult: null,
+    // Corruption
+    corruption: BALANCE.CORRUPTION_START
+  };
+}
+
+// src/data/symbols.js
+var SYMBOLS = [
+  // ── Uncommons ──
+  { id: "cherry", name: "Cerise", emoji: "\u{1F352}", color: "red", baseValue: 20, rarity: "uncommon", startsUnlocked: false, specialEffect: "double_payout", cost: 40 },
+  // ── Legendaries ──
+  { id: "void", name: "Void", emoji: "\u{1F300}", color: "void", baseValue: 0, rarity: "legendary", startsUnlocked: false, specialEffect: "void_burst", cost: 150 }
+];
+var SYMBOL_MAP = new Map(SYMBOLS.map((s) => [s.id, s]));
+function getSymbol(id) {
+  const s = SYMBOL_MAP.get(id);
+  if (!s) throw new Error(`Unknown symbol: ${id}`);
+  return s;
+}
+
+// src/systems/WheelSystem.js
+var WheelSystem = class {
+  #events;
+  constructor(events) {
+    this.#events = events;
+  }
+  /**
+   * Spin the wheel — pick a random segment based on weights.
+   * @param {object} run
+   * @param {import('../core/RNG.js').RNG} rng
+   * @returns {{ segmentIndex: number, segment: object, symbol: object }}
+   */
+  spin(run, rng) {
+    const wheel = run.wheel;
+    const weights = wheel.map((s) => s.weight);
+    const totalWeight = weights.reduce((s, w) => s + w, 0);
+    let roll = rng.next() * totalWeight;
+    let segmentIndex = 0;
+    for (let i = 0; i < wheel.length; i++) {
+      roll -= wheel[i].weight;
+      if (roll <= 0) {
+        segmentIndex = i;
+        break;
+      }
+    }
+    const segment = wheel[segmentIndex];
+    const symbol = segment.symbolId ? getSymbol(segment.symbolId) : null;
+    this.#events.emit("wheel:spun", { segmentIndex, segment, symbol });
+    return { segmentIndex, segment, symbol };
+  }
+  /**
+   * Get the probability breakdown for the current wheel.
+   * @param {object[]} wheel
+   * @returns {Array<{symbolId: string, weight: number, probability: number, symbol: object}>}
+   */
+  getProbabilities(wheel) {
+    const totalWeight = wheel.reduce((s, seg) => s + seg.weight, 0);
+    if (totalWeight === 0) return [];
+    const map = /* @__PURE__ */ new Map();
+    for (const seg of wheel) {
+      if (!map.has(seg.symbolId)) {
+        map.set(seg.symbolId, { symbolId: seg.symbolId, weight: 0, count: 0, symbol: seg.symbolId ? getSymbol(seg.symbolId) : null });
+      }
+      const entry = map.get(seg.symbolId);
+      entry.weight += seg.weight;
+      entry.count++;
+    }
+    return [...map.values()].map((e) => ({
+      ...e,
+      probability: e.weight / totalWeight
+    }));
+  }
+  /**
+   * Add a new segment to the wheel.
+   * @param {object} run
+   * @param {string} symbolId
+   * @returns {boolean}
+   */
+  addSegment(run, symbolId) {
+    if (run.wheel.length >= BALANCE.MAX_SEGMENTS) {
+      this.#events.emit("wheel:max_segments");
+      return false;
+    }
+    if (symbolId) getSymbol(symbolId);
+    run.wheel.push({ id: uid("seg"), symbolId, weight: 1, modifiers: [] });
+    this.#events.emit("wheel:segment_added", { symbolId, totalSegments: run.wheel.length });
+    return true;
+  }
+  /**
+   * Remove a segment by index.
+   * @param {object} run
+   * @param {number} index
+   * @returns {boolean}
+   */
+  removeSegment(run, index) {
+    if (run.wheel.length <= BALANCE.MIN_SEGMENTS) {
+      this.#events.emit("wheel:min_segments");
+      return false;
+    }
+    if (index < 0 || index >= run.wheel.length) {
+      this.#events.emit("wheel:invalid_index", { index });
+      return false;
+    }
+    const removed = run.wheel.splice(index, 1)[0];
+    this.#events.emit("wheel:segment_removed", { removed, totalSegments: run.wheel.length });
+    return true;
+  }
+  /**
+   * Increase weight of a segment.
+   * @param {object} run
+   * @param {number} index
+   * @returns {boolean}
+   */
+  boostWeight(run, index) {
+    const seg = run.wheel[index];
+    if (!seg) return false;
+    if (seg.weight >= BALANCE.MAX_WEIGHT_PER_SEGMENT) {
+      this.#events.emit("wheel:max_weight", { index });
+      return false;
+    }
+    seg.weight++;
+    this.#events.emit("wheel:weight_boosted", { index, newWeight: seg.weight });
+    return true;
+  }
+};
+
+// src/systems/ScoringSystem.js
+var ScoringSystem = class {
+  /**
+   * Calculate round totals.
+   * @param {object} run
+   * @returns {{ totalWon: number, quota: number, passed: boolean, surplus: number, shopCoins: number }}
+   */
+  evaluateRound(run) {
+    const totalWon = run.score;
+    const quota = getQuota(run.round);
+    const passed = totalWon >= quota;
+    const surplus = Math.max(0, totalWon - quota);
+    const shopCoins = Math.floor(surplus / BALANCE.SURPLUS_CONVERSION_RATE);
+    return { totalWon, quota, passed, surplus, shopCoins };
+  }
+};
+
+// src/systems/EffectSystem.js
+var EffectSystem = class {
+  /**
+   * Compute all modifiers from relics.
+   * @param {object[]} relics
+   * @returns {object}
+   */
+  compute(relics) {
+    if (!relics || relics.length === 0) return { ...DEFAULT_MODS };
+    const base = { ...DEFAULT_MODS };
+    for (const relic of relics) {
+      for (const eff of relic.effects) {
+        if (eff.metaLevel !== 0) continue;
+        this.#accumulateBase(base, eff);
+      }
+    }
+    return { ...base };
+  }
+  #accumulateBase(base, eff) {
+    switch (eff.type) {
+      case "set_base_value":
+        base.setBaseValue = base.setBaseValue === null ? eff.value : Math.max(base.setBaseValue, eff.value);
+        break;
+      case "add_even_segments":
+        base.addEven += eff.value;
+        break;
+      case "add_odd_segments":
+        base.addOdd += eff.value;
+        break;
+    }
+  }
+};
+var DEFAULT_MODS = Object.freeze({
+  setBaseValue: null,
+  // if non-null, replaces (segmentIndex + 1) as base value
+  addEven: 0,
+  // flat bonus added to even-valued segments (2,4,6,...)
+  addOdd: 0
+  // flat bonus added to odd-valued segments (1,3,5,...)
+});
+
+// src/data/choices.js
+var CHOICES = [
+  // ── Wheel manipulation ──
+  { id: "add_segment", name: "Segment", emoji: "\u26AA", description: "Ajoute un pocket g\xE9n\xE9rique", type: "add_symbol", weight: 8, minRound: 1, requiresUnlock: null, payload: { symbolId: null } },
+  { id: "add_cherry", name: "Cerise", emoji: "\u{1F352}", description: "Ajoute une Cerise (double payout)", type: "add_symbol", weight: 4, minRound: 4, requiresUnlock: "unlock_cherry", payload: { symbolId: "cherry" } },
+  { id: "remove_segment", name: "Retirer Segment", emoji: "\u2702\uFE0F", description: "Retire un segment (au choix)", type: "remove_symbol", weight: 6, minRound: 2, requiresUnlock: null, payload: {} },
+  { id: "boost_weight", name: "Lester", emoji: "\u2696\uFE0F", description: "+1 poids \xE0 un segment", type: "boost_weight", weight: 7, minRound: 2, requiresUnlock: null, payload: {} },
+  // ── Special balls (purchasable in shop & offered as choices) ──
+  { id: "ball_golden", name: "Bille Dor\xE9e", emoji: "\u{1F7E1}", description: "\xD72 la valeur du segment", type: "special_ball", weight: 8, minRound: 1, requiresUnlock: null, effect: "double", rarity: "common", cost: 20 },
+  { id: "ball_heavy", name: "Bille Lourde", emoji: "\u26AB", description: "+1 poids au segment touch\xE9", type: "special_ball", weight: 6, minRound: 2, requiresUnlock: null, effect: "weight", rarity: "common", cost: 25 },
+  { id: "ball_ghost", name: "Bille Fant\xF4me", emoji: "\u{1F47B}", description: "Ne consomme pas de tour", type: "special_ball", weight: 5, minRound: 3, requiresUnlock: null, effect: "ghost", rarity: "uncommon", cost: 45 },
+  { id: "ball_splash", name: "Bille Explosive", emoji: "\u{1F4A5}", description: "Score aussi les 2 segments adjacents", type: "special_ball", weight: 4, minRound: 4, requiresUnlock: null, effect: "splash", rarity: "rare", cost: 70 },
+  { id: "ball_critical", name: "Bille Critique", emoji: "\u26A1", description: "\xD75 la valeur du segment", type: "special_ball", weight: 2, minRound: 6, requiresUnlock: null, effect: "critical", rarity: "legendary", cost: 120 }
+];
+var CHOICE_MAP = new Map(CHOICES.map((c) => [c.id, c]));
+
+// src/systems/ChoiceSystem.js
+var ChoiceSystem = class {
+  #events;
+  constructor(events) {
+    this.#events = events;
+  }
+  /**
+   * Generate 3 random choices for the player.
+   * @param {object} run
+   * @param {object} meta
+   * @param {import('../core/RNG.js').RNG} rng
+   * @returns {object[]}
+   */
+  generate(run, meta, rng) {
+    const available = CHOICES.filter((c) => this.#isAvailable(c, run, meta));
+    if (available.length === 0) return [];
+    const count = Math.min(3, available.length);
+    const chosen = [];
+    const usedIds = /* @__PURE__ */ new Set();
+    const usedTypes = /* @__PURE__ */ new Set();
+    for (let i = 0; i < count; i++) {
+      let remaining = available.filter((c) => !usedIds.has(c.id));
+      if (remaining.length === 0) break;
+      const diverse = remaining.filter((c) => !usedTypes.has(c.type));
+      if (diverse.length > 0) remaining = diverse;
+      const weights = remaining.map((c) => c.weight);
+      const pick = rng.pickWeighted(remaining, weights);
+      chosen.push({ ...pick, instanceId: uid("choice") });
+      usedIds.add(pick.id);
+      usedTypes.add(pick.type);
+    }
+    return chosen;
+  }
+  /**
+   * Apply a chosen option.
+   * @param {object} run
+   * @param {object} choice
+   * @param {number|null} targetIndex — for remove/boost (segment index)
+   * @param {import('../systems/WheelSystem.js').WheelSystem} wheelSystem
+   * @returns {boolean}
+   */
+  apply(run, choice, targetIndex, wheelSystem) {
+    switch (choice.type) {
+      case "add_symbol":
+        return wheelSystem.addSegment(run, choice.payload.symbolId);
+      case "remove_symbol":
+        if (targetIndex == null) {
+          this.#events.emit("choice:needs_target", { choice });
+          return false;
+        }
+        return wheelSystem.removeSegment(run, targetIndex);
+      case "boost_weight":
+        if (targetIndex == null) {
+          this.#events.emit("choice:needs_target", { choice });
+          return false;
+        }
+        return wheelSystem.boostWeight(run, targetIndex);
+      case "special_ball":
+        return this.#addSpecialBall(run, choice);
+      default:
+        this.#events.emit("error", { message: `Unknown choice type: ${choice.type}` });
+        return false;
+    }
+  }
+  #isAvailable(choice, run, meta) {
+    if (choice.requiresUnlock && !meta.unlocks.includes(choice.requiresUnlock)) return false;
+    if (choice.minRound && run.round < choice.minRound) return false;
+    switch (choice.type) {
+      case "add_symbol":
+        return run.wheel.length < BALANCE.MAX_SEGMENTS;
+      case "remove_symbol":
+        return run.wheel.length > BALANCE.MIN_SEGMENTS;
+      case "boost_weight":
+        return run.wheel.some((s) => s.weight < BALANCE.MAX_WEIGHT_PER_SEGMENT);
+      default:
+        return true;
+    }
+  }
+  #addSpecialBall(run, choice) {
+    run.specialBalls.push({
+      id: choice.id,
+      name: choice.name,
+      effect: choice.effect,
+      rarity: choice.rarity || "common"
+    });
+    run.ballsLeft++;
+    this.#events.emit("special_ball:added", {
+      ball: choice,
+      totalSpecial: run.specialBalls.length,
+      ballsLeft: run.ballsLeft
+    });
+    return true;
+  }
+};
+
+// src/data/relics.js
+var RELICS = [
+  // ═══ COMMON ═══
+  { id: "tablet_twenty", name: "Tablette du XX", emoji: "\u{1F4DC}", description: "Tous les segments valent 20", rarity: "common", cost: 30, minRound: 1, effects: [{ type: "set_base_value", value: 20, metaLevel: 0 }] },
+  { id: "tablet_nineteen", name: "Tablette du XIX", emoji: "\u{1F4DC}", description: "Tous les segments valent 19", rarity: "common", cost: 25, minRound: 1, effects: [{ type: "set_base_value", value: 19, metaLevel: 0 }] },
+  // ═══ UNCOMMON ═══
+  { id: "even_charm", name: "Charme Pair", emoji: "\u2728", description: "+1 aux cases de valeur paire", rarity: "uncommon", cost: 45, minRound: 2, effects: [{ type: "add_even_segments", value: 1, metaLevel: 0 }] },
+  { id: "odd_charm", name: "Charme Impair", emoji: "\u2728", description: "+3 aux cases de valeur impaire", rarity: "uncommon", cost: 50, minRound: 2, effects: [{ type: "add_odd_segments", value: 3, metaLevel: 0 }] },
+  // ═══ RARE ═══
+  { id: "even_totem", name: "Totem Pair", emoji: "\u{1F5FF}", description: "+5 aux cases de valeur paire", rarity: "rare", cost: 80, minRound: 4, effects: [{ type: "add_even_segments", value: 5, metaLevel: 0 }] },
+  { id: "odd_totem", name: "Totem Impair", emoji: "\u{1F5FF}", description: "+10 aux cases de valeur impaire", rarity: "rare", cost: 90, minRound: 4, effects: [{ type: "add_odd_segments", value: 10, metaLevel: 0 }] },
+  // ═══ LEGENDARY ═══
+  { id: "celestial_crown", name: "Couronne C\xE9leste", emoji: "\u{1F451}", description: "+25 valeurs paires, +50 valeurs impaires", rarity: "legendary", cost: 200, minRound: 7, effects: [{ type: "add_even_segments", value: 25, metaLevel: 0 }, { type: "add_odd_segments", value: 50, metaLevel: 0 }] }
+];
+var RELIC_MAP = new Map(RELICS.map((r) => [r.id, r]));
+function getRarityWeights(round) {
+  const t = Math.min(1, (round - 1) / 11);
+  return {
+    common: Math.round(50 - 30 * t),
+    // 50 → 20
+    uncommon: Math.round(30 + 5 * t),
+    // 30 → 35
+    rare: Math.round(15 + 20 * t),
+    // 15 → 35
+    legendary: Math.round(5 + 15 * t)
+    // 5  → 20
+  };
+}
+
+// src/systems/ShopSystem.js
+var ShopSystem = class {
+  #events;
+  constructor(events) {
+    this.#events = events;
+  }
+  /**
+   * Generate shop offerings: 1 symbol + 1 special ball + relics filling the rest.
+   * Slot 4 is reroll (not in array). Offerings are indexed by slot number.
+   */
+  generateOfferings(run, rng) {
+    const round = run.round;
+    const weights = getRarityWeights(round);
+    const discount = run.shopDiscount || 0;
+    const applyCost = (baseCost) => Math.max(1, Math.ceil(baseCost * (1 - discount / 100)));
+    const offerings = new Array(8).fill(null);
+    offerings[5] = this.#pickSymbol(run, rng, weights, applyCost);
+    offerings[6] = this.#pickSpecialBall(run, rng, weights, applyCost);
+    const relicSlots = [0, 1, 2, 3, 7];
+    const relicPicks = this.#pickRelics(run, rng, weights, applyCost, relicSlots.length);
+    for (let i = 0; i < relicSlots.length; i++) {
+      offerings[relicSlots[i]] = relicPicks[i] || null;
+    }
+    return offerings;
+  }
+  #pickSymbol(run, rng, weights, applyCost) {
+    const available = SYMBOLS.filter((s) => {
+      if (s.requiresUnlock) return false;
+      return true;
+    });
+    if (available.length === 0) return this.#makeGenericBall(applyCost);
+    const w = available.map((s) => weights[s.rarity] || 1);
+    const roll = rng.next();
+    const specialChance = Math.min(0.7, 0.3 + (run.round - 1) * 0.04);
+    if (roll > specialChance || available.length === 0) {
+      return this.#makeGenericBall(applyCost);
+    }
+    const pick = rng.pickWeighted(available, w);
+    return {
+      shopType: "symbol",
+      id: pick.id,
+      name: pick.name,
+      emoji: pick.emoji,
+      rarity: pick.rarity,
+      description: `Ajoute ${pick.name} \xE0 la roue`,
+      finalCost: applyCost(pick.cost),
+      symbolId: pick.id
+    };
+  }
+  #makeGenericBall(applyCost) {
+    return {
+      shopType: "symbol",
+      id: "generic_ball",
+      name: "Segment",
+      emoji: "\u26AA",
+      rarity: "common",
+      description: "Ajoute un pocket g\xE9n\xE9rique",
+      finalCost: applyCost(15),
+      symbolId: null
+    };
+  }
+  #pickSpecialBall(run, rng, weights, applyCost) {
+    const balls = CHOICES.filter((c) => {
+      if (c.type !== "special_ball") return false;
+      if (c.minRound && run.round < c.minRound) return false;
+      if (c.requiresUnlock) return false;
+      return true;
+    });
+    if (balls.length === 0) {
+      const fb = CHOICES.find((c) => c.type === "special_ball") || CHOICES[CHOICES.length - 1];
+      return {
+        shopType: "special_ball",
+        id: fb.id,
+        name: fb.name,
+        emoji: fb.emoji,
+        rarity: fb.rarity || "common",
+        description: fb.description,
+        finalCost: applyCost(fb.cost || 20),
+        effect: fb.effect
+      };
+    }
+    const w = balls.map((c) => (weights[c.rarity] || 1) * c.weight);
+    const pick = rng.pickWeighted(balls, w);
+    return {
+      shopType: "special_ball",
+      id: pick.id,
+      name: pick.name,
+      emoji: pick.emoji,
+      rarity: pick.rarity || "common",
+      description: pick.description,
+      finalCost: applyCost(pick.cost || 20),
+      effect: pick.effect
+    };
+  }
+  #pickRelics(run, rng, weights, applyCost, count) {
+    const available = RELICS.filter((r) => {
+      if (r.minRound > run.round) return false;
+      if (run.relics.some((owned) => owned.id === r.id)) return false;
+      return true;
+    });
+    const picks = [];
+    const usedIds = /* @__PURE__ */ new Set();
+    for (let i = 0; i < count; i++) {
+      const pool = available.filter((r) => !usedIds.has(r.id));
+      if (pool.length === 0) {
+        picks.push(null);
+        continue;
+      }
+      const w = pool.map((r) => weights[r.rarity] || 1);
+      const pick = rng.pickWeighted(pool, w);
+      picks.push({
+        shopType: "relic",
+        ...pick,
+        finalCost: applyCost(pick.cost)
+      });
+      usedIds.add(pick.id);
+    }
+    return picks;
+  }
+  /**
+   * Buy any item from shop offerings.
+   * @param {object} run
+   * @param {object} meta
+   * @param {number} slotIndex — slot in the 8-slot array
+   * @param {import('../systems/WheelSystem.js').WheelSystem} wheelSystem
+   * @returns {boolean}
+   */
+  buyItem(run, meta, slotIndex, wheelSystem) {
+    const offering = run.shopOfferings[slotIndex];
+    if (!offering) {
+      this.#events.emit("shop:invalid_offering", { slotIndex });
+      return false;
+    }
+    if (meta.tickets < offering.finalCost) {
+      this.#events.emit("shop:insufficient_funds", { cost: offering.finalCost, available: meta.tickets });
+      return false;
+    }
+    meta.tickets -= offering.finalCost;
+    switch (offering.shopType) {
+      case "relic":
+        run.relics.push(offering);
+        break;
+      case "symbol":
+        if (offering.id === "generic_ball") {
+          run.ballsLeft++;
+          run.genericBallsBought = (run.genericBallsBought || 0) + 1;
+        } else {
+          wheelSystem.addSegment(run, offering.symbolId);
+        }
+        break;
+      case "special_ball":
+        run.specialBalls.push({
+          id: offering.id,
+          name: offering.name,
+          effect: offering.effect,
+          rarity: offering.rarity
+        });
+        run.ballsLeft++;
+        this.#events.emit("special_ball:added", {
+          ball: offering,
+          totalSpecial: run.specialBalls.length,
+          ballsLeft: run.ballsLeft
+        });
+        break;
+      default:
+        run.relics.push(offering);
+        break;
+    }
+    run.shopOfferings[slotIndex] = null;
+    this.#events.emit("shop:item_bought", {
+      item: offering,
+      cost: offering.finalCost,
+      remaining: meta.tickets
+    });
+    return true;
+  }
+  /**
+   * Reroll shop offerings.
+   */
+  reroll(run, meta, rng) {
+    const cost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount);
+    if (meta.tickets < cost) {
+      this.#events.emit("shop:insufficient_funds", { cost, available: meta.tickets });
+      return false;
+    }
+    meta.tickets -= cost;
+    run.rerollCount++;
+    run.shopOfferings = this.generateOfferings(run, rng);
+    this.#events.emit("shop:rerolled", { cost, offerings: run.shopOfferings });
+    return true;
+  }
+};
+
+// src/systems/MetaSystem.js
+var META_UNLOCKS = [
+  // Symbols
+  { id: "unlock_cherry", name: "Cerise", description: "Cerise (double payout) dans choix", cost: 5, category: "symbol" },
+  { id: "unlock_void", name: "Void", description: "Void (burst) dans les choix", cost: 15, category: "symbol" },
+  // Bet types
+  { id: "unlock_chain_bet", name: "Pari Cha\xEEne", description: "D\xE9bloque le pari Cha\xEEne", cost: 6, category: "bet" },
+  { id: "unlock_void_bet", name: "Pari Void", description: "D\xE9bloque le pari Void", cost: 8, category: "bet" },
+  { id: "unlock_coin_flip", name: "Quitte ou Double", description: "D\xE9bloque Quitte ou Double", cost: 7, category: "bet" },
+  // General
+  { id: "unlock_extra_bet", name: "Pari Bonus", description: "+1 pari max par spin", cost: 8, category: "upgrade" },
+  { id: "unlock_16_seg", name: "Grande Roue", description: "Roue extensible \xE0 16 segments", cost: 12, category: "upgrade" },
+  // Gauges
+  { id: "unlock_gauge_2", name: "Chargeur Sup\xE9rieur", description: "D\xE9bloque le 2e chargeur de billes", cost: 8, category: "upgrade" },
+  { id: "unlock_gauge_3", name: "Chargeur Inf\xE9rieur", description: "D\xE9bloque le 3e chargeur de billes", cost: 15, category: "upgrade" },
+  { id: "unlock_gauge_4", name: "Chargeur Gauche", description: "D\xE9bloque le 4e chargeur de billes", cost: 25, category: "upgrade" }
+];
+var UNLOCK_MAP = new Map(META_UNLOCKS.map((u) => [u.id, u]));
+var MetaSystem = class {
+  #events;
+  constructor(events) {
+    this.#events = events;
+  }
+  calculateTickets(run, won = false) {
+    let tickets = run.round * BALANCE.TICKETS_PER_ROUND;
+    if (won) tickets += BALANCE.TICKETS_BONUS_WIN;
+    return tickets;
+  }
+  unlock(meta, unlockId) {
+    const def = UNLOCK_MAP.get(unlockId);
+    if (!def) {
+      this.#events.emit("meta:unknown_unlock", { unlockId });
+      return false;
+    }
+    if (meta.unlocks.includes(unlockId)) {
+      this.#events.emit("meta:already_unlocked", { unlockId });
+      return false;
+    }
+    if (meta.tickets < def.cost) {
+      this.#events.emit("meta:insufficient_tickets", { unlockId, cost: def.cost, available: meta.tickets });
+      return false;
+    }
+    meta.tickets -= def.cost;
+    meta.unlocks.push(unlockId);
+    this.#events.emit("meta:unlocked", { unlockId, name: def.name, remainingTickets: meta.tickets });
+    return true;
+  }
+  isUnlocked(meta, unlockId) {
+    return meta.unlocks.includes(unlockId);
+  }
+  getAvailableUnlocks(meta) {
+    return META_UNLOCKS.map((u) => ({
+      ...u,
+      unlocked: meta.unlocks.includes(u.id),
+      affordable: meta.tickets >= u.cost
+    }));
+  }
+};
+
+// src/core/GameLoop.js
+var GameLoop = class {
+  constructor(options = {}) {
+    this.events = new EventBus();
+    this.rng = new RNG(options.seed ?? Date.now());
+    this.state = createGameState(this.rng.seed);
+    if (options.meta) {
+      this.state.meta = { ...this.state.meta, ...options.meta };
+    }
+    this.wheel = new WheelSystem(this.events);
+    this.scoring = new ScoringSystem();
+    this.effects = new EffectSystem();
+    this.choice = new ChoiceSystem(this.events);
+    this.shop = new ShopSystem(this.events);
+    this.meta = new MetaSystem(this.events);
+  }
+  #getMods() {
+    return this.effects.compute(this.state.run?.relics ?? []);
+  }
+  // ─── Lifecycle ───
+  startRun() {
+    const ok = [PHASE.IDLE, PHASE.GAME_OVER, PHASE.VICTORY];
+    if (!ok.includes(this.state.phase)) {
+      return this.#error("Cannot start run in phase " + this.state.phase);
+    }
+    this.state.run = createRunState();
+    this.#setPhase(PHASE.IDLE);
+    this.#emitRoundPreview();
+    this.events.emit("run:started", { seed: this.rng.seed });
+    return true;
+  }
+  // ─── Spin (RNG-based, for tests / headless) ───
+  spin() {
+    const ok = [PHASE.IDLE, PHASE.SPINNING];
+    if (!ok.includes(this.state.phase)) {
+      return this.#error("Cannot spin in phase " + this.state.phase);
+    }
+    const run = this.state.run;
+    if (!run) return this.#error("No active run");
+    if (run.ballsLeft <= 0) {
+      this.events.emit("error", { message: "Plus de billes" });
+      return null;
+    }
+    this.#setPhase(PHASE.SPINNING);
+    const result = this.wheel.spin(run, this.rng);
+    return this.#recordBall(run, result.segmentIndex);
+  }
+  // ─── Resolve ball at specific segment (physics-driven) ───
+  resolveBallAt(segmentIndex) {
+    const ok = [PHASE.IDLE, PHASE.SPINNING];
+    if (!ok.includes(this.state.phase)) {
+      return this.#error("Cannot resolve ball in phase " + this.state.phase);
+    }
+    const run = this.state.run;
+    if (!run) return this.#error("No active run");
+    if (run.ballsLeft <= 0) return null;
+    const segment = run.wheel[segmentIndex];
+    if (!segment) return this.#error("Invalid segment index: " + segmentIndex);
+    this.#setPhase(PHASE.SPINNING);
+    return this.#recordBall(run, segmentIndex);
+  }
+  // ─── Shared ball resolution ───
+  #recordBall(run, segmentIndex) {
+    let specialBall = null;
+    if (run.specialBalls.length > 0) {
+      specialBall = run.specialBalls.shift();
+    }
+    const { segment, symbol, value } = this.#resolveSegment(run, segmentIndex, specialBall);
+    const spinResult = { segmentIndex, segment, symbol, value, specialBall };
+    run.spinResults.push(spinResult);
+    run.score += value;
+    run.ballsLeft--;
+    if (specialBall?.effect === "ghost") {
+      run.ballsLeft++;
+    }
+    if (specialBall?.effect === "weight") {
+      if (segment.weight < BALANCE.MAX_WEIGHT_PER_SEGMENT) {
+        segment.weight++;
+        this.events.emit("special_ball:weight", { segmentIndex, newWeight: segment.weight });
+      }
+    }
+    if (specialBall?.effect === "splash") {
+      const len = run.wheel.length;
+      const left = (segmentIndex - 1 + len) % len;
+      const right = (segmentIndex + 1) % len;
+      const { value: vL } = this.#resolveSegment(run, left, null);
+      const { value: vR } = this.#resolveSegment(run, right, null);
+      run.score += vL + vR;
+      spinResult.splashValue = vL + vR;
+      spinResult.value += vL + vR;
+    }
+    this.events.emit("spin:resolved", {
+      result: spinResult,
+      value: spinResult.value,
+      ballsLeft: run.ballsLeft,
+      specialBall
+    });
+    if (run.ballsLeft <= 0) {
+      this.#endRound();
+    }
+    return { result: spinResult, value: spinResult.value };
+  }
+  #resolveSegment(run, segmentIndex, specialBall) {
+    const segment = run.wheel[segmentIndex];
+    const symbol = segment.symbolId ? getSymbol(segment.symbolId) : null;
+    const mods = this.#getMods();
+    let baseVal = mods.setBaseValue !== null ? mods.setBaseValue : segmentIndex + 1;
+    if (baseVal % 2 === 0) baseVal += mods.addEven;
+    else baseVal += mods.addOdd;
+    let value = baseVal * segment.weight;
+    if (symbol?.specialEffect === "double_payout") {
+      value *= 2;
+    } else if (symbol?.specialEffect === "void_burst") {
+      value = 0;
+    }
+    if (specialBall?.effect === "double") {
+      value *= 2;
+    } else if (specialBall?.effect === "critical") {
+      value *= 5;
+    }
+    return { segment, symbol, value };
+  }
+  getSegmentDisplayValues() {
+    const run = this.state.run;
+    if (!run) return [];
+    const mods = this.#getMods();
+    return run.wheel.map((seg, i) => {
+      let v = mods.setBaseValue !== null ? mods.setBaseValue : i + 1;
+      if (v % 2 === 0) v += mods.addEven;
+      else v += mods.addOdd;
+      return v;
+    });
+  }
+  // ─── End of round → Results ───
+  #endRound() {
+    const run = this.state.run;
+    const { totalWon, quota, passed, surplus, shopCoins } = this.scoring.evaluateRound(run);
+    run.lastRoundResult = {
+      round: run.round,
+      totalWon,
+      quota,
+      passed,
+      surplus,
+      shopCoins
+    };
+    run.shopCurrency += shopCoins;
+    if (passed) {
+      const earned = BALANCE.TICKETS_PER_ROUND;
+      this.state.meta.tickets += earned;
+      this.state.meta.totalTickets += earned;
+      this.events.emit("tickets:earned", { amount: earned, total: this.state.meta.tickets });
+    }
+    this.#setPhase(PHASE.RESULTS);
+    this.events.emit("round:ended", run.lastRoundResult);
+    if (!passed) {
+      this.#gameOver();
+    }
+  }
+  // ─── Results → Choice ───
+  continueFromResults() {
+    if (this.state.phase !== PHASE.RESULTS) return false;
+    const run = this.state.run;
+    if (!run.lastRoundResult.passed) return false;
+    if (run.round >= BALANCE.ROUNDS_PER_RUN) {
+      this.#victory();
+      return true;
+    }
+    const choices = this.choice.generate(run, this.state.meta, this.rng);
+    run.currentChoices = choices;
+    this.#setPhase(PHASE.CHOICE);
+    this.events.emit("choice:presented", { choices });
+    return true;
+  }
+  // ─── Choice → Shop ───
+  makeChoice(index, targetIndex = null) {
+    if (this.state.phase !== PHASE.CHOICE) {
+      return this.#error("Not in CHOICE phase");
+    }
+    const run = this.state.run;
+    if (index < 0 || index >= run.currentChoices.length) {
+      return this.#error("Invalid choice index");
+    }
+    const choice = run.currentChoices[index];
+    const ok = this.choice.apply(run, choice, targetIndex, this.wheel);
+    if (!ok) return false;
+    this.events.emit("choice:made", { choice, index });
+    this.#openShop();
+    return true;
+  }
+  skipChoice() {
+    if (this.state.phase !== PHASE.CHOICE) return false;
+    this.#openShop();
+    return true;
+  }
+  #openShop() {
+    const run = this.state.run;
+    run.shopOfferings = this.shop.generateOfferings(run, this.rng);
+    run.rerollCount = 0;
+    this.#setPhase(PHASE.SHOP);
+    this.events.emit("shop:opened", { tickets: this.state.meta.tickets, offerings: run.shopOfferings });
+  }
+  // ─── Shop ───
+  shopBuyRelic(offeringIndex) {
+    return this.shopBuy(offeringIndex);
+  }
+  shopBuy(slotIndex) {
+    if (this.state.phase !== PHASE.SHOP) return this.#error("Not in SHOP");
+    return this.shop.buyItem(this.state.run, this.state.meta, slotIndex, this.wheel);
+  }
+  shopReroll() {
+    if (this.state.phase !== PHASE.SHOP) return this.#error("Not in SHOP");
+    return this.shop.reroll(this.state.run, this.state.meta, this.rng);
+  }
+  endShop() {
+    if (this.state.phase !== PHASE.SHOP) return false;
+    const run = this.state.run;
+    run.round++;
+    if (run.round > BALANCE.ROUNDS_PER_RUN) {
+      this.#victory();
+      return true;
+    }
+    if (run.lastRoundResult?.passed) {
+      run.score -= run.lastRoundResult.quota;
+    }
+    run.ballsLeft = BALANCE.BALLS_PER_ROUND + run.specialBalls.length + (run.genericBallsBought || 0);
+    run.spinResults = [];
+    run.shopDiscount = 0;
+    this.#setPhase(PHASE.IDLE);
+    this.#emitRoundPreview();
+    return true;
+  }
+  // ─── End states ───
+  #gameOver() {
+    const run = this.state.run;
+    this.#applyRunStats(run);
+    this.#setPhase(PHASE.GAME_OVER);
+    this.events.emit("game:over", {
+      round: run.round,
+      score: run.score,
+      quota: getQuota(run.round),
+      totalWon: run.lastRoundResult?.totalWon ?? 0
+    });
+  }
+  #victory() {
+    const run = this.state.run;
+    const bonus = BALANCE.TICKETS_BONUS_WIN;
+    this.state.meta.tickets += bonus;
+    this.state.meta.totalTickets += bonus;
+    this.#applyRunStats(run);
+    this.#setPhase(PHASE.VICTORY);
+    this.events.emit("game:won", { round: run.round, tickets: bonus, score: run.score });
+  }
+  #applyRunStats(run) {
+    this.state.meta.runsCompleted++;
+    this.state.meta.bestRound = Math.max(this.state.meta.bestRound, run.round);
+  }
+  // ─── Helpers ───
+  #setPhase(phase) {
+    this.state.phase = phase;
+    this.events.emit("phase:changed", { phase });
+  }
+  #emitRoundPreview() {
+    const run = this.state.run;
+    this.events.emit("round:preview", {
+      round: run.round,
+      quota: getQuota(run.round),
+      ballsLeft: run.ballsLeft,
+      wheel: run.wheel,
+      probabilities: this.wheel.getProbabilities(run.wheel),
+      relics: run.relics
+    });
+  }
+  #error(msg) {
+    this.events.emit("error", { message: msg });
+    return false;
+  }
+};
+
+// src/core/SaveSystem.js
+var SaveSystem = class _SaveSystem {
+  static STORAGE_KEY = "spinforge_meta";
+  static serialize(meta) {
+    return JSON.stringify({ version: 1, timestamp: Date.now(), meta });
+  }
+  static deserialize(json) {
+    try {
+      const data = JSON.parse(json);
+      if (!data || data.version !== 1 || !data.meta) return null;
+      return data.meta;
+    } catch {
+      return null;
+    }
+  }
+  static save(meta) {
+    try {
+      localStorage.setItem(_SaveSystem.STORAGE_KEY, _SaveSystem.serialize(meta));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  static load() {
+    try {
+      const json = localStorage.getItem(_SaveSystem.STORAGE_KEY);
+      return json ? _SaveSystem.deserialize(json) : null;
+    } catch {
+      return null;
+    }
+  }
+  static exportFull(gameState) {
+    return JSON.stringify({
+      version: 1,
+      timestamp: Date.now(),
+      phase: gameState.phase,
+      seed: gameState.seed,
+      meta: gameState.meta,
+      run: gameState.run
+    }, null, 2);
+  }
+};
+
+// src/index.js
+function createGame(options = {}) {
+  const loop = new GameLoop(options);
+  return {
+    // ─── Lifecycle ───
+    startRun: () => loop.startRun(),
+    // ─── Spinning ───
+    spin: () => loop.spin(),
+    // RNG-based (tests)
+    resolveBallAt: (segIdx) => loop.resolveBallAt(segIdx),
+    // physics-driven
+    // ─── Between rounds ───
+    continueFromResults: () => loop.continueFromResults(),
+    makeChoice: (index, target) => loop.makeChoice(index, target),
+    skipChoice: () => loop.skipChoice(),
+    shopBuyRelic: (index) => loop.shopBuy(index),
+    shopBuy: (index) => loop.shopBuy(index),
+    shopReroll: () => loop.shopReroll(),
+    endShop: () => loop.endShop(),
+    // ─── Events ───
+    on: (event, fn) => loop.events.on(event, fn),
+    off: (event, fn) => loop.events.off(event, fn),
+    once: (event, fn) => loop.events.once(event, fn),
+    // ─── State ───
+    getState: () => loop.state,
+    getPhase: () => loop.state.phase,
+    getSegmentDisplayValues: () => loop.getSegmentDisplayValues(),
+    // ─── Meta ───
+    getMeta: () => loop.state.meta,
+    metaUnlock: (unlockId) => loop.meta.unlock(loop.state.meta, unlockId),
+    getUnlocks: () => loop.meta.getAvailableUnlocks(loop.state.meta),
+    // ─── Save/Load ───
+    saveMeta: () => SaveSystem.save(loop.state.meta),
+    loadMeta: () => {
+      const m = SaveSystem.load();
+      if (m) loop.state.meta = m;
+      return !!m;
+    },
+    exportDebug: () => SaveSystem.exportFull(loop.state)
+  };
+}
+
+// client/gfx/PaletteDB.js
+var PAL = {
+  black: "#0a0a0a",
+  darkGray: "#1a1a2e",
+  midGray: "#333346",
+  lightGray: "#6a6a7a",
+  white: "#e8e0d0",
+  red: "#cc2233",
+  darkRed: "#6e1127",
+  blue: "#2b4ccc",
+  darkBlue: "#162266",
+  gold: "#d4a520",
+  darkGold: "#7a5e10",
+  green: "#22aa44",
+  darkGreen: "#105522",
+  purple: "#8833cc",
+  darkPurple: "#441a66",
+  neonPink: "#ff44aa",
+  cyan: "#44aadd",
+  darkCyan: "#0088bb",
+  // Diamond shadow tones
+  deepBlue: "#0e1144",
+  shadedBlue: "#1a2e88",
+  shadedCyan: "#337799"
+};
+var PAL32 = {};
+for (const [k, hex] of Object.entries(PAL)) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  PAL32[k] = 255 << 24 | b << 16 | g << 8 | r;
+}
+var SYM_COLORS = {
+  void: { fg: PAL.darkPurple, bg: PAL.black }
+};
+var SEG_A = PAL.darkGray;
+var SEG_B = PAL.black;
+var DIVIDER_COLOR = PAL.black;
+var HUB_BG = PAL.black;
+var HUB_BORDER = PAL.midGray;
+var RIM_COLOR = PAL.darkGray;
+
+// client/gfx/BitmapFont.js
+var W = 4;
+var H = 6;
+var GLYPHS = {
+  "0": [".##.", "#..#", "#..#", "#..#", ".##.", "...."],
+  "1": ["..#.", "..#.", "..#.", "..#.", "..#.", "...."],
+  "2": [".##.", "#..#", "..#.", ".#..", "####", "...."],
+  "3": [".##.", "#..#", "..#.", "#..#", ".##.", "...."],
+  "4": ["#..#", "#..#", "####", "...#", "...#", "...."],
+  "5": ["####", "#...", "###.", "...#", "###.", "...."],
+  "6": [".##.", "#...", "###.", "#..#", ".##.", "...."],
+  "7": ["####", "...#", "..#.", ".#..", ".#..", "...."],
+  "8": [".##.", "#..#", ".##.", "#..#", ".##.", "...."],
+  "9": [".##.", "#..#", ".###", "...#", ".##.", "...."],
+  "A": [".##.", "#..#", "####", "#..#", "#..#", "...."],
+  "B": ["###.", "#..#", "###.", "#..#", "###.", "...."],
+  "C": [".###", "#...", "#...", "#...", ".###", "...."],
+  "D": ["###.", "#..#", "#..#", "#..#", "###.", "...."],
+  "E": ["####", "#...", "###.", "#...", "####", "...."],
+  "F": ["####", "#...", "###.", "#...", "#...", "...."],
+  "G": [".###", "#...", "#.##", "#..#", ".###", "...."],
+  "H": ["#..#", "#..#", "####", "#..#", "#..#", "...."],
+  "I": ["###.", ".#..", ".#..", ".#..", "###.", "...."],
+  "J": ["..##", "...#", "...#", "#..#", ".##.", "...."],
+  "K": ["#..#", "#.#.", "##..", "#.#.", "#..#", "...."],
+  "L": ["#...", "#...", "#...", "#...", "####", "...."],
+  "M": ["#..#", "####", "####", "#..#", "#..#", "...."],
+  "N": ["#..#", "##.#", "#.##", "#..#", "#..#", "...."],
+  "O": [".##.", "#..#", "#..#", "#..#", ".##.", "...."],
+  "P": ["###.", "#..#", "###.", "#...", "#...", "...."],
+  "Q": [".##.", "#..#", "#..#", "#.#.", ".#.#", "...."],
+  "R": ["###.", "#..#", "###.", "#.#.", "#..#", "...."],
+  "S": [".###", "#...", "####", "...#", "###.", "...."],
+  "T": ["####", "..#.", "..#.", "..#.", "..#.", "...."],
+  "U": ["#..#", "#..#", "#..#", "#..#", ".##.", "...."],
+  "V": ["#..#", "#..#", "#..#", ".##.", "..#.", "...."],
+  "W": ["#..#", "#..#", "####", "####", "#..#", "...."],
+  "X": ["#..#", ".##.", "..#.", ".##.", "#..#", "...."],
+  "Y": ["#..#", ".##.", "..#.", "..#.", "..#.", "...."],
+  "Z": ["####", "..#.", ".#..", "#...", "####", "...."],
+  "+": ["....", "..#.", ".###", "..#.", "....", "...."],
+  "-": ["....", "....", "####", "....", "....", "...."],
+  "/": ["...#", "..#.", ".#..", "#...", "....", "...."],
+  "\xD7": ["....", "#..#", ".##.", ".##.", "#..#", "...."],
+  "!": ["..#.", "..#.", "..#.", "....", "..#.", "...."],
+  ":": ["....", "..#.", "....", "..#.", "....", "...."],
+  ".": ["....", "....", "....", "....", "..#.", "...."],
+  " ": ["....", "....", "....", "....", "....", "...."],
+  "?": [".##.", "#..#", "..#.", "....", "..#.", "...."],
+  // Accented characters (accent in row 0, base letter shifted to rows 1-5)
+  "\xC9": ["..#.", "####", "#...", "###.", "#...", "####"],
+  "\xC8": [".#..", "####", "#...", "###.", "#...", "####"],
+  "\xCA": [".##.", "####", "#...", "###.", "#...", "####"],
+  "\xC0": [".#..", ".##.", "#..#", "####", "#..#", "#..#"],
+  "\xD4": [".##.", ".##.", "#..#", "#..#", "#..#", ".##."],
+  "\xCE": [".##.", "###.", ".#..", ".#..", ".#..", "###."],
+  "\xD9": [".#..", "#..#", "#..#", "#..#", "#..#", ".##."],
+  "\xC7": [".###", "#...", "#...", "#...", ".###", ".#.."],
+  // Punctuation
+  "'": ["..#.", "..#.", "....", "....", "....", "...."],
+  "(": ["..#.", ".#..", ".#..", ".#..", "..#.", "...."],
+  ")": [".#..", "..#.", "..#.", "..#.", ".#..", "...."]
+};
+var PARSED = {};
+for (const [ch, rows] of Object.entries(GLYPHS)) {
+  PARSED[ch] = rows.map((r) => {
+    let bits = 0;
+    for (let i = 0; i < W; i++) if (r[i] === "#") bits |= 1 << W - 1 - i;
+    return bits;
+  });
+}
+function _drawTextRaw(ctx, text, x, y, color, scale) {
+  ctx.fillStyle = color;
+  const str = text.toUpperCase();
+  let cx = x;
+  for (let c = 0; c < str.length; c++) {
+    const bits = PARSED[str[c]];
+    if (!bits) {
+      cx += (W + 1) * scale;
+      continue;
+    }
+    for (let row = 0; row < H; row++) {
+      for (let col = 0; col < W; col++) {
+        if (bits[row] & 1 << W - 1 - col) {
+          ctx.fillRect(cx + col * scale, y + row * scale, scale, scale);
+        }
+      }
+    }
+    cx += (W + 1) * scale;
+  }
+}
+function drawText(ctx, text, x, y, color, scale = 1, outline = true) {
+  if (outline) {
+    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      _drawTextRaw(ctx, text, x + ox * scale, y + oy * scale, "#000", scale);
+    }
+  }
+  _drawTextRaw(ctx, text, x, y, color, scale);
+}
+function measureText(text) {
+  return text.length * (W + 1) - 1;
+}
+function drawTextCentered(ctx, text, cx, y, color, scale = 1, outline = true) {
+  const w = measureText(text) * scale;
+  drawText(ctx, text, Math.round(cx - w / 2), y, color, scale, outline);
+}
+function drawTextWrapped(ctx, text, x, y, maxW, color, scale = 1) {
+  const str = text.toUpperCase();
+  const words = str.split(" ");
+  let line = "";
+  let ly = y;
+  for (const word of words) {
+    const test = line ? line + " " + word : word;
+    if (measureText(test) * scale > maxW && line) {
+      drawText(ctx, line, x, ly, color, scale);
+      ly += (H + 2) * scale;
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) drawText(ctx, line, x, ly, color, scale);
+  return ly + H * scale - y;
+}
+function drawTextCenteredOutlined(ctx, text, cx, y, color, scale = 1) {
+  drawTextCentered(ctx, text, cx, y, color, scale);
+}
+var CHAR_W = W;
+var CHAR_H = H;
+
+// client/gfx/PixelSprites.js
+var SIZE = 9;
+var BASE = import.meta.env.BASE_URL ?? "/";
+var SPRITE_MANIFEST = {
+  // Symbols
+  cherry: { path: "assets/symbols/cherry.png", w: 9, h: 9 },
+  void: { path: "assets/symbols/void.png", w: 9, h: 9 },
+  // UI
+  ball: { path: "assets/ui/ball.png", w: 9, h: 9 },
+  anvil: { path: "assets/ui/anvil.png", w: 9, h: 9 },
+  reroll: { path: "assets/ui/reroll.png", w: 9, h: 9 },
+  arrow_right: { path: "assets/ui/arrow_right.png", w: 9, h: 9 },
+  skull: { path: "assets/ui/skull.png", w: 9, h: 9 },
+  // Relics
+  relic_common: { path: "assets/relics/relic_common.png", w: 9, h: 9 },
+  relic_uncommon: { path: "assets/relics/relic_uncommon.png", w: 9, h: 9 },
+  relic_rare: { path: "assets/relics/relic_rare.png", w: 9, h: 9 },
+  relic_legendary: { path: "assets/relics/relic_legendary.png", w: 9, h: 9 },
+  // Currencies
+  ticket: { path: "assets/currencies/ticket.png", w: 15, h: 9 },
+  // Menu glyphs (from hieroglyph ring)
+  gear: { path: "assets/menu/gear.png", w: 27, h: 27 },
+  exit: { path: "assets/menu/exit.png", w: 27, h: 27 },
+  book: { path: "assets/menu/book.png", w: 27, h: 27 },
+  retry: { path: "assets/menu/retry.png", w: 27, h: 27 }
+};
+var ANIM_MANIFEST = {
+  coin: {
+    frames: [
+      "assets/currencies/coin_0.png",
+      "assets/currencies/coin_1.png",
+      "assets/currencies/coin_2.png",
+      "assets/currencies/coin_3.png"
+    ],
+    w: 9,
+    h: 9
+  }
+};
+var _cache = /* @__PURE__ */ new Map();
+var _animCache = /* @__PURE__ */ new Map();
+var _animFrameCounts = /* @__PURE__ */ new Map();
+function _loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext("2d");
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0);
+      resolve(c);
+    };
+    img.onerror = () => reject(new Error(`Failed to load sprite: ${src}`));
+    img.src = src;
+  });
+}
+async function preloadSprites() {
+  const promises = [];
+  for (const [id, info] of Object.entries(SPRITE_MANIFEST)) {
+    promises.push(
+      _loadImage(BASE + info.path).then((canvas) => {
+        _cache.set(id, canvas);
+      })
+    );
+  }
+  for (const [id, info] of Object.entries(ANIM_MANIFEST)) {
+    _animFrameCounts.set(id, info.frames.length);
+    for (let f = 0; f < info.frames.length; f++) {
+      promises.push(
+        _loadImage(BASE + info.frames[f]).then((canvas) => {
+          _animCache.set(id + "_" + f, canvas);
+        })
+      );
+    }
+  }
+  await Promise.all(promises);
+}
+function drawSpriteCentered(ctx, symbolId, cx, cy, scale = 1) {
+  const src = _cache.get(symbolId);
+  if (!src) return;
+  ctx.imageSmoothingEnabled = false;
+  const hw = src.width * scale / 2;
+  const hh = src.height * scale / 2;
+  ctx.drawImage(src, 0, 0, src.width, src.height, Math.round(cx - hw), Math.round(cy - hh), src.width * scale, src.height * scale);
+}
+function drawAnimSpriteCentered(ctx, id, cx, cy, scale = 1, time = 0, fps = 6) {
+  const count = _animFrameCounts.get(id);
+  if (!count) return;
+  const frame = Math.floor(time * fps) % count;
+  const src = _animCache.get(id + "_" + frame);
+  if (!src) return;
+  ctx.imageSmoothingEnabled = false;
+  const half = SIZE * scale / 2;
+  ctx.drawImage(src, 0, 0, SIZE, SIZE, Math.round(cx - half), Math.round(cy - half), SIZE * scale, SIZE * scale);
+}
+function getSpriteIds() {
+  return Object.keys(SPRITE_MANIFEST);
+}
+function getAnimSpriteIds() {
+  return Object.keys(ANIM_MANIFEST);
+}
+var SPRITE_SIZE = SIZE;
+var TICKET_W = 15;
+
+// client/objects/PixelWheel.js
+var HUB_P = 0.28;
+var HUB_COLLIDE_P = 0.32;
+var POCKET_INNER_P = 0.3;
+var POCKET_OUTER_P = 0.37;
+var LABEL_P = 0.425;
+var LABEL_INNER_P = 0.38;
+var LABEL_OUTER_P = 0.48;
+var RIM_P = 0.55;
+var HUB_R;
+var POCKET_INNER;
+var POCKET_OUTER;
+var LABEL_INNER;
+var LABEL_OUTER;
+var RIM_R;
+var BALL_RADIUS_P = 8e-3;
+var BALL_RADIUS;
+var BOWL_GRAVITY = 120;
+var RESTITUTION = 0.5;
+var AIR_DAMPING = 0.997;
+var SURFACE_FRICTION = 220;
+var SETTLE_SPEED = 15;
+var SETTLE_ANG_VEL = 0.3;
+var SETTLE_TIME = 0.15;
+var DIVIDER_W = 1.5;
+var PHYSICS_DT = 1 / 120;
+var SPIN_MIN = 10;
+var SPIN_MAX = 14;
+var SPIN_DECEL = 0.996;
+var GRAVITY_BOOST_THRESHOLD = 2.5;
+var GRAVITY_BOOST_MAX = 6;
+var DROP_STAGGER = 0.05;
+var DROP_DURATION = 0.5;
+var GAUGE_CONFIGS = [
+  { center: 0, start: -0.3, end: 0.3 },
+  // right (default)
+  { center: -Math.PI / 2, start: -Math.PI / 2 - 0.3, end: -Math.PI / 2 + 0.3 },
+  // top
+  { center: Math.PI / 2, start: Math.PI / 2 - 0.3, end: Math.PI / 2 + 0.3 },
+  // bottom
+  { center: Math.PI, start: Math.PI - 0.3, end: Math.PI + 0.3 }
+  // left
+];
+var MAX_BALLS_PER_GAUGE = 14;
+var GAUGE_BALL_SPACING = 0.04;
+var PixelWheel = class _PixelWheel {
+  constructor() {
+    this.R = 150;
+    this._updateRadii();
+    this._data = [];
+    this._angle = -Math.PI / 2 - Math.PI / 40;
+    this._angVel = 0;
+    this._balls = [];
+    this._placedBalls = [];
+    this._results = [];
+    this._onDone = null;
+    this._acc = 0;
+    this._time = 0;
+    this._highlights = [];
+    this.onPegHit = null;
+    this.onBallEject = null;
+    this._lastPeg = 0;
+    this._slots = [];
+    this._dropClock = 0;
+    this._dropping = false;
+    this._inGauge = false;
+    this._ejectQueue = [];
+    this._ejecting = false;
+    this._ejectClock = 0;
+    this._frameLights = [];
+    this._bonusMode = false;
+    this._gaugeUnlocks = [true, false, false, false];
+    this._corruption = 0.5;
+    this._counterGold = 0;
+    this._counterTickets = 0;
+    this._ticketShake = { intensity: 0, time: 0, decay: 0.35 };
+    this._goldShake = { intensity: 0, time: 0, decay: 0.35 };
+    this._goldAnims = [];
+    this._relics = [];
+    this._segmentValues = [];
+    this._ticketAnim = null;
+    this._goldQuotaAnim = null;
+    this._tilt = 1;
+    this._flip = null;
+    this.onFlipMid = null;
+    this.onFlipDone = null;
+    this._hub = {
+      lastSymbolId: "",
+      lastValue: 0,
+      valueFade: 0,
+      multi: 1,
+      history: [],
+      message: "",
+      messageFade: 0,
+      score: 0,
+      scoreTarget: 0
+    };
+    this._shop = {
+      offerings: [],
+      currency: 0,
+      rerollCost: 0,
+      hoverIdx: -1,
+      buyFlash: -1,
+      buyFlashTimer: 0,
+      nextQuota: 0
+    };
+  }
+  _updateRadii() {
+    const R2 = this.R;
+    HUB_R = R2 * HUB_P;
+    POCKET_INNER = R2 * POCKET_INNER_P;
+    POCKET_OUTER = R2 * POCKET_OUTER_P;
+    LABEL_INNER = R2 * LABEL_INNER_P;
+    LABEL_OUTER = R2 * LABEL_OUTER_P;
+    RIM_R = R2 * RIM_P;
+    BALL_RADIUS = Math.max(1.5, R2 * BALL_RADIUS_P);
+    this._forgeBgCanvas = null;
+  }
+  _initForgeBackground() {
+    const r = Math.ceil(RIM_R);
+    const size = r * 2 + 2;
+    const c = document.createElement("canvas");
+    c.width = size;
+    c.height = size;
+    const fCtx = c.getContext("2d");
+    const imgData = fCtx.createImageData(size, size);
+    const buf = new Uint32Array(imgData.data.buffer);
+    const fcx = r + 1, fcy = r + 1;
+    const BAYER = [
+      [0, 8, 2, 10],
+      [12, 4, 14, 6],
+      [3, 11, 1, 9],
+      [15, 7, 13, 5]
+    ];
+    const hash = (x, y) => x * 374761393 + y * 668265263 >>> 0 & 255;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const dx = x - fcx, dy = y - fcy;
+        const dist2 = dx * dx + dy * dy;
+        const idx = y * size + x;
+        if (dist2 > r * r) {
+          buf[idx] = 0;
+          continue;
+        }
+        const dist = Math.sqrt(dist2);
+        const bayer = BAYER[y & 3][x & 3];
+        const radialT = dist / r;
+        const radialFade = radialT * radialT;
+        const angle = Math.atan2(dy, dx);
+        const ray = Math.pow(Math.max(0, Math.cos(angle * 4)), 6);
+        const ringMod = dist % 12;
+        const ring = dist > 10 && ringMod < 0.8 ? 0.3 : 0;
+        const hubFade = Math.min(1, Math.max(0, (dist - HUB_R * 0.7) / (HUB_R * 0.5)));
+        const brightness = hubFade * (0.04 + 0.22 * radialFade + 0.3 * ray * radialFade + ring * radialFade);
+        const threshold = brightness * 16;
+        if (bayer < threshold) {
+          buf[idx] = ray > 0.15 && radialFade > 0.3 ? PAL32.midGray : PAL32.darkGray;
+        } else {
+          buf[idx] = PAL32.black;
+        }
+      }
+    }
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const dx = x - fcx, dy = y - fcy;
+        if (dx * dx + dy * dy > r * r) continue;
+        if (hash(x, y) < 3) buf[y * size + x] = PAL32.midGray;
+      }
+    }
+    fCtx.putImageData(imgData, 0, 0);
+    this._forgeBgCanvas = c;
+    this._forgeBgOff = fcx;
+  }
+  setWheel(data) {
+    this._data = data;
+    this._balls = [];
+    this._placedBalls = [];
+    this._results = [];
+    this._highlights = [];
+  }
+  setGaugeUnlocks(unlocks) {
+    this._gaugeUnlocks = unlocks;
+  }
+  setCorruption(v) {
+    this._corruption = Math.max(0, Math.min(1, v));
+  }
+  get corruption() {
+    return this._corruption;
+  }
+  setRelics(relics) {
+    this._relics = relics || [];
+  }
+  setSegmentValues(values) {
+    this._segmentValues = values || [];
+  }
+  placeBalls(n, specialBalls) {
+    this._placedBalls = [];
+    this._balls = [];
+    this._results = [];
+    this._dropClock = 0;
+    this._dropping = false;
+    this._inGauge = true;
+    const specials = specialBalls || [];
+    const GAUGE_MID = (RIM_R + 16 + RIM_R + 21) / 2;
+    const activeGauges = [];
+    for (let g = 0; g < GAUGE_CONFIGS.length; g++) {
+      if (g === 1 || g === 2 || g === 3) continue;
+      if (this._gaugeUnlocks[g]) activeGauges.push(g);
+    }
+    const perGauge = activeGauges.map(() => []);
+    for (let i = 0; i < n; i++) {
+      const slot = i % activeGauges.length;
+      if (perGauge[slot].length < MAX_BALLS_PER_GAUGE) {
+        perGauge[slot].push(i);
+      }
+    }
+    let globalIdx = 0;
+    for (let gi = 0; gi < activeGauges.length; gi++) {
+      const gIdx = activeGauges[gi];
+      const cfg = GAUGE_CONFIGS[gIdx];
+      const indices = perGauge[gi];
+      for (let j = 0; j < indices.length; j++) {
+        const i = indices[j];
+        const a = i / n * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+        const r = LABEL_OUTER + 2 + Math.random() * (RIM_R - LABEL_OUTER - BALL_RADIUS * 2 - 3);
+        const ga = cfg.end - j * GAUGE_BALL_SPACING;
+        const isSpecial = globalIdx < specials.length;
+        this._placedBalls.push({
+          localX: Math.cos(a) * r,
+          localY: Math.sin(a) * r,
+          gaugeX: Math.cos(ga) * GAUGE_MID,
+          gaugeY: Math.sin(ga) * GAUGE_MID,
+          gaugeAngle: ga,
+          gaugeIdx: gIdx,
+          dropDelay: (indices.length - 1 - j) * DROP_STAGGER,
+          // top of stack ejects first
+          dropDur: DROP_DURATION,
+          special: isSpecial ? specials[globalIdx] : null
+        });
+        globalIdx++;
+      }
+    }
+  }
+  ejectBalls() {
+    this._inGauge = false;
+    this._dropping = true;
+    this._dropClock = 0;
+  }
+  spin() {
+    return this.spinAndEject();
+  }
+  /**
+   * Full physics flow: spin wheel + eject balls from gauge one by one.
+   * Returns promise resolving with segment indices when all balls settle.
+   */
+  spinAndEject() {
+    return new Promise((resolve) => {
+      this._angVel = SPIN_MIN + Math.random() * (SPIN_MAX - SPIN_MIN);
+      this._results = [];
+      this._onDone = resolve;
+      this._balls = [];
+      this._inGauge = false;
+      this._dropping = false;
+      this._ejectQueue = this._placedBalls.slice().sort((a, b) => a.dropDelay - b.dropDelay);
+      this._placedBalls = [];
+      this._ejecting = true;
+      this._ejectClock = 0;
+      this._spinTimeout = setTimeout(() => {
+        if (!this._onDone) return;
+        for (const b of this._balls) {
+          if (!b.settled) this._settle(b);
+        }
+      }, 8e3);
+    });
+  }
+  highlight(idx) {
+    this._highlights.push({ idx, t: 0 });
+  }
+  getPocketPosition(idx, cx, cy) {
+    const data = this._data;
+    if (!data.length || idx < 0 || idx >= data.length) return { x: cx, y: cy };
+    const tw = data.reduce((s, w) => s + w.weight, 0);
+    let off = 0;
+    for (let i = 0; i < idx; i++) off += data[i].weight / tw * Math.PI * 2;
+    const angle = data[idx].weight / tw * Math.PI * 2;
+    const mid = off + angle / 2;
+    const worldA = this._angle + mid;
+    const hlR = (POCKET_INNER + POCKET_OUTER) / 2;
+    const TILT_Y = Math.abs(this._tilt);
+    return {
+      x: cx + Math.cos(worldA) * hlR,
+      y: cy + Math.sin(worldA) * hlR * TILT_Y
+    };
+  }
+  get spinning() {
+    return this._angVel > 0.05 || this._balls.some((b) => !b.settled);
+  }
+  get speed() {
+    return Math.abs(this._angVel);
+  }
+  get gaugeBallCount() {
+    if (this._inGauge) return this._placedBalls.length;
+    if (this._ejecting) return this._ejectQueue.length;
+    return 0;
+  }
+  get hubRadius() {
+    return HUB_R;
+  }
+  get tilt() {
+    return Math.abs(this._tilt);
+  }
+  get lights() {
+    return this._frameLights;
+  }
+  // ── Forge shop API ──
+  setShop(offerings, currency, rerollCost, nextQuota) {
+    this._shop.offerings = offerings || [];
+    this._shop.currency = currency;
+    this._shop.rerollCost = rerollCost;
+    if (nextQuota !== void 0) this._shop.nextQuota = nextQuota;
+    this._shop.hoverIdx = -1;
+    this._shop.buyFlash = -1;
+    this._shop.buyFlashTimer = 0;
+  }
+  shopUpdateCurrency(currency) {
+    this._shop.currency = currency;
+  }
+  shopRemoveOffering(idx) {
+    this._shop.buyFlash = idx;
+    this._shop.buyFlashTimer = 0.4;
+  }
+  shopSetOfferings(offerings) {
+    this._shop.offerings = offerings || [];
+  }
+  /**
+   * Hit-test the forge shop face.
+   */
+  shopHitTest(x, y, cx, cy) {
+    if (!this.flipped) return null;
+    const TILT_Y = Math.abs(this._tilt);
+    if (TILT_Y < 0.05) return null;
+    const dx = x - cx;
+    const dy = (y - cy) / TILT_Y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+    if (dist < HUB_R) {
+      return { type: "leave" };
+    }
+    if (dist >= HUB_R + 3 && dist <= RIM_R - 3) {
+      const QUAD_GAP = 0.1;
+      const SLOT_GAP = 0.04;
+      const QUAD_SPAN = Math.PI / 2 - QUAD_GAP;
+      const SLOT_SPAN = (QUAD_SPAN - SLOT_GAP) / 2;
+      const quadStarts = [
+        -Math.PI / 2 + QUAD_GAP / 2,
+        0 + QUAD_GAP / 2,
+        Math.PI / 2 + QUAD_GAP / 2,
+        Math.PI + QUAD_GAP / 2
+      ];
+      for (let q = 0; q < 4; q++) {
+        for (let s = 0; s < 2; s++) {
+          const a0 = quadStarts[q] + s * (SLOT_SPAN + SLOT_GAP);
+          const a1 = a0 + SLOT_SPAN;
+          let a = angle;
+          if (q === 3 && a < 0) a += Math.PI * 2;
+          const qa0 = q === 3 ? a0 + Math.PI * 2 * (a0 < 0 ? 1 : 0) : a0;
+          let inArc = false;
+          if (a0 < -Math.PI) {
+            inArc = a >= a0 + Math.PI * 2 && a <= a1 + Math.PI * 2 || a >= a0 && a <= a1;
+          } else if (a1 > Math.PI) {
+            inArc = a >= a0 || a <= a1 - Math.PI * 2;
+          } else {
+            inArc = a >= a0 && a <= a1;
+          }
+          if (inArc) {
+            const idx = q * 2 + s;
+            if (idx === 4) return { type: "reroll" };
+            return { type: "offering", index: idx };
+          }
+        }
+      }
+    }
+    return null;
+  }
+  shopSetHover(hoverResult) {
+    if (!hoverResult) {
+      this._shop.hoverIdx = -1;
+      return;
+    }
+    if (hoverResult.type === "offering") this._shop.hoverIdx = hoverResult.index;
+    else if (hoverResult.type === "reroll") this._shop.hoverIdx = "reroll";
+    else if (hoverResult.type === "leave") this._shop.hoverIdx = "leave";
+    else this._shop.hoverIdx = -1;
+  }
+  get shopHoveredOffering() {
+    const idx = this._shop.hoverIdx;
+    if (typeof idx !== "number" || idx < 0) return null;
+    return this._shop.offerings[idx] || null;
+  }
+  get flipped() {
+    return this._tilt < 0;
+  }
+  startFlip(duration = 0.45) {
+    const to = this._tilt > 0 ? -1 : 1;
+    this._flip = { from: this._tilt, to, duration, elapsed: 0, midFired: false };
+  }
+  // ── Hub screen API ──
+  hubShowValue(symbolId, value) {
+    this._hub.lastSymbolId = symbolId;
+    this._hub.lastValue = value;
+    this._hub.valueFade = 1.5;
+    this._hub.history.push(symbolId);
+    if (this._hub.history.length > 5) this._hub.history.shift();
+  }
+  hubSetMulti(m) {
+    this._hub.multi = m;
+  }
+  hubSetScore(s) {
+    this._hub.scoreTarget = s;
+  }
+  hubSnapScore(s) {
+    this._hub.score = s;
+    this._hub.scoreTarget = s;
+  }
+  hubMessage(msg) {
+    this._hub.message = msg;
+    this._hub.messageFade = 2.5;
+  }
+  setSlots(data) {
+    this._slots = data || [];
+  }
+  setBonusMode(b) {
+    this._bonusMode = b;
+  }
+  update(dt) {
+    this._time += dt;
+    for (let i = this._highlights.length - 1; i >= 0; i--) {
+      this._highlights[i].t += dt;
+      if (this._highlights[i].t > 1.5) this._highlights.splice(i, 1);
+    }
+    if (this._hub.score < this._hub.scoreTarget) {
+      const diff = this._hub.scoreTarget - this._hub.score;
+      this._hub.score += Math.max(1, Math.ceil(diff * 0.12));
+      if (this._hub.score > this._hub.scoreTarget) this._hub.score = this._hub.scoreTarget;
+    }
+    this._hub.valueFade = Math.max(0, this._hub.valueFade - dt);
+    this._hub.messageFade = Math.max(0, this._hub.messageFade - dt);
+    if (this._ticketShake.intensity > 0) {
+      this._ticketShake.time += dt;
+      if (this._ticketShake.time >= this._ticketShake.decay) {
+        this._ticketShake.intensity = 0;
+      }
+    }
+    if (this._goldShake.intensity > 0) {
+      this._goldShake.time += dt;
+      if (this._goldShake.time >= this._goldShake.decay) {
+        this._goldShake.intensity = 0;
+      }
+    }
+    for (let i = this._goldAnims.length - 1; i >= 0; i--) {
+      const ga = this._goldAnims[i];
+      ga.elapsed += dt;
+      if (!ga.arrived && ga.elapsed >= ga.duration) {
+        ga.arrived = true;
+        this._counterGold += ga.value;
+        this._goldShake.intensity = 3;
+        this._goldShake.time = 0;
+      }
+      if (ga.elapsed >= ga.duration + 0.15) {
+        this._goldAnims.splice(i, 1);
+      }
+    }
+    if (this._goldQuotaAnim) {
+      const ga = this._goldQuotaAnim;
+      ga.elapsed += dt;
+      if (ga.phase === "fly" && ga.elapsed >= ga.flyDur) {
+        ga.phase = "count";
+        ga.elapsed = 0;
+      } else if (ga.phase === "count" && ga.elapsed >= ga.countDur) {
+        ga.phase = "hold";
+        ga.elapsed = 0;
+        this._counterGold = ga.startGold - ga.quota;
+      } else if (ga.phase === "hold" && ga.elapsed >= ga.holdDur) {
+        ga.phase = "flyback";
+        ga.elapsed = 0;
+      } else if (ga.phase === "flyback" && ga.elapsed >= ga.flybackDur) {
+        this._goldQuotaAnim = null;
+      }
+      if (ga && ga.phase === "count") {
+        const t = Math.min(1, ga.elapsed / ga.countDur);
+        this._counterGold = ga.startGold - Math.floor(ga.quota * t);
+      }
+    }
+    if (this._ticketAnim) {
+      const ta = this._ticketAnim;
+      ta.elapsed += dt;
+      if (ta.phase === "fly" && ta.elapsed >= ta.flyDur) {
+        ta.phase = "count";
+        ta.elapsed = 0;
+      } else if (ta.phase === "count" && ta.elapsed >= ta.countDur) {
+        ta.phase = "hold";
+        ta.elapsed = 0;
+        ta.counted = ta.earned;
+        this._counterTickets = ta.baseTickets + ta.earned;
+      } else if (ta.phase === "hold" && ta.elapsed >= ta.holdDur) {
+        ta.phase = "flyback";
+        ta.elapsed = 0;
+      } else if (ta.phase === "flyback" && ta.elapsed >= ta.flybackDur) {
+        this._ticketAnim = null;
+      }
+      if (ta && ta.phase === "count") {
+        const t = Math.min(1, ta.elapsed / ta.countDur);
+        ta.counted = Math.floor(ta.earned * t);
+        this._counterTickets = ta.baseTickets + ta.counted;
+      }
+    }
+    if (this._flip) {
+      this._flip.elapsed += dt;
+      const t = Math.min(1, this._flip.elapsed / this._flip.duration);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      this._tilt = this._flip.from + (this._flip.to - this._flip.from) * ease;
+      if (!this._flip.midFired && Math.sign(this._tilt) !== Math.sign(this._flip.from)) {
+        this._flip.midFired = true;
+        if (this.onFlipMid) this.onFlipMid();
+      }
+      if (t >= 1) {
+        this._tilt = this._flip.to;
+        const cb = this.onFlipDone;
+        this._flip = null;
+        if (cb) cb();
+      }
+    }
+    if (this._dropping) {
+      this._dropClock += dt;
+      const last = this._placedBalls[this._placedBalls.length - 1];
+      if (last && this._dropClock >= last.dropDelay + last.dropDur) {
+        this._dropping = false;
+      }
+    }
+    if (this._ejecting) {
+      this._ejectClock += dt;
+      while (this._ejectQueue.length > 0 && this._ejectClock >= this._ejectQueue[0].dropDelay) {
+        const pb = this._ejectQueue.shift();
+        const cfg = GAUGE_CONFIGS[pb.gaugeIdx] || GAUGE_CONFIGS[0];
+        const spread = cfg.end - cfg.start;
+        const entryAngle = cfg.start + Math.random() * spread;
+        const entryR = RIM_R - 4;
+        const x = Math.cos(entryAngle) * entryR;
+        const y = Math.sin(entryAngle) * entryR;
+        const inSpeed = 25 + Math.random() * 40;
+        const tanSpeed = this._angVel * entryR * (0.1 + Math.random() * 0.5);
+        const kickAngle = (Math.random() - 0.5) * 1.2;
+        const inDir = Math.atan2(-y, -x) + kickAngle;
+        const tanDir = inDir + Math.PI / 2;
+        this._balls.push({
+          x,
+          y,
+          vx: Math.cos(inDir) * inSpeed + Math.cos(tanDir) * tanSpeed,
+          vy: Math.sin(inDir) * inSpeed + Math.sin(tanDir) * tanSpeed,
+          settled: false,
+          timer: 0
+        });
+        if (this.onBallEject) this.onBallEject();
+      }
+      if (this._ejectQueue.length === 0) this._ejecting = false;
+    }
+    this._acc += dt;
+    while (this._acc >= PHYSICS_DT) {
+      this._step(PHYSICS_DT);
+      this._acc -= PHYSICS_DT;
+    }
+  }
+  // ═══════════════════════════════════════════
+  //  PHYSICS — completely unchanged
+  // ═══════════════════════════════════════════
+  _step(dt) {
+    if (Math.abs(this._angVel) > 0.01) {
+      const decel = Math.abs(this._angVel) < 3 ? 0.985 : SPIN_DECEL;
+      this._angVel *= Math.pow(decel, dt * 120);
+      this._angle += this._angVel * dt;
+    } else this._angVel = 0;
+    for (const b of this._balls) {
+      if (b.settled) continue;
+      const d = Math.sqrt(b.x * b.x + b.y * b.y);
+      const gravMul = Math.abs(this._angVel) < GRAVITY_BOOST_THRESHOLD ? 1 + (GRAVITY_BOOST_MAX - 1) * (1 - Math.abs(this._angVel) / GRAVITY_BOOST_THRESHOLD) : 1;
+      if (d > 1) {
+        b.vx -= b.x / d * BOWL_GRAVITY * gravMul * dt;
+        b.vy -= b.y / d * BOWL_GRAVITY * gravMul * dt;
+      }
+      const damp = Math.pow(AIR_DAMPING, dt * 120);
+      b.vx *= damp;
+      b.vy *= damp;
+      if (Math.abs(this._angVel) > 0.05 && d > 1) {
+        const nx = b.x / d, ny = b.y / d, tx = -ny, ty = nx;
+        const drag = (this._angVel * d - (b.vx * tx + b.vy * ty)) * SURFACE_FRICTION * dt;
+        b.vx += tx * drag;
+        b.vy += ty * drag;
+      }
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      this._collideRim(b);
+      this._collideHub(b);
+      this._collideLabelWall(b);
+      this._collideDividers(b);
+    }
+    this._ballBall();
+    for (const b of this._balls) {
+      if (b.settled) continue;
+      const d = Math.sqrt(b.x * b.x + b.y * b.y);
+      const spd = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+      const inPockets = d >= POCKET_INNER && d <= LABEL_OUTER;
+      if (spd < SETTLE_SPEED && Math.abs(this._angVel) < SETTLE_ANG_VEL && inPockets) {
+        b.timer += dt;
+        if (b.timer >= SETTLE_TIME) this._settle(b);
+      } else b.timer = 0;
+    }
+  }
+  _peg() {
+    const minInterval = Math.abs(this._angVel) > 2 ? 0.04 : 0.15;
+    if (this._time - this._lastPeg < minInterval) return;
+    if (Math.abs(this._angVel) < 0.5) return;
+    this._lastPeg = this._time;
+    if (this.onPegHit) this.onPegHit();
+  }
+  _collideRim(b) {
+    const d = Math.sqrt(b.x * b.x + b.y * b.y);
+    const max = RIM_R - BALL_RADIUS;
+    if (d <= max) return;
+    const nx = b.x / d, ny = b.y / d;
+    b.x = nx * max;
+    b.y = ny * max;
+    const dot = b.vx * nx + b.vy * ny;
+    b.vx -= 2 * dot * nx;
+    b.vy -= 2 * dot * ny;
+    b.vx *= RESTITUTION;
+    b.vy *= RESTITUTION;
+    this._peg();
+  }
+  _collideHub(b) {
+    const d = Math.sqrt(b.x * b.x + b.y * b.y);
+    const min = this.R * HUB_COLLIDE_P + BALL_RADIUS;
+    if (d >= min || d === 0) return;
+    const nx = b.x / d, ny = b.y / d;
+    b.x = nx * min;
+    b.y = ny * min;
+    const dot = b.vx * nx + b.vy * ny;
+    b.vx -= 2 * dot * nx;
+    b.vy -= 2 * dot * ny;
+    b.vx *= RESTITUTION;
+    b.vy *= RESTITUTION;
+    this._peg();
+  }
+  _collideLabelWall(b) {
+  }
+  _collideDividers(b) {
+  }
+  _line(b, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1, len2 = dx * dx + dy * dy;
+    if (len2 < 0.01) return false;
+    const t = Math.max(0, Math.min(1, ((b.x - x1) * dx + (b.y - y1) * dy) / len2));
+    const cx = x1 + t * dx, cy = y1 + t * dy;
+    const ex = b.x - cx, ey = b.y - cy;
+    const dist = Math.sqrt(ex * ex + ey * ey);
+    const minD = BALL_RADIUS + DIVIDER_W;
+    if (dist >= minD || dist < 0.01) return false;
+    const nx = ex / dist, ny = ey / dist;
+    b.x += nx * (minD - dist);
+    b.y += ny * (minD - dist);
+    const dot = b.vx * nx + b.vy * ny;
+    if (dot < 0) {
+      b.vx -= 2 * dot * nx;
+      b.vy -= 2 * dot * ny;
+      b.vx *= RESTITUTION;
+      b.vy *= RESTITUTION;
+      return true;
+    }
+    return false;
+  }
+  _ballBall() {
+    for (let i = 0; i < this._balls.length; i++) {
+      if (this._balls[i].settled) continue;
+      for (let j = i + 1; j < this._balls.length; j++) {
+        if (this._balls[j].settled) continue;
+        const a = this._balls[i], bb = this._balls[j];
+        const dx = a.x - bb.x, dy = a.y - bb.y;
+        const d = Math.sqrt(dx * dx + dy * dy), minD = BALL_RADIUS * 2;
+        if (d >= minD || d < 0.01) continue;
+        const nx = dx / d, ny = dy / d, ov = (minD - d) / 2 + 0.3;
+        a.x += nx * ov;
+        a.y += ny * ov;
+        bb.x -= nx * ov;
+        bb.y -= ny * ov;
+        const dvx = a.vx - bb.vx, dvy = a.vy - bb.vy;
+        const dot = dvx * nx + dvy * ny;
+        if (dot > 0) continue;
+        a.vx -= dot * nx * 0.85;
+        a.vy -= dot * ny * 0.85;
+        bb.vx += dot * nx * 0.85;
+        bb.vy += dot * ny * 0.85;
+      }
+    }
+  }
+  _settle(b) {
+    b.settled = true;
+    const c = Math.cos(-this._angle), s = Math.sin(-this._angle);
+    b.localX = c * b.x - s * b.y;
+    b.localY = s * b.x + c * b.y;
+    let wa = Math.atan2(b.y, b.x) - this._angle;
+    wa = (wa % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+    const tw = this._data.reduce((ss, w) => ss + w.weight, 0);
+    let acc = 0, idx = this._data.length - 1;
+    for (let i = 0; i < this._data.length; i++) {
+      const sa = this._data[i].weight / tw * Math.PI * 2;
+      if (wa < acc + sa) {
+        idx = i;
+        break;
+      }
+      acc += sa;
+    }
+    this._results.push(idx);
+    if (this._balls.every((bb) => bb.settled)) {
+      this._angVel = 0;
+      clearTimeout(this._spinTimeout);
+      if (this._onDone) {
+        const cb = this._onDone;
+        this._onDone = null;
+        cb(this._results);
+      }
+    }
+  }
+  // ═══════════════════════════════════════════
+  //  PIXEL ART RENDERING — direct on context
+  // ═══════════════════════════════════════════
+  /** Draw the wheel centered at (cx, cy) on the given context.
+   *  @param {number} pox  peripheral offset X (gauge + slots parallax)
+   *  @param {number} poy  peripheral offset Y
+   */
+  draw(ctx, cx, cy, pox = 0, poy = 0, layers = null) {
+    const data = this._data;
+    if (!data.length) return;
+    const tw = data.reduce((s, w) => s + w.weight, 0);
+    const TILT_Y = Math.abs(this._tilt);
+    this._frameLights = [];
+    if (TILT_Y < 0.01) {
+      this._drawOrbitSlots(ctx, cx + pox, cy + poy);
+      return;
+    }
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1, TILT_Y);
+    ctx.translate(-cx, -cy);
+    if (this._tilt < 0) {
+      this._drawForgeFace(ctx, cx, cy);
+      ctx.restore();
+      this._drawGauges(ctx, cx + pox, cy + poy);
+      this._drawOrbitSlots(ctx, cx + pox, cy + poy);
+      return;
+    }
+    const pkOx = layers ? layers.pocket.x : 0;
+    const pkOy = layers ? layers.pocket.y : 0;
+    const lbOx = layers ? layers.label.x : 0;
+    const lbOy = layers ? layers.label.y : 0;
+    const rmOx = layers ? layers.rim.x : 0;
+    const rmOy = layers ? layers.rim.y : 0;
+    const isIdle = Math.abs(this._angVel) < 0.1 && !this._balls.some((b) => !b.settled) && this._highlights.length === 0;
+    const showChase = isIdle || this._bonusMode;
+    const chaseTrail = this._bonusMode ? 6 : 4;
+    const chaseSpeed = this._bonusMode ? 18 : 6;
+    const RAINBOW = [PAL.red, PAL.gold, PAL.green, PAL.blue, PAL.purple, PAL.neonPink];
+    const chasePos = this._time * chaseSpeed;
+    const chaseIdx = Math.floor(chasePos) % data.length;
+    ctx.save();
+    ctx.translate(cx + pkOx, cy + pkOy);
+    ctx.rotate(this._angle);
+    let off = 0;
+    for (let i = 0; i < data.length; i++) {
+      const seg = data[i], angle = seg.weight / tw * Math.PI * 2;
+      const isBlue = false;
+      const isGold = false;
+      const dark = i % 2 === 0;
+      const mid = off + angle / 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, POCKET_OUTER, off, off + angle);
+      ctx.arc(0, 0, POCKET_INNER, off + angle, off, true);
+      ctx.closePath();
+      ctx.fillStyle = isGold ? PAL.darkGold : dark ? SEG_A : SEG_B;
+      ctx.fill();
+      const hl = this._highlights.find((h) => h.idx === i);
+      if (hl) {
+        const hlColor = isGold ? PAL.gold : PAL.white;
+        let a;
+        if (hl.t < 0.15) a = 0.9;
+        else if (hl.t < 0.4) a = 0.7;
+        else a = Math.max(0, 1 - (hl.t - 0.4) / 1.1) * 0.5;
+        ctx.fillStyle = hlColor;
+        ctx.globalAlpha = a;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        const worldA = this._angle + mid;
+        const hlR = (POCKET_INNER + POCKET_OUTER) / 2;
+        this._frameLights.push({
+          x: cx + pkOx + Math.cos(worldA) * hlR,
+          y: cy + pkOy + Math.sin(worldA) * hlR * TILT_Y,
+          r: 25,
+          color: hlColor,
+          a: Math.max(0, 1 - hl.t / 1.5) * 0.35
+        });
+      } else if (showChase) {
+        for (let t = 0; t < chaseTrail; t++) {
+          const ti = ((chaseIdx - t) % data.length + data.length) % data.length;
+          if (ti === i) {
+            let hlColor;
+            if (this._bonusMode) {
+              hlColor = RAINBOW[(Math.floor(chasePos) + t) % RAINBOW.length];
+            } else {
+              hlColor = isGold ? PAL.gold : PAL.white;
+            }
+            const fade = 1 - t / chaseTrail;
+            ctx.fillStyle = hlColor;
+            ctx.globalAlpha = 0.35 * fade * fade;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            if (t === 0) {
+              const worldA = this._angle + mid;
+              const hlR = (POCKET_INNER + POCKET_OUTER) / 2;
+              this._frameLights.push({
+                x: cx + pkOx + Math.cos(worldA) * hlR,
+                y: cy + pkOy + Math.sin(worldA) * hlR * TILT_Y,
+                r: 18,
+                color: hlColor,
+                a: this._bonusMode ? 0.3 : 0.2
+              });
+            }
+          }
+        }
+      }
+      off += angle;
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.translate(cx + lbOx, cy + lbOy);
+    ctx.rotate(this._angle);
+    off = 0;
+    for (let i = 0; i < data.length; i++) {
+      const seg = data[i], angle = seg.weight / tw * Math.PI * 2;
+      const dark = i % 2 === 0;
+      const mid = off + angle / 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, LABEL_OUTER, off, off + angle);
+      ctx.arc(0, 0, LABEL_INNER, off + angle, off, true);
+      ctx.closePath();
+      ctx.fillStyle = dark ? PAL.darkRed : PAL.black;
+      ctx.fill();
+      ctx.strokeStyle = PAL.black;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+      const hl = this._highlights.find((h) => h.idx === i);
+      if (hl) {
+        const isBlue = false;
+        const hlColor = isBlue ? PAL.blue : PAL.white;
+        let a;
+        if (hl.t < 0.15) a = 0.9;
+        else if (hl.t < 0.4) a = 0.7;
+        else a = Math.max(0, 1 - (hl.t - 0.4) / 1.1) * 0.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, LABEL_OUTER, off, off + angle);
+        ctx.arc(0, 0, LABEL_INNER, off + angle, off, true);
+        ctx.closePath();
+        ctx.fillStyle = hlColor;
+        ctx.globalAlpha = a;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      const numR = this.R * LABEL_P;
+      ctx.save();
+      ctx.translate(Math.cos(mid) * numR, Math.sin(mid) * numR);
+      ctx.rotate(mid + Math.PI / 2);
+      const label = this._segmentValues[i] != null ? String(this._segmentValues[i]) : String(i + 1);
+      drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), PAL.white, 1);
+      ctx.restore();
+      const dcos = Math.cos(off), dsin = Math.sin(off);
+      ctx.beginPath();
+      ctx.moveTo(dcos * POCKET_INNER, dsin * POCKET_INNER);
+      ctx.lineTo(dcos * LABEL_OUTER, dsin * LABEL_OUTER);
+      ctx.strokeStyle = DIVIDER_COLOR;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      off += angle;
+    }
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(cx + rmOx, cy + rmOy, RIM_R, 0, Math.PI * 2);
+    ctx.strokeStyle = RIM_COLOR;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(this._angle);
+    if (!this._inGauge) {
+      for (const pb of this._placedBalls) {
+        if (this._dropping) {
+          const elapsed = this._dropClock - pb.dropDelay;
+          if (elapsed < pb.dropDur) continue;
+        }
+        this._drawPixelBall(ctx, pb.localX, pb.localY, false, pb.special?.effect);
+      }
+    }
+    for (const b of this._balls) {
+      if (!b.settled || b.localX === void 0) continue;
+      this._drawPixelBall(ctx, b.localX, b.localY, true, b.special?.effect);
+    }
+    ctx.beginPath();
+    ctx.arc(0, 0, HUB_R, 0, Math.PI * 2);
+    ctx.fillStyle = HUB_BG;
+    ctx.fill();
+    ctx.strokeStyle = HUB_BORDER;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    this._drawHubScreen(ctx, 0, 0);
+    ctx.restore();
+    for (const b of this._balls) {
+      if (b.settled) continue;
+      this._drawPixelBall(ctx, cx + b.x, cy + b.y, false, b.special?.effect);
+      this._frameLights.push({
+        x: cx + b.x,
+        y: cy + b.y * this.tilt,
+        r: 10,
+        color: PAL.white,
+        a: 0.12
+      });
+    }
+    ctx.restore();
+    this._drawGauges(ctx, cx + pox, cy + poy);
+    this._drawOrbitSlots(ctx, cx + pox, cy + poy);
+  }
+  // ═══ Forge Shop Face (back of wheel) ═══
+  static RARITY_COLORS = {
+    common: { fg: PAL.lightGray, bg: PAL.midGray, border: PAL.lightGray, sprite: "relic_common" },
+    uncommon: { fg: PAL.green, bg: PAL.darkGreen, border: PAL.green, sprite: "relic_uncommon" },
+    rare: { fg: PAL.blue, bg: PAL.darkBlue, border: PAL.cyan, sprite: "relic_rare" },
+    legendary: { fg: PAL.neonPink, bg: PAL.darkPurple, border: PAL.gold, sprite: "relic_legendary" }
+  };
+  /** Resolve sprite name for a shop offering */
+  static _offeringSprite(offering) {
+    if (!offering) return "ball";
+    switch (offering.shopType) {
+      case "symbol":
+        return offering.symbolId || "ball";
+      case "special_ball":
+        return "ball";
+      case "relic":
+      default: {
+        const rc = _PixelWheel.RARITY_COLORS[offering.rarity];
+        return rc ? rc.sprite : "relic_common";
+      }
+    }
+  }
+  _drawForgeFace(ctx, cx, cy) {
+    const shop = this._shop;
+    if (shop.buyFlashTimer > 0) {
+      shop.buyFlashTimer -= 1 / 60;
+    }
+    if (!this._forgeBgCanvas) this._initForgeBackground();
+    ctx.drawImage(this._forgeBgCanvas, cx - this._forgeBgOff, cy - this._forgeBgOff);
+    const QUAD_GAP = 0.1;
+    const SLOT_GAP = 0.04;
+    const QUAD_SPAN = Math.PI / 2 - QUAD_GAP;
+    const SLOT_SPAN = (QUAD_SPAN - SLOT_GAP) / 2;
+    const slotInner = HUB_R + 3;
+    const slotOuter = RIM_R - 3;
+    const slotMidR = (slotInner + slotOuter) / 2;
+    const quadStarts = [
+      -Math.PI / 2 + QUAD_GAP / 2,
+      0 + QUAD_GAP / 2,
+      Math.PI / 2 + QUAD_GAP / 2,
+      Math.PI + QUAD_GAP / 2
+    ];
+    for (let q = 0; q < 4; q++) {
+      const qStart = quadStarts[q];
+      for (let s = 0; s < 2; s++) {
+        const slotIdx = q * 2 + s;
+        const a0 = qStart + s * (SLOT_SPAN + SLOT_GAP);
+        const a1 = a0 + SLOT_SPAN;
+        const mid = a0 + SLOT_SPAN / 2;
+        const isHover = shop.hoverIdx === slotIdx;
+        const isBuyFlash = shop.buyFlash === slotIdx && shop.buyFlashTimer > 0;
+        ctx.beginPath();
+        ctx.arc(cx, cy, slotOuter, a0, a1);
+        ctx.arc(cx, cy, slotInner, a1, a0, true);
+        ctx.closePath();
+        ctx.strokeStyle = PAL.midGray;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        if (slotIdx === 4) {
+          const isRerollHover = shop.hoverIdx === "reroll";
+          const rerollAfford = shop.currency >= shop.rerollCost;
+          ctx.beginPath();
+          ctx.arc(cx, cy, slotOuter - 1, a0, a1);
+          ctx.arc(cx, cy, slotInner + 1, a1, a0, true);
+          ctx.closePath();
+          ctx.fillStyle = PAL.darkGray;
+          ctx.globalAlpha = 0.3;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.beginPath();
+          ctx.arc(cx, cy, slotOuter, a0, a1);
+          ctx.arc(cx, cy, slotInner, a1, a0, true);
+          ctx.closePath();
+          ctx.strokeStyle = PAL.lightGray;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          const rx = cx + Math.cos(mid) * slotMidR;
+          const ry = cy + Math.sin(mid) * slotMidR;
+          if (!rerollAfford) ctx.globalAlpha = 0.35;
+          drawSpriteCentered(ctx, "reroll", Math.round(rx), Math.round(ry), 2);
+          ctx.globalAlpha = 1;
+          const rpx = rx;
+          const rpy = ry + 14;
+          const priceColor = rerollAfford ? PAL.gold : PAL.red;
+          drawTextCentered(ctx, String(shop.rerollCost), Math.round(rpx), Math.round(rpy) - Math.floor(CHAR_H / 2), priceColor, 1);
+          if (isRerollHover && rerollAfford) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, slotOuter, a0, a1);
+            ctx.arc(cx, cy, slotInner, a1, a0, true);
+            ctx.closePath();
+            ctx.fillStyle = PAL.white;
+            ctx.globalAlpha = 0.12;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          continue;
+        }
+        const offering = shop.offerings[slotIdx];
+        if (offering) {
+          const rarity = _PixelWheel.RARITY_COLORS[offering.rarity] || _PixelWheel.RARITY_COLORS.common;
+          const tooExpensive = shop.currency < offering.finalCost;
+          const spriteName = _PixelWheel._offeringSprite(offering);
+          ctx.beginPath();
+          ctx.arc(cx, cy, slotOuter - 1, a0, a1);
+          ctx.arc(cx, cy, slotInner + 1, a1, a0, true);
+          ctx.closePath();
+          ctx.fillStyle = rarity.bg;
+          ctx.globalAlpha = 0.3;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.beginPath();
+          ctx.arc(cx, cy, slotOuter, a0, a1);
+          ctx.arc(cx, cy, slotInner, a1, a0, true);
+          ctx.closePath();
+          ctx.strokeStyle = rarity.border;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          const sx = cx + Math.cos(mid) * slotMidR;
+          const sy = cy + Math.sin(mid) * slotMidR;
+          if (isBuyFlash) {
+            ctx.globalAlpha = Math.min(1, shop.buyFlashTimer / 0.2);
+          } else if (tooExpensive) {
+            ctx.globalAlpha = 0.35;
+          }
+          drawSpriteCentered(ctx, spriteName, Math.round(sx), Math.round(sy), 2);
+          ctx.globalAlpha = 1;
+          const px = sx;
+          const py = sy + 14;
+          const priceStr = String(offering.finalCost);
+          const priceColor = tooExpensive ? PAL.red : PAL.gold;
+          const textW = measureText(priceStr);
+          const gap = 2;
+          const ticketW = TICKET_W;
+          const totalW = textW + gap + ticketW;
+          const startX = Math.round(px - totalW / 2);
+          const textY = Math.round(py) - Math.floor(CHAR_H / 2);
+          drawText(ctx, priceStr, startX, textY, priceColor, 1);
+          drawSpriteCentered(ctx, "ticket", startX + textW + gap + Math.floor(ticketW / 2), Math.round(py), 1);
+          if (isHover && !tooExpensive) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, slotOuter, a0, a1);
+            ctx.arc(cx, cy, slotInner, a1, a0, true);
+            ctx.closePath();
+            ctx.fillStyle = PAL.white;
+            ctx.globalAlpha = 0.12;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            this._frameLights.push({
+              x: sx,
+              y: sy * Math.abs(this._tilt),
+              r: 20,
+              color: rarity.fg,
+              a: 0.25
+            });
+          }
+          if (isBuyFlash) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, slotOuter, a0, a1);
+            ctx.arc(cx, cy, slotInner, a1, a0, true);
+            ctx.closePath();
+            ctx.fillStyle = PAL.gold;
+            ctx.globalAlpha = shop.buyFlashTimer / 0.4 * 0.6;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            this._frameLights.push({
+              x: sx,
+              y: sy * Math.abs(this._tilt),
+              r: 40,
+              color: PAL.gold,
+              a: shop.buyFlashTimer / 0.4 * 0.5
+            });
+          }
+        } else {
+          const ex = cx + Math.cos(mid) * slotMidR;
+          const ey = cy + Math.sin(mid) * slotMidR;
+          ctx.fillStyle = PAL.midGray;
+          ctx.globalAlpha = 0.3;
+          ctx.fillRect(Math.round(ex) - 1, Math.round(ey) - 1, 3, 3);
+          ctx.globalAlpha = 1;
+        }
+      }
+      const dAngle = quadStarts[q] - QUAD_GAP / 2;
+      const dc = Math.cos(dAngle), ds = Math.sin(dAngle);
+      ctx.beginPath();
+      ctx.moveTo(cx + dc * slotInner, cy + ds * slotInner);
+      ctx.lineTo(cx + dc * slotOuter, cy + ds * slotOuter);
+      ctx.strokeStyle = PAL.midGray;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    const hubR = HUB_R;
+    const leaveHover = shop.hoverIdx === "leave";
+    ctx.beginPath();
+    ctx.arc(cx, cy, hubR - 1, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fillStyle = PAL.darkGray;
+    ctx.globalAlpha = leaveHover ? 0.8 : 0.5;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = leaveHover ? PAL.lightGray : PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    drawSpriteCentered(ctx, "arrow_right", cx, Math.round(cy - 8), 1);
+    drawTextCentered(ctx, "CONTINUER", cx, Math.round(cy), PAL.lightGray, 1);
+    if (shop.nextQuota) {
+      drawTextCentered(ctx, "QUOTA " + shop.nextQuota, cx, Math.round(cy + 10), PAL.midGray, 1, false);
+    }
+  }
+  _drawPixelBall(ctx, bx, by, settled, specialEffect) {
+    const rx = Math.round(bx), ry = Math.round(by);
+    if (specialEffect) {
+      let haloColor;
+      switch (specialEffect) {
+        case "double":
+          haloColor = PAL.gold;
+          break;
+        case "weight":
+          haloColor = PAL.midGray;
+          break;
+        case "ghost":
+          haloColor = PAL.purple;
+          break;
+        case "splash":
+          haloColor = PAL.red;
+          break;
+        case "critical":
+          haloColor = PAL.neonPink;
+          break;
+        default:
+          haloColor = PAL.white;
+          break;
+      }
+      ctx.fillStyle = haloColor;
+      ctx.fillRect(rx - 5, ry - 3, 11, 7);
+      ctx.fillRect(rx - 3, ry - 5, 7, 11);
+    }
+    drawSpriteCentered(ctx, "ball", rx, ry, 1);
+  }
+  _drawHubScreen(ctx, cx, cy) {
+    const h = this._hub;
+    const r = HUB_R - 3;
+    if (r < 5) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    const scoreStr = String(h.score);
+    const scoreW = scoreStr.length * CHAR_H;
+    const coinSz = SPRITE_SIZE;
+    const totalW = scoreW + 2 + coinSz;
+    drawTextCentered(ctx, scoreStr, Math.round(cx - totalW / 2 + scoreW / 2), Math.round(cy - r * 0.25), PAL.gold, 1);
+    drawAnimSpriteCentered(ctx, "coin", Math.round(cx - totalW / 2 + scoreW + 2 + coinSz / 2), Math.round(cy - r * 0.25 + CHAR_H / 2), 1, this._time, 6);
+    if (h.lastSymbolId && h.valueFade > 0) {
+      ctx.globalAlpha = Math.min(1, h.valueFade);
+      drawSpriteCentered(ctx, h.lastSymbolId, cx, Math.round(cy + 2), 2);
+      ctx.globalAlpha = 1;
+    }
+    if (h.history.length > 0) {
+      const total = h.history.length;
+      const spacing = Math.min(6, Math.floor(r * 1.4 / total));
+      const startX = Math.round(cx - (total - 1) * spacing / 2);
+      const histY = Math.round(cy + r * 0.55);
+      for (let i = 0; i < total; i++) {
+        ctx.fillStyle = i % 2 === 0 ? PAL.lightGray : PAL.midGray;
+        ctx.fillRect(startX + i * spacing, histY, 3, 3);
+      }
+    }
+    if (h.valueFade > 0) {
+      ctx.globalAlpha = Math.min(1, h.valueFade);
+      const valStr = "+" + h.lastValue;
+      const valW2 = valStr.length * CHAR_H;
+      const coinSz2 = SPRITE_SIZE;
+      const tw2 = valW2 + 2 + coinSz2;
+      drawTextCentered(ctx, valStr, Math.round(cx - tw2 / 2 + valW2 / 2), Math.round(cy + r * 0.05), PAL.green, 1);
+      drawAnimSpriteCentered(ctx, "coin", Math.round(cx - tw2 / 2 + valW2 + 2 + coinSz2 / 2), Math.round(cy + r * 0.05 + CHAR_H / 2), 1, this._time, 6);
+      ctx.globalAlpha = 1;
+    }
+    if (h.messageFade > 0) {
+      ctx.globalAlpha = Math.min(1, h.messageFade);
+      drawTextCentered(ctx, h.message, cx, Math.round(cy - r * 0.45), PAL.gold, 1);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+  setCounters(gold, tickets) {
+    if (tickets < this._counterTickets) {
+      this._ticketShake.intensity = 3;
+      this._ticketShake.time = 0;
+    }
+    if (this._goldAnims.length === 0 && !this._goldQuotaAnim) this._counterGold = gold;
+    if (!this._ticketAnim) this._counterTickets = tickets;
+  }
+  /** Launch a gold popup that flies from (sx,sy) to the gold counter */
+  startGoldFly(text, value, sx, sy, cx, cy) {
+    const cfg = GAUGE_CONFIGS[2];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const arcLen = cfg.end - cfg.start;
+    const goldA = cfg.start + arcLen * 0.75;
+    const tx = cx + Math.cos(goldA) * MID_R;
+    const ty = cy + Math.sin(goldA) * MID_R;
+    this._goldAnims.push({
+      text,
+      value,
+      startX: sx,
+      startY: sy,
+      targetX: tx,
+      targetY: ty,
+      elapsed: 0,
+      duration: 0.45,
+      arrived: false
+    });
+  }
+  drawGoldAnims(ctx, cx, cy) {
+    for (const ga of this._goldAnims) {
+      const t = Math.min(1, ga.elapsed / ga.duration);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const x = ga.startX + (ga.targetX - ga.startX) * ease;
+      const y = ga.startY + (ga.targetY - ga.startY) * ease;
+      const scale = 1 + 0.3 * Math.sin(Math.PI * t);
+      const alpha = ga.arrived ? Math.max(0, 1 - (ga.elapsed - ga.duration) / 0.15) : 1;
+      if (alpha <= 0) continue;
+      ctx.globalAlpha = alpha;
+      const txtW = measureText(ga.text);
+      const coinSz = SPRITE_SIZE;
+      const totalW = txtW + 2 + coinSz;
+      const dx = Math.round(x - totalW / 2);
+      const dy = Math.round(y);
+      drawText(ctx, ga.text, dx, dy - Math.floor(CHAR_H * scale / 2), PAL.gold, scale);
+      drawAnimSpriteCentered(ctx, "coin", dx + txtW + 2 + Math.floor(coinSz / 2), dy, scale, this._time, 6);
+      ctx.globalAlpha = 1;
+    }
+  }
+  startGoldQuotaAnim(quota) {
+    const cfg = GAUGE_CONFIGS[2];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const arcLen = cfg.end - cfg.start;
+    const goldA = cfg.start + arcLen * 0.75;
+    this._goldQuotaAnim = {
+      phase: "fly",
+      elapsed: 0,
+      flyDur: 0.4,
+      countDur: 0.8,
+      holdDur: 0.6,
+      flybackDur: 0.3,
+      quota,
+      startGold: this._counterGold,
+      fromA: goldA,
+      fromMidR: MID_R
+    };
+  }
+  get goldQuotaAnimDone() {
+    return !this._goldQuotaAnim;
+  }
+  drawGoldQuotaAnim(ctx, cx, cy) {
+    const ga = this._goldQuotaAnim;
+    if (!ga) return;
+    const srcX = Math.cos(ga.fromA) * ga.fromMidR;
+    const srcY = Math.sin(ga.fromA) * ga.fromMidR;
+    const tgtX = 0;
+    const tgtY = -(HUB_R + 14);
+    let t, x, y, scale, alpha;
+    if (ga.phase === "fly") {
+      t = Math.min(1, ga.elapsed / ga.flyDur);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      x = srcX + (tgtX - srcX) * ease;
+      y = srcY + (tgtY - srcY) * ease;
+      scale = 1 + 2 * ease;
+      alpha = 0.5 + 0.5 * ease;
+    } else if (ga.phase === "count") {
+      t = Math.min(1, ga.elapsed / ga.countDur);
+      x = tgtX;
+      y = tgtY;
+      scale = 3;
+      alpha = 1;
+    } else if (ga.phase === "hold") {
+      x = tgtX;
+      y = tgtY;
+      scale = 3;
+      alpha = 1;
+    } else if (ga.phase === "flyback") {
+      t = Math.min(1, ga.elapsed / ga.flybackDur);
+      const ease = t * t;
+      x = tgtX + (srcX - tgtX) * ease;
+      y = tgtY + (srcY - tgtY) * ease;
+      scale = 3 - 2 * ease;
+      alpha = 1 - 0.5 * ease;
+    } else return;
+    let shakeX = 0, shakeY = 0;
+    if (ga.phase === "count") {
+      const intensity = 2.5 * (1 - Math.min(1, ga.elapsed / ga.countDur));
+      shakeX = Math.round((Math.random() - 0.5) * 2 * intensity);
+      shakeY = Math.round((Math.random() - 0.5) * 2 * intensity);
+    }
+    ctx.save();
+    ctx.translate(cx + x + shakeX, cy + y + shakeY);
+    ctx.globalAlpha = alpha;
+    if (ga.phase === "count" || ga.phase === "hold") {
+      ctx.fillStyle = PAL.gold;
+      ctx.globalAlpha = 0.12 + 0.06 * Math.sin(this._time * 12);
+      ctx.beginPath();
+      ctx.arc(0, 0, 22 * scale / 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = alpha;
+    }
+    drawAnimSpriteCentered(ctx, "coin", 0, -Math.floor(CHAR_H * scale / 2) - 2, scale, this._time, 6);
+    const displayGold = this._counterGold;
+    const txt = String(displayGold);
+    drawTextCentered(ctx, txt, 0, Math.floor(CHAR_H * scale / 2) + 2, PAL.gold, scale);
+    if (ga.phase === "count" || ga.phase === "hold") {
+      const deducted = ga.startGold - this._counterGold;
+      if (deducted > 0) {
+        drawTextCentered(ctx, "-" + deducted, 0, Math.floor(CHAR_H * scale / 2) + 2 + Math.ceil(CHAR_H * scale) + 2, PAL.red, scale * 0.7);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+  startTicketAnim(earned) {
+    const cfg = GAUGE_CONFIGS[2];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const arcLen = cfg.end - cfg.start;
+    const tickA = cfg.start + arcLen * 0.25;
+    this._ticketAnim = {
+      phase: "fly",
+      elapsed: 0,
+      flyDur: 0.4,
+      countDur: 0.8,
+      holdDur: 0.6,
+      flybackDur: 0.3,
+      earned,
+      counted: 0,
+      baseTickets: this._counterTickets,
+      fromA: tickA,
+      fromMidR: MID_R
+    };
+  }
+  get ticketAnimDone() {
+    return !this._ticketAnim;
+  }
+  _drawGauges(ctx, cx, cy) {
+    for (let g = 0; g < GAUGE_CONFIGS.length; g++) {
+      if (g === 2) continue;
+      if (g === 1) {
+        this._drawRelicBar(ctx, cx, cy);
+        continue;
+      }
+      this._drawOneGauge(ctx, cx, cy, g);
+    }
+    this._drawRimCounters(ctx, cx, cy);
+  }
+  _drawOneGauge(ctx, cx, cy, gaugeIdx) {
+    const cfg = GAUGE_CONFIGS[gaugeIdx];
+    const unlocked = this._gaugeUnlocks[gaugeIdx];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    ctx.beginPath();
+    ctx.arc(cx, cy, OUTER, cfg.start, cfg.end);
+    ctx.arc(cx, cy, INNER, cfg.end, cfg.start, true);
+    ctx.closePath();
+    ctx.fillStyle = unlocked ? SEG_B : PAL.black;
+    ctx.fill();
+    ctx.strokeStyle = unlocked ? RIM_COLOR : PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, OUTER, cfg.start, cfg.end);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, INNER, cfg.start, cfg.end);
+    ctx.stroke();
+    for (const a of [cfg.start, cfg.end]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * INNER, cy + Math.sin(a) * INNER);
+      ctx.lineTo(cx + Math.cos(a) * OUTER, cy + Math.sin(a) * OUTER);
+      ctx.stroke();
+    }
+    if (gaugeIdx === 3) {
+      this._drawCorruptionGauge(ctx, cx, cy, cfg, INNER, OUTER);
+      return;
+    }
+    if (!unlocked) {
+      const midA = (cfg.start + cfg.end) / 2;
+      const midR = (INNER + OUTER) / 2;
+      const lx = Math.round(cx + Math.cos(midA) * midR);
+      const ly = Math.round(cy + Math.sin(midA) * midR);
+      ctx.fillStyle = PAL.midGray;
+      ctx.fillRect(lx - 1, ly - 1, 1, 1);
+      ctx.fillRect(lx + 1, ly - 1, 1, 1);
+      ctx.fillRect(lx, ly, 1, 1);
+      ctx.fillRect(lx - 1, ly + 1, 1, 1);
+      ctx.fillRect(lx + 1, ly + 1, 1, 1);
+      return;
+    }
+    const gaugeBalls = this._inGauge ? this._placedBalls : this._ejecting ? this._ejectQueue : [];
+    for (const pb of gaugeBalls) {
+      if (pb.gaugeIdx !== gaugeIdx) continue;
+      const bx = Math.round(cx + pb.gaugeX);
+      const by = Math.round(cy + pb.gaugeY);
+      ctx.fillStyle = PAL.black;
+      ctx.fillRect(bx - 4, by - 3, 7, 7);
+      this._drawPixelBall(ctx, bx, by, false, pb.special?.effect);
+      const glowColor = pb.special ? {
+        double: PAL.gold,
+        weight: PAL.white,
+        ghost: PAL.purple,
+        splash: PAL.red,
+        critical: PAL.neonPink
+      }[pb.special.effect] || PAL.white : PAL.white;
+      this._frameLights.push({
+        x: cx + pb.gaugeX,
+        y: cy + pb.gaugeY * this.tilt,
+        r: pb.special ? 8 : 6,
+        color: glowColor,
+        a: pb.special ? 0.12 : 0.06
+      });
+    }
+    let ballCount = 0;
+    for (const pb of gaugeBalls) {
+      if (pb.gaugeIdx === gaugeIdx) ballCount++;
+    }
+    if (ballCount > 0) {
+      const la = cfg.end + 0.12;
+      const lr = (INNER + OUTER) / 2;
+      const lx = Math.round(cx + Math.cos(la) * lr);
+      const ly = Math.round(cy + Math.sin(la) * lr);
+      drawTextCentered(ctx, String(ballCount), lx, ly - Math.floor(CHAR_H / 2), PAL.white, 1);
+    }
+  }
+  _drawCorruptionGauge(ctx, cx, cy, cfg, INNER, OUTER) {
+    const fill = this._corruption;
+    const totalArc = cfg.end - cfg.start;
+    const fillEnd = cfg.start + totalArc * fill;
+    ctx.beginPath();
+    ctx.arc(cx, cy, OUTER, cfg.start, cfg.end);
+    ctx.arc(cx, cy, INNER, cfg.end, cfg.start, true);
+    ctx.closePath();
+    ctx.fillStyle = PAL.darkPurple;
+    ctx.fill();
+    if (fill > 1e-3) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, OUTER, cfg.start, fillEnd);
+      ctx.arc(cx, cy, INNER, fillEnd, cfg.start, true);
+      ctx.closePath();
+      ctx.fillStyle = fill >= 0.85 ? PAL.neonPink : PAL.purple;
+      ctx.fill();
+    }
+    ctx.strokeStyle = fill >= 0.85 ? PAL.neonPink : PAL.purple;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, OUTER, cfg.start, cfg.end);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, INNER, cfg.start, cfg.end);
+    ctx.stroke();
+    for (const a of [cfg.start, cfg.end]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * INNER, cy + Math.sin(a) * INNER);
+      ctx.lineTo(cx + Math.cos(a) * OUTER, cy + Math.sin(a) * OUTER);
+      ctx.stroke();
+    }
+    if (fill > 0.01 && fill < 0.99) {
+      ctx.strokeStyle = PAL.white;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(fillEnd) * INNER, cy + Math.sin(fillEnd) * INNER);
+      ctx.lineTo(cx + Math.cos(fillEnd) * OUTER, cy + Math.sin(fillEnd) * OUTER);
+      ctx.stroke();
+    }
+    if (fill >= 0.85) {
+      const midA = (cfg.start + fillEnd) / 2;
+      const midR = (INNER + OUTER) / 2;
+      this._frameLights.push({
+        x: cx + Math.cos(midA) * midR,
+        y: cy + Math.sin(midA) * midR * Math.abs(this._tilt),
+        r: 12,
+        color: PAL.neonPink,
+        a: 0.15
+      });
+    }
+    const skullA = cfg.start - 0.08;
+    const skullR = (INNER + OUTER) / 2;
+    const sx = Math.round(cx + Math.cos(skullA) * skullR);
+    const sy = Math.round(cy + Math.sin(skullA) * skullR);
+    drawSpriteCentered(ctx, "skull", sx, sy, 1);
+  }
+  _drawRelicBar(ctx, cx, cy) {
+    const cfg = GAUGE_CONFIGS[1];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const RARITIES = ["common", "uncommon", "rare", "legendary"];
+    const RARITY_COL = { common: PAL.white, uncommon: PAL.green, rare: PAL.blue, legendary: PAL.gold };
+    const arcLen = cfg.end - cfg.start;
+    const counts = { common: 0, uncommon: 0, rare: 0, legendary: 0 };
+    for (const r of this._relics) {
+      if (counts[r.rarity] !== void 0) counts[r.rarity]++;
+    }
+    for (let i = 0; i < RARITIES.length; i++) {
+      const rarity = RARITIES[i];
+      const a = cfg.start + arcLen * (i + 0.5) / RARITIES.length;
+      const sx = Math.round(cx + Math.cos(a) * MID_R);
+      const sy = Math.round(cy + Math.sin(a) * MID_R) + 4;
+      drawSpriteCentered(ctx, "relic_" + rarity, sx, sy, 1);
+      const count = counts[rarity];
+      const badgeX = sx + 3;
+      const badgeY = sy + 1;
+      drawText(ctx, String(count), badgeX, badgeY, count > 0 ? RARITY_COL[rarity] : PAL.midGray, 1);
+    }
+  }
+  relicBarHitTest(x, y, cx, cy) {
+    const cfg = GAUGE_CONFIGS[1];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const RARITIES = ["common", "uncommon", "rare", "legendary"];
+    const arcLen = cfg.end - cfg.start;
+    const HIT_RADIUS = 7;
+    for (let i = 0; i < RARITIES.length; i++) {
+      const a = cfg.start + arcLen * (i + 0.5) / RARITIES.length;
+      const sx = cx + Math.cos(a) * MID_R;
+      const sy = cy + Math.sin(a) * MID_R + 4;
+      const dx = x - sx;
+      const dy = y - sy;
+      if (dx * dx + dy * dy <= HIT_RADIUS * HIT_RADIUS) {
+        return RARITIES[i];
+      }
+    }
+    return null;
+  }
+  _drawRimCounters(ctx, cx, cy) {
+    const cfg = GAUGE_CONFIGS[2];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const arcLen = cfg.end - cfg.start;
+    const gap = 2;
+    if (!this._goldQuotaAnim) {
+      const goldA = cfg.start + arcLen * 0.75;
+      let gx = Math.round(cx + Math.cos(goldA) * MID_R);
+      let gy = Math.round(cy + Math.sin(goldA) * MID_R);
+      if (this._goldShake.intensity > 0) {
+        const t = Math.min(1, this._goldShake.time / this._goldShake.decay);
+        const amp = this._goldShake.intensity * (1 - t);
+        gx += Math.round((Math.random() - 0.5) * 2 * amp);
+        gy += Math.round((Math.random() - 0.5) * 2 * amp);
+      }
+      const goldTxt = String(this._counterGold);
+      const goldTW = measureText(goldTxt);
+      const goldTotalW = goldTW + gap + SPRITE_SIZE;
+      const gsx = gx - Math.floor(goldTotalW / 2);
+      drawText(ctx, goldTxt, gsx, gy - Math.floor(CHAR_H / 2), PAL.gold, 1);
+      drawAnimSpriteCentered(ctx, "coin", gsx + goldTW + gap + Math.floor(SPRITE_SIZE / 2), gy, 1, this._time, 6);
+    }
+    if (!this._ticketAnim) {
+      const tickA = cfg.start + arcLen * 0.25;
+      let tx = Math.round(cx + Math.cos(tickA) * MID_R);
+      let ty = Math.round(cy + Math.sin(tickA) * MID_R);
+      if (this._ticketShake.intensity > 0) {
+        const t = Math.min(1, this._ticketShake.time / this._ticketShake.decay);
+        const amp = this._ticketShake.intensity * (1 - t);
+        tx += Math.round((Math.random() - 0.5) * 2 * amp);
+        ty += Math.round((Math.random() - 0.5) * 2 * amp);
+      }
+      const tickTxt = String(this._counterTickets);
+      const tickTW = measureText(tickTxt);
+      const tickTotalW = tickTW + gap + TICKET_W;
+      const tsx = tx - Math.floor(tickTotalW / 2);
+      drawText(ctx, tickTxt, tsx, ty - Math.floor(CHAR_H / 2), PAL.green, 1);
+      drawSpriteCentered(ctx, "ticket", tsx + tickTW + gap + Math.floor(TICKET_W / 2) + 2, ty - 1, 1);
+    }
+  }
+  drawTicketAnim(ctx, cx, cy) {
+    const ta = this._ticketAnim;
+    if (!ta) return;
+    const srcX = Math.cos(ta.fromA) * ta.fromMidR;
+    const srcY = Math.sin(ta.fromA) * ta.fromMidR;
+    const tgtX = 0;
+    const tgtY = -(HUB_R + 14);
+    let t, x, y, scale, alpha;
+    if (ta.phase === "fly") {
+      t = Math.min(1, ta.elapsed / ta.flyDur);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      x = srcX + (tgtX - srcX) * ease;
+      y = srcY + (tgtY - srcY) * ease;
+      scale = 1 + 2 * ease;
+      alpha = 0.5 + 0.5 * ease;
+    } else if (ta.phase === "count") {
+      t = Math.min(1, ta.elapsed / ta.countDur);
+      x = tgtX;
+      y = tgtY;
+      scale = 3;
+      alpha = 1;
+    } else if (ta.phase === "hold") {
+      x = tgtX;
+      y = tgtY;
+      scale = 3;
+      alpha = 1;
+    } else if (ta.phase === "flyback") {
+      t = Math.min(1, ta.elapsed / ta.flybackDur);
+      const ease = t * t;
+      x = tgtX + (srcX - tgtX) * ease;
+      y = tgtY + (srcY - tgtY) * ease;
+      scale = 3 - 2 * ease;
+      alpha = 1 - 0.5 * ease;
+    } else return;
+    let shakeX = 0, shakeY = 0;
+    if (ta.phase === "count") {
+      const intensity = 2.5 * (1 - Math.min(1, ta.elapsed / ta.countDur));
+      shakeX = Math.round((Math.random() - 0.5) * 2 * intensity);
+      shakeY = Math.round((Math.random() - 0.5) * 2 * intensity);
+    }
+    ctx.save();
+    ctx.translate(cx + x + shakeX, cy + y + shakeY);
+    ctx.globalAlpha = alpha;
+    if (ta.phase === "count" || ta.phase === "hold") {
+      ctx.fillStyle = PAL.green;
+      ctx.globalAlpha = 0.12 + 0.06 * Math.sin(this._time * 12);
+      ctx.beginPath();
+      ctx.arc(0, 0, 22 * scale / 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = alpha;
+    }
+    drawSpriteCentered(ctx, "ticket", 0, -Math.floor(CHAR_H * scale / 2) - 2, scale);
+    const displayCount = ta.baseTickets + ta.counted;
+    const txt = String(displayCount);
+    drawTextCentered(ctx, txt, 0, Math.floor(CHAR_H * scale / 2) + 2, PAL.green, scale);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+  _drawOrbitSlots(ctx, cx, cy) {
+    const INNER = RIM_R + 5;
+    const OUTER = RIM_R + 27;
+    const SLOT_ARC = 0.28;
+    const PAIR_GAP = 0.06;
+    const corners = [
+      -Math.PI * 3 / 4,
+      // top-left
+      -Math.PI / 4,
+      // top-right
+      Math.PI / 4,
+      // bottom-right
+      Math.PI * 3 / 4
+      // bottom-left
+    ];
+    let idx = 0;
+    for (const center of corners) {
+      const a0A = center - PAIR_GAP / 2 - SLOT_ARC;
+      const a1A = center - PAIR_GAP / 2;
+      this._drawOneSlot(ctx, cx, cy, INNER, OUTER, a0A, a1A, idx++);
+      const a0B = center + PAIR_GAP / 2;
+      const a1B = center + PAIR_GAP / 2 + SLOT_ARC;
+      this._drawOneSlot(ctx, cx, cy, INNER, OUTER, a0B, a1B, idx++);
+    }
+  }
+  _drawOneSlot(ctx, cx, cy, inner, outer, a0, a1, idx) {
+    const filled = this._slots && this._slots[idx];
+    const locked = idx >= 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, outer, a0, a1);
+    ctx.arc(cx, cy, inner, a1, a0, true);
+    ctx.closePath();
+    ctx.fillStyle = PAL.black;
+    ctx.fill();
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, outer, a0, a1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, inner, a0, a1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a0) * inner, cy + Math.sin(a0) * inner);
+    ctx.lineTo(cx + Math.cos(a0) * outer, cy + Math.sin(a0) * outer);
+    ctx.moveTo(cx + Math.cos(a1) * inner, cy + Math.sin(a1) * inner);
+    ctx.lineTo(cx + Math.cos(a1) * outer, cy + Math.sin(a1) * outer);
+    ctx.stroke();
+    const midAngle = (a0 + a1) / 2;
+    const midR = (inner + outer) / 2;
+    const mx = Math.round(cx + Math.cos(midAngle) * midR);
+    const my = Math.round(cy + Math.sin(midAngle) * midR);
+    if (filled) {
+      try {
+        drawSpriteCentered(ctx, filled.id || "ticket", mx, my, 1);
+      } catch {
+        drawTextCentered(ctx, "?", mx, my - Math.floor(CHAR_H / 2), PAL.gold, 1);
+      }
+    } else if (locked) {
+      ctx.fillStyle = PAL.midGray;
+      ctx.fillRect(mx - 1, my - 1, 1, 1);
+      ctx.fillRect(mx + 1, my - 1, 1, 1);
+      ctx.fillRect(mx, my, 1, 1);
+      ctx.fillRect(mx - 1, my + 1, 1, 1);
+      ctx.fillRect(mx + 1, my + 1, 1, 1);
+    } else {
+      ctx.fillStyle = PAL.midGray;
+      ctx.fillRect(mx, my, 1, 1);
+    }
+  }
+};
+
+// client/gfx/PostFXGL.js
+var VERT = `
+attribute vec2 aPos;
+varying vec2 vUv;
+void main() {
+  vUv = vec2(aPos.x * 0.5 + 0.5, 0.5 - aPos.y * 0.5);
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+var FRAG = `
+precision mediump float;
+uniform sampler2D uSrc;
+uniform vec3 uPal[16];
+uniform float uScan;
+uniform float uVig;
+uniform float uChroma;
+varying vec2 vUv;
+
+void main() {
+  vec2 uv = vUv - 0.5;
+  float dist2 = dot(uv, uv);
+
+  // Chromatic aberration \u2014 smoothstep deadzone in center, ramps at edges
+  float edge = smoothstep(0.05, 0.30, dist2);
+  float off = uChroma * edge * dist2;
+  vec3 c = vec3(
+    texture2D(uSrc, vUv + vec2(off, 0.0)).r,
+    texture2D(uSrc, vUv).g,
+    texture2D(uSrc, vUv - vec2(off, 0.0)).b
+  );
+
+  // Quantize to nearest palette color
+  float best = 99999.0;
+  vec3 out_c = uPal[0];
+  for (int i = 0; i < 16; i++) {
+    vec3 d = c - uPal[i];
+    float dist = dot(d, d);
+    if (dist < best) { best = dist; out_c = uPal[i]; }
+  }
+  c = out_c;
+
+  // Scanlines (every other row)
+  float scan = mod(gl_FragCoord.y, 2.0) < 1.0 ? 1.0 : 1.0 - uScan;
+  c *= scan;
+
+  // Vignette
+  c *= max(0.0, 1.0 - dist2 * 4.0 * uVig);
+
+  gl_FragColor = vec4(c, 1.0);
+}`;
+var PostFXGL = class {
+  /**
+   * @param {HTMLCanvasElement} display  visible canvas (gets WebGL context)
+   * @param {object} [opts]  { scanDim, vignette }
+   */
+  constructor(display, opts = {}) {
+    const gl = display.getContext("webgl", { alpha: false, antialias: false });
+    if (!gl) throw new Error("WebGL not available");
+    this._gl = gl;
+    const vs = this._sh(gl.VERTEX_SHADER, VERT);
+    const fs = this._sh(gl.FRAGMENT_SHADER, FRAG);
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+    this._prog = prog;
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const a = gl.getAttribLocation(prog, "aPos");
+    gl.enableVertexAttribArray(a);
+    gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+    this._tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this._tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const arr = [];
+    for (const hex of Object.values(PAL)) {
+      arr.push(
+        parseInt(hex.slice(1, 3), 16) / 255,
+        parseInt(hex.slice(3, 5), 16) / 255,
+        parseInt(hex.slice(5, 7), 16) / 255
+      );
+    }
+    gl.uniform3fv(gl.getUniformLocation(prog, "uPal"), new Float32Array(arr));
+    gl.uniform1f(gl.getUniformLocation(prog, "uScan"), opts.scanDim ?? 0.06);
+    gl.uniform1f(gl.getUniformLocation(prog, "uVig"), opts.vignette ?? 0.4);
+    gl.uniform1f(gl.getUniformLocation(prog, "uChroma"), opts.chroma ?? 5e-3);
+    gl.viewport(0, 0, display.width, display.height);
+  }
+  _sh(type, src) {
+    const gl = this._gl;
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+      throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  /** Upload source canvas as texture → run shader → output to display. */
+  apply(sourceCanvas) {
+    const gl = this._gl;
+    gl.bindTexture(gl.TEXTURE_2D, this._tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+};
+
+// client/intro.js
+var W2 = 480;
+var H2 = 270;
+var PX = 2;
+var CW = W2 * PX;
+var CH = H2 * PX;
+var CX = W2 / 2;
+var CY = H2 / 2;
+var WCX = 240;
+var WCY = 140;
+var TWO_PI = Math.PI * 2;
+var R = 150;
+var HUB_R2 = Math.round(R * 0.28);
+var PKT_IN = Math.round(R * 0.3);
+var PKT_OUT = Math.round(R * 0.37);
+var LBL_IN = Math.round(R * 0.38);
+var LBL_OUT = Math.round(R * 0.48);
+var RIM_R2 = Math.round(R * 0.55);
+var N_SEG = 40;
+var SEG_ARC = TWO_PI / N_SEG;
+var INIT_A = -Math.PI / 2 - Math.PI / N_SEG;
+var N_HIERO = 16;
+var HIERO_ARC = TWO_PI / N_HIERO;
+var HIERO_INIT = -Math.PI / 2 - Math.PI / N_HIERO;
+var H_IN = 174;
+var H_OUT = 220;
+var _RACCOON = [
+  ".......KK.......KK.......",
+  "......KMLK.....KLMK......",
+  ".....KMLWK.....KWLMK.....",
+  "....KMLLDKKKKKKKDLLMK....",
+  "...KDLLLLLLLLLLLLLLLDK...",
+  "...KDLLLLLLLWLLLLLLLDK...",
+  "...KDLLLLLLWWWLLLLLLDK...",
+  "...KDLDDDDLWWWLDDDDLDK...",
+  "...KDLDDWGKDWDKGWDDLDK...",
+  "...KDDDDKKLLLLLKKDDDDK...",
+  "...KDDDDDLLLLLLLDDDDDK...",
+  "...KDLLLLLLLLLLLLLLLDK...",
+  "....KDLLLLLWWWLLLLLDK....",
+  "....KDLLLLLWKWLLLLLDK....",
+  "....KDLLLLLWWWLLLLLDK....",
+  ".....KDLLLLLLLLLLLDK.....",
+  "......KDDDDDDDDDDDK......",
+  ".......KKKKKKKKKKK......."
+];
+var _RCW = _RACCOON[0].length;
+var _RCH = _RACCOON.length;
+var _RCCX = Math.floor(_RCW / 2);
+var _RCCY = Math.floor(_RCH / 2);
+var _RCOL = {
+  K: PAL.black,
+  D: PAL.darkGray,
+  M: PAL.midGray,
+  L: PAL.lightGray,
+  W: PAL.white,
+  G: PAL.gold
+};
+function _drawRaccoon(ctx, ox, oy, revealR) {
+  for (let ry = 0; ry < _RCH; ry++) {
+    const row = _RACCOON[ry];
+    for (let rx = 0; rx < row.length; rx++) {
+      const ch = row[rx];
+      if (ch === ".") continue;
+      if (revealR !== void 0) {
+        const dx = rx - _RCCX, dy = ry - _RCCY;
+        if (Math.sqrt(dx * dx + dy * dy) > revealR) continue;
+      }
+      ctx.fillStyle = _RCOL[ch] || PAL.lightGray;
+      ctx.fillRect(ox + rx, oy + ry, 1, 1);
+    }
+  }
+}
+var _ac = null;
+function _initAudio() {
+  if (_ac) return;
+  try {
+    _ac = new (window.AudioContext || window.webkitAudioContext)();
+  } catch {
+  }
+}
+function _tone(f, d, type = "square", v = 0.06) {
+  if (!_ac) return;
+  const o = _ac.createOscillator(), g = _ac.createGain();
+  o.type = type;
+  o.frequency.value = f;
+  g.gain.setValueAtTime(v, _ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(1e-3, _ac.currentTime + d);
+  o.connect(g).connect(_ac.destination);
+  o.start();
+  o.stop(_ac.currentTime + d);
+}
+function _vib(ms) {
+  try {
+    navigator.vibrate?.(ms);
+  } catch {
+  }
+}
+function getIntroAudioCtx() {
+  return _ac;
+}
+var _parts = [];
+function _spawnSparks(cx, cy, n, color, spd) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TWO_PI;
+    const v = spd * (0.4 + Math.random() * 0.6);
+    _parts.push({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, color });
+  }
+}
+function _spawnRingSparks(cx, cy, r, n, color, spd) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TWO_PI;
+    const v = spd * (0.3 + Math.random() * 0.7);
+    _parts.push({
+      x: cx + Math.cos(a) * r,
+      y: cy + Math.sin(a) * r,
+      vx: Math.cos(a) * v,
+      vy: Math.sin(a) * v,
+      life: 1,
+      color
+    });
+  }
+}
+function _tickParts(dt) {
+  for (let i = _parts.length - 1; i >= 0; i--) {
+    const p = _parts[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 40 * dt;
+    p.life -= dt * 1.8;
+    if (p.life <= 0) _parts.splice(i, 1);
+  }
+}
+function _drawParts(ctx) {
+  for (const p of _parts) {
+    ctx.globalAlpha = Math.max(0, p.life * p.life);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+  }
+  ctx.globalAlpha = 1;
+}
+var _shakes = [];
+function _triggerShake(amp, decay, t) {
+  _shakes.push({ t0: t, amp, decay });
+}
+function _updateShake(t) {
+  let total = 0;
+  for (let i = _shakes.length - 1; i >= 0; i--) {
+    const s = _shakes[i], elapsed = t - s.t0;
+    if (elapsed > s.decay) {
+      _shakes.splice(i, 1);
+      continue;
+    }
+    total += s.amp * (1 - elapsed / s.decay);
+  }
+  if (total < 0.1) return { x: 0, y: 0 };
+  return {
+    x: Math.round((Math.random() - 0.5) * 2 * total),
+    y: Math.round((Math.random() - 0.5) * 2 * total)
+  };
+}
+function clamp(t) {
+  return Math.max(0, Math.min(1, t));
+}
+function easeOut(t) {
+  t = clamp(t);
+  return 1 - (1 - t) * (1 - t) * (1 - t);
+}
+function easeOutElastic(t) {
+  t = clamp(t);
+  if (t === 0 || t === 1) return t;
+  return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * (TWO_PI / 3)) + 1;
+}
+async function playIntro() {
+  const canvas = document.createElement("canvas");
+  canvas.width = CW;
+  canvas.height = CH;
+  canvas.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;image-rendering:pixelated;image-rendering:crisp-edges;background:#000;";
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  await new Promise((resolve) => {
+    let frame = 0;
+    const id = setInterval(() => {
+      ctx.clearRect(0, 0, CW, CH);
+      ctx.save();
+      ctx.scale(PX, PX);
+      ctx.fillStyle = PAL.black;
+      ctx.fillRect(0, 0, W2, H2);
+      const pulse = 0.6 + 0.4 * Math.sin(frame * 0.06);
+      ctx.globalAlpha = pulse;
+      _drawRaccoon(ctx, CX - _RCCX, CY - 10 - _RCCY);
+      ctx.globalAlpha = 1;
+      if (frame % 80 < 55) {
+        drawTextCentered(ctx, "CLICK TO START", CX, CY + 8, PAL.midGray, 1);
+      }
+      ctx.restore();
+      frame++;
+    }, 1e3 / 60);
+    canvas.addEventListener("click", () => {
+      clearInterval(id);
+      resolve();
+    }, { once: true });
+  });
+  _initAudio();
+  if (_ac?.state === "suspended") await _ac.resume();
+  let skip = false;
+  const skipFn = () => {
+    skip = true;
+  };
+  canvas.addEventListener("click", skipFn);
+  _parts.length = 0;
+  _shakes.length = 0;
+  await _runPhase(ctx, 3.8, _renderLogo, () => skip);
+  skip = false;
+  _parts.length = 0;
+  _shakes.length = 0;
+  await _runPhase(ctx, 5.8, _renderBuild, () => skip);
+  canvas.removeEventListener("click", skipFn);
+  document.body.removeChild(canvas);
+}
+function _runPhase(ctx, dur, renderFn, shouldSkip) {
+  return new Promise((resolve) => {
+    const start = performance.now();
+    const sfx = /* @__PURE__ */ new Set();
+    let prevT = 0;
+    (function frame(now) {
+      const t = (now - start) / 1e3;
+      if (shouldSkip() || t >= dur) {
+        resolve();
+        return;
+      }
+      const dt = Math.min(t - prevT, 0.05);
+      prevT = t;
+      _tickParts(dt);
+      ctx.clearRect(0, 0, CW, CH);
+      ctx.save();
+      ctx.scale(PX, PX);
+      renderFn(ctx, t, sfx);
+      ctx.restore();
+      requestAnimationFrame(frame);
+    })(performance.now());
+  });
+}
+function _renderLogo(ctx, t, sfx) {
+  ctx.fillStyle = PAL.black;
+  ctx.fillRect(0, 0, W2, H2);
+  const sh = _updateShake(t);
+  ctx.save();
+  ctx.translate(sh.x, sh.y);
+  if (t > 0.05) {
+    if (!sfx.has("spark")) {
+      sfx.add("spark");
+      _tone(110, 1.5, "sine", 0.07);
+      _tone(220, 1, "sine", 0.04);
+      _tone(55, 2, "sine", 0.03);
+    }
+    const dT = easeOut((t - 0.05) / 0.5);
+    const revealR = dT * 16;
+    const rOX = CX - _RCCX, rOY = CY - 28 - _RCCY;
+    _drawRaccoon(ctx, rOX, rOY, revealR);
+    if (dT >= 1 && t > 0.4 && t < 1.2) {
+      const sparkle = Math.sin(t * 12) > 0.5;
+      if (sparkle) {
+        ctx.fillStyle = PAL.white;
+        ctx.fillRect(rOX + 9, rOY + 8, 1, 1);
+        ctx.fillRect(rOX + 15, rOY + 8, 1, 1);
+      }
+    }
+  }
+  if (t > 0.6) {
+    const text = "JOJO'S";
+    const scale = 4;
+    const charStep = (CHAR_W + 1) * scale;
+    const totalW = measureText(text) * scale;
+    const sx = Math.round(CX - totalW / 2);
+    const sy = CY - 14;
+    const shown = Math.min(text.length, Math.floor((t - 0.6) / 0.09));
+    for (let i = 0; i < shown; i++) {
+      if (!sfx.has("t" + i)) {
+        sfx.add("t" + i);
+        _tone(600 + i * 100, 0.05, "square", 0.04);
+        _tone(1200 + i * 200, 0.03, "sine", 0.02);
+      }
+      drawText(ctx, text[i], sx + i * charStep, sy, PAL.gold, scale);
+    }
+  }
+  if (t > 1.5) {
+    if (!sfx.has("slam")) {
+      sfx.add("slam");
+      _tone(60, 0.6, "square", 0.14);
+      _tone(120, 0.4, "sine", 0.1);
+      _tone(180, 0.3, "square", 0.06);
+      _vib(120);
+      _triggerShake(6, 0.35, t);
+      _spawnSparks(CX, CY + 18, 20, PAL.gold, 60);
+      _spawnSparks(CX, CY + 18, 10, PAL.white, 40);
+    }
+    const zoomT = clamp((t - 1.5) / 0.18);
+    const zoom = 1 + 0.6 * (1 - easeOut(zoomT));
+    const scale = 7;
+    ctx.save();
+    ctx.translate(CX, CY + 18);
+    ctx.scale(zoom, zoom);
+    drawTextCentered(ctx, "DEN", 0, 0, PAL.white, scale);
+    ctx.restore();
+  }
+  if (t > 1.9) {
+    if (!sfx.has("line")) {
+      sfx.add("line");
+      _tone(1400, 0.12, "sine", 0.02);
+    }
+    const lineW = Math.floor(easeOut((t - 1.9) / 0.3) * 140);
+    ctx.fillStyle = PAL.gold;
+    ctx.fillRect(CX - lineW / 2, CY + 46, lineW, 1);
+    ctx.fillRect(CX - lineW / 2, CY + 49, lineW, 1);
+  }
+  if (t > 2 && t < 3) {
+    if (Math.random() < 0.15) {
+      const px = CX + (Math.random() - 0.5) * 100;
+      const py = CY + (Math.random() - 0.5) * 40;
+      _parts.push({ x: px, y: py, vx: (Math.random() - 0.5) * 8, vy: -10 - Math.random() * 15, life: 0.6, color: PAL.gold });
+    }
+  }
+  _drawParts(ctx);
+  ctx.restore();
+  if (t > 2.8) {
+    const a = clamp((t - 2.8) / 0.9);
+    ctx.fillStyle = `rgba(10,10,10,${a})`;
+    ctx.fillRect(0, 0, W2, H2);
+  }
+}
+function _renderBuild(ctx, t, sfx) {
+  const sh = _updateShake(t);
+  ctx.fillStyle = PAL.black;
+  ctx.fillRect(0, 0, W2, H2);
+  ctx.save();
+  ctx.translate(sh.x, sh.y);
+  const cx = WCX, cy = WCY;
+  if (t > 0.05 && t < 0.6) {
+    if (!sfx.has("sp")) {
+      sfx.add("sp");
+      _tone(2200, 0.08, "sine", 0.04);
+      _tone(1100, 0.12, "sine", 0.03);
+    }
+    const sparkR = Math.max(0, 4 * (1 - clamp((t - 0.05) / 0.4)));
+    if (sparkR > 0.5) {
+      ctx.fillStyle = PAL.white;
+      ctx.beginPath();
+      ctx.arc(cx, cy, sparkR, 0, TWO_PI);
+      ctx.fill();
+    }
+  }
+  if (t > 0.3) {
+    if (!sfx.has("hub")) {
+      sfx.add("hub");
+      _tone(160, 0.7, "sine", 0.09);
+      _tone(320, 0.4, "square", 0.05);
+      _tone(80, 0.5, "sine", 0.06);
+      _vib(60);
+      _triggerShake(4, 0.3, t);
+      _spawnSparks(cx, cy, 12, PAL.midGray, 50);
+    }
+    const hubT = easeOutElastic(clamp((t - 0.3) / 0.5));
+    const r = Math.max(1, HUB_R2 * hubT);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, TWO_PI);
+    ctx.fillStyle = PAL.black;
+    ctx.fill();
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  if (t > 0.8) {
+    const elapsed = t - 0.8;
+    const segsShown = Math.min(N_SEG, Math.floor(elapsed / 0.028));
+    for (let i = 0; i < segsShown; i++) {
+      if (!sfx.has("s" + i)) {
+        sfx.add("s" + i);
+        if (i % 5 === 0) _tone(350 + i * 8, 0.025, "square", 0.02);
+      }
+      const a0 = INIT_A + i * SEG_ARC;
+      const a1 = a0 + SEG_ARC;
+      ctx.beginPath();
+      ctx.arc(cx, cy, PKT_OUT, a0, a1);
+      ctx.arc(cx, cy, PKT_IN, a1, a0, true);
+      ctx.closePath();
+      ctx.fillStyle = i % 2 === 0 ? PAL.darkGray : PAL.black;
+      ctx.fill();
+      const dcos = Math.cos(a0), dsin = Math.sin(a0);
+      ctx.beginPath();
+      ctx.moveTo(cx + dcos * PKT_IN, cy + dsin * PKT_IN);
+      ctx.lineTo(cx + dcos * LBL_OUT, cy + dsin * LBL_OUT);
+      ctx.strokeStyle = PAL.black;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+    if (segsShown >= N_SEG && !sfx.has("pkt_done")) {
+      sfx.add("pkt_done");
+      _tone(250, 0.35, "sine", 0.07);
+      _tone(500, 0.2, "square", 0.04);
+      _triggerShake(5, 0.3, t);
+      _vib(40);
+      _spawnRingSparks(cx, cy, PKT_OUT, 16, PAL.lightGray, 30);
+    }
+  }
+  if (t > 2) {
+    const elapsed = t - 2;
+    const segsShown = Math.min(N_SEG, Math.floor(elapsed / 0.025));
+    if (!sfx.has("lbl_start")) {
+      sfx.add("lbl_start");
+      _tone(440, 0.25, "sine", 0.05);
+    }
+    for (let i = 0; i < segsShown; i++) {
+      if (!sfx.has("l" + i) && i % 5 === 0) {
+        sfx.add("l" + i);
+        _tone(500 + i * 6, 0.02, "square", 0.015);
+      }
+      const a0 = INIT_A + i * SEG_ARC;
+      const a1 = a0 + SEG_ARC;
+      const mid = a0 + SEG_ARC / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, LBL_OUT, a0, a1);
+      ctx.arc(cx, cy, LBL_IN, a1, a0, true);
+      ctx.closePath();
+      ctx.fillStyle = i % 2 === 0 ? PAL.darkRed : PAL.black;
+      ctx.fill();
+      ctx.strokeStyle = PAL.black;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+      const numR = R * 0.425;
+      ctx.save();
+      ctx.translate(cx + Math.cos(mid) * numR, cy + Math.sin(mid) * numR);
+      ctx.rotate(mid + Math.PI / 2);
+      drawTextCentered(ctx, String(i + 1), 0, -Math.floor(CHAR_H / 2), PAL.white, 1);
+      ctx.restore();
+    }
+    if (segsShown >= N_SEG && !sfx.has("lbl_done")) {
+      sfx.add("lbl_done");
+      _triggerShake(4, 0.25, t);
+      _vib(30);
+      _tone(600, 0.2, "square", 0.04);
+      _spawnRingSparks(cx, cy, LBL_OUT, 20, PAL.darkRed, 25);
+    }
+  }
+  if (t > 3.2) {
+    if (!sfx.has("rim")) {
+      sfx.add("rim");
+      _tone(900, 0.5, "sine", 0.04);
+      _tone(700, 0.4, "square", 0.03);
+    }
+    const rimT = easeOut(clamp((t - 3.2) / 0.45));
+    const rimArc = TWO_PI * rimT;
+    ctx.beginPath();
+    ctx.arc(cx, cy, RIM_R2, INIT_A, INIT_A + rimArc);
+    ctx.strokeStyle = PAL.darkGray;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    if (rimT >= 1 && !sfx.has("rim_done")) {
+      sfx.add("rim_done");
+      _triggerShake(3, 0.2, t);
+      _tone(400, 0.15, "sine", 0.04);
+    }
+  }
+  if (t > 3.7) {
+    const elapsed = t - 3.7;
+    const hieroShown = Math.min(N_HIERO, Math.floor(elapsed / 0.045));
+    for (let i = 0; i < hieroShown; i++) {
+      if (!sfx.has("h" + i)) {
+        sfx.add("h" + i);
+        _tone(180 + i * 25, 0.07, "square", 0.035);
+        if (i % 4 === 0) _vib(20);
+      }
+      const segT = easeOut(clamp((elapsed - i * 0.045) / 0.12));
+      const overshoot = 40 * (1 - segT);
+      const innerR = H_IN + overshoot;
+      const outerR = H_OUT + overshoot;
+      const a0 = HIERO_INIT + i * HIERO_ARC;
+      const a1 = a0 + HIERO_ARC;
+      ctx.beginPath();
+      ctx.arc(cx, cy, outerR, a0, a1);
+      ctx.arc(cx, cy, innerR, a1, a0, true);
+      ctx.closePath();
+      ctx.fillStyle = i % 2 === 0 ? PAL.darkRed : PAL.darkGray;
+      ctx.globalAlpha = segT;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (hieroShown >= N_HIERO && !sfx.has("h_done")) {
+      sfx.add("h_done");
+      _triggerShake(7, 0.35, t);
+      _vib(100);
+      _tone(100, 0.6, "sine", 0.12);
+      _tone(200, 0.4, "square", 0.07);
+      _tone(400, 0.3, "sine", 0.04);
+      _spawnRingSparks(cx, cy, H_OUT, 30, PAL.gold, 40);
+      _spawnRingSparks(cx, cy, H_IN, 15, PAL.darkRed, 25);
+    }
+  }
+  if (t > 0.3) {
+    const hubT = t > 0.8 ? 1 : easeOutElastic(clamp((t - 0.3) / 0.5));
+    const r = Math.max(1, HUB_R2 * hubT);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, TWO_PI);
+    ctx.fillStyle = PAL.black;
+    ctx.fill();
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  if (t > 4.5) {
+    if (!sfx.has("title")) {
+      sfx.add("title");
+      _tone(660, 0.15, "square", 0.07);
+      setTimeout(() => _tone(880, 0.12, "square", 0.06), 80);
+      setTimeout(() => _tone(1100, 0.15, "sine", 0.05), 160);
+      setTimeout(() => _tone(1320, 0.2, "sine", 0.04), 260);
+    }
+    const titleT = easeOut(clamp((t - 4.5) / 0.35));
+    const titleY = -30 + titleT * 36;
+    const titleAlpha = clamp((t - 4.5) / 0.2);
+    ctx.globalAlpha = titleAlpha;
+    drawTextCentered(ctx, "SPINFORGE", cx, titleY, PAL.gold, 5);
+    ctx.globalAlpha = 1;
+    const ringAlpha = clamp((t - 4.7) / 0.3);
+    ctx.globalAlpha = ringAlpha;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 115, 0, TWO_PI);
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  if (t > 5 && t < 5.3) {
+    const flashT = clamp((t - 5) / 0.25);
+    const flashA = Math.sin(flashT * Math.PI) * 0.5;
+    ctx.fillStyle = `rgba(232,224,208,${flashA})`;
+    ctx.fillRect(0, 0, W2, H2);
+  }
+  if (t > 5.3) {
+    const a = clamp((t - 5.3) / 0.5);
+    ctx.fillStyle = `rgba(10,10,10,${a})`;
+    ctx.fillRect(0, 0, W2, H2);
+  }
+  _drawParts(ctx);
+  ctx.restore();
+}
+
+// client/main.js
+var W3 = 480;
+var H3 = 270;
+var PX2 = 2;
+var CW2 = W3 * PX2;
+var CH2 = H3 * PX2;
+var WHEEL_CX = 240;
+var WHEEL_CY = 140;
+var BG_PAD = 4;
+var HIERO_INNER = 174;
+var HIERO_OUTER = 220;
+var HIERO_MID = (HIERO_INNER + HIERO_OUTER) / 2;
+var HIERO_MENU_DEFS = [
+  { offsetFromEnd: 12, id: "catalogue", glyph: "book" },
+  { offsetFromEnd: 3, id: "retry", glyph: "arrow_right", scale: 3 },
+  { offsetFromEnd: 4, id: "settings", glyph: "gear" },
+  { offsetFromEnd: 5, id: "exit", glyph: "exit" }
+];
+var _BASE = import.meta.env.BASE_URL ?? "/";
+var _CURSOR_DEFAULT = `url('${_BASE}assets/cursors/cursor_default.png') 0 0, auto`;
+var _CURSOR_POINTER = `url('${_BASE}assets/cursors/cursor_pointer.png') 6 0, pointer`;
+var App = class {
+  constructor() {
+    this._canvas = document.createElement("canvas");
+    this._canvas.width = CW2;
+    this._canvas.height = CH2;
+    this._ctx = this._canvas.getContext("2d");
+    this._display = document.getElementById("game");
+    this._display.width = CW2;
+    this._display.height = CH2;
+    this._display.style.cursor = _CURSOR_DEFAULT;
+    this.game = createGame({ seed: Date.now() });
+    this.wheel = new PixelWheel();
+    this._spinning = false;
+    this.wheel.setBonusMode(false);
+    this._updateGaugeUnlocks();
+    this._time = 0;
+    this._pops = [];
+    this._shake = { x: 0, y: 0, intensity: 0, decay: 0, time: 0 };
+    this._flash = 0;
+    this._goldDisplay = 0;
+    this._lastTicketDisplay = 0;
+    this._lastTicketDisplay = this.game.getState().meta.tickets;
+    this._inShop = false;
+    this._shopResolve = null;
+    this._debugSpritesOpen = false;
+    this._debugScroll = 0;
+    this._relicHoverRarity = null;
+    this._gameOverData = null;
+    const defaultWheel = Array.from({ length: BALANCE.INITIAL_SEGMENTS }, (_, i) => ({
+      id: "seg_" + i,
+      symbolId: null,
+      weight: 1,
+      modifiers: []
+    }));
+    this.wheel.setWheel(defaultWheel);
+    this._initBackground(defaultWheel);
+    this._mx = 0;
+    this._my = 0;
+    this._hubHover = false;
+    this._sweepTrigger = -99;
+    this.game.on("game:over", (data) => {
+      this._gameOverData = { round: data.round, score: data.totalWon, quota: data.quota };
+    });
+    this.game.startRun();
+    this._syncWheel();
+    this._postfx = new PostFXGL(this._display);
+    this._lightsCanvas = document.createElement("canvas");
+    this._lightsCanvas.width = CW2;
+    this._lightsCanvas.height = CH2;
+    this._lightsCanvas.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;image-rendering:pixelated;image-rendering:crisp-edges;";
+    document.body.appendChild(this._lightsCanvas);
+    this._lightsCtx = this._lightsCanvas.getContext("2d");
+    this._uiCanvas = document.createElement("canvas");
+    this._uiCanvas.width = CW2;
+    this._uiCanvas.height = CH2;
+    this._uiCanvas.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;image-rendering:pixelated;image-rendering:crisp-edges;";
+    document.body.appendChild(this._uiCanvas);
+    this._uiCtx = this._uiCanvas.getContext("2d");
+    this._audioCtx = null;
+    this.wheel.onPegHit = () => this._tick();
+    this.wheel.onBallEject = () => this._playEject();
+    this.wheel.onFlipMid = () => this._shakeStart(3, 0.2);
+    this.wheel.onFlipDone = () => this._shakeStart(8, 0.3);
+    this._display.addEventListener("click", (e) => this._handleClick(e));
+    this._display.addEventListener("mousemove", (e) => this._handleMouse(e));
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this._debugSpritesOpen) {
+        this._debugSpritesOpen = false;
+        e.preventDefault();
+      } else if (e.key === "Escape" && this._catalogueOpen) {
+        this._closeCatalogue();
+        e.preventDefault();
+      }
+    });
+    this._display.addEventListener("wheel", (e) => {
+      if (this._debugSpritesOpen) {
+        const ids = getSpriteIds().length + getAnimSpriteIds().length;
+        const COLS = Math.floor((400 - 8) / 28);
+        const ROWS = Math.floor((230 - 20) / 28);
+        const maxScroll2 = Math.max(0, Math.ceil(ids / COLS) - ROWS);
+        this._debugScroll = Math.max(0, Math.min(maxScroll2, this._debugScroll + (e.deltaY > 0 ? 1 : -1)));
+        e.preventDefault();
+        return;
+      }
+      if (!this._catalogueOpen) return;
+      const TAB_DATA_LENS = [SYMBOLS.length, RELICS.length, CHOICES.length];
+      const maxScroll = Math.max(0, TAB_DATA_LENS[this._catalogueTab] - 18);
+      this._catalogueScroll = Math.max(0, Math.min(maxScroll, this._catalogueScroll + (e.deltaY > 0 ? 1 : -1)));
+      e.preventDefault();
+    }, { passive: false });
+    this._lastTime = 0;
+    requestAnimationFrame((t) => this._loop(t));
+  }
+  // ── Input ──
+  _mapCoords(e) {
+    const rect = this._display.getBoundingClientRect();
+    return {
+      x: Math.floor((e.clientX - rect.left) / rect.width * W3),
+      y: Math.floor((e.clientY - rect.top) / rect.height * H3)
+    };
+  }
+  _handleMouse(e) {
+    const rect = this._display.getBoundingClientRect();
+    this._mx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+    this._my = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+    const x = Math.floor((e.clientX - rect.left) / rect.width * W3);
+    const y = Math.floor((e.clientY - rect.top) / rect.height * H3);
+    const oldRelicHover = this._relicHoverRarity;
+    const relicHit = this.wheel.relicBarHitTest(x, y, WHEEL_CX, WHEEL_CY);
+    this._relicHoverRarity = relicHit;
+    if (relicHit && relicHit !== oldRelicHover) this._playHover();
+    if (this._inShop && this.wheel.flipped) {
+      const oldShopHover = this.wheel._shop.hoverIdx;
+      const hit = this.wheel.shopHitTest(x, y, WHEEL_CX, WHEEL_CY);
+      this.wheel.shopSetHover(hit);
+      if (this.wheel._shop.hoverIdx !== -1 && this.wheel._shop.hoverIdx !== oldShopHover) this._playHover();
+      this._display.style.cursor = hit || relicHit ? _CURSOR_POINTER : _CURSOR_DEFAULT;
+      return;
+    }
+    const oldMenuHover = this._menuHover;
+    const menuHit = this._hieroHitTest(x, y);
+    this._menuHover = menuHit;
+    if (menuHit && menuHit !== oldMenuHover) this._playHover();
+    const dx = x - WHEEL_CX;
+    const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
+    const wasHover = this._hubHover;
+    this._hubHover = dx * dx + dy * dy < 40 * 40;
+    this._display.style.cursor = relicHit || menuHit || this._hubHover && !this._spinning ? _CURSOR_POINTER : _CURSOR_DEFAULT;
+    if (this._hubHover && !wasHover) {
+      this._sweepTrigger = this._time;
+      this._playHover();
+    }
+  }
+  _handleClick(e) {
+    this._initAudio();
+    const { x, y } = this._mapCoords(e);
+    if (this._debugSpritesOpen) {
+      this._debugSpritesClick(x, y);
+      return;
+    }
+    if (this._catalogueOpen) {
+      this._catalogueClick(x, y);
+      return;
+    }
+    if (this._inShop && this.wheel.flipped) {
+      const hit = this.wheel.shopHitTest(x, y, WHEEL_CX, WHEEL_CY);
+      if (hit) {
+        this._handleShopClick(hit);
+        return;
+      }
+    }
+    const menuHit = this._hieroHitTest(x, y);
+    if (menuHit) {
+      this._onMenuClick(menuHit);
+      return;
+    }
+    const dx = x - WHEEL_CX;
+    const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
+    if (dx * dx + dy * dy < 40 * 40) {
+      if (this._spinning) return;
+      if (this._gameOverData) {
+        this._retryFromGameOver();
+        return;
+      }
+      this._onAction();
+      return;
+    }
+  }
+  _onMenuClick(menuId) {
+    this._playSelect();
+    if (menuId === "catalogue") {
+      this._openCatalogue();
+    } else if (menuId === "settings") {
+      this._pop("SETTINGS");
+    } else if (menuId === "retry") {
+      this._retryFromGameOver();
+    } else if (menuId === "exit") {
+      this._pop("EXIT");
+    }
+  }
+  _retryFromGameOver() {
+    this._gameOverData = null;
+    this._playSelect();
+    this._shakeStart(4, 0.3);
+    this.game.startRun();
+    this._syncWheel();
+  }
+  // ── Catalogue overlay ──
+  _openCatalogue() {
+    this._catalogueOpen = true;
+    this._catalogueTab = 0;
+    this._catalogueScroll = 0;
+  }
+  _closeCatalogue() {
+    this._catalogueOpen = false;
+  }
+  _drawCatalogue(ctx) {
+    if (!this._catalogueOpen) return;
+    const TAB_NAMES = ["BILLES", "RELIQUES", "BILLES SP."];
+    const TAB_DATA = [
+      SYMBOLS.map((s) => ({ name: s.name, sprite: s.id, rarity: s.rarity, desc: `val ${s.baseValue}${s.specialEffect ? " \u2014 " + s.specialEffect : ""}` })),
+      RELICS.map((r) => ({ name: r.name, sprite: "relic_" + r.rarity, rarity: r.rarity, desc: r.description })),
+      CHOICES.filter((c) => c.type === "special_ball").map((c) => ({ name: c.name, sprite: "ball", rarity: c.rarity, desc: c.description }))
+    ];
+    const PW = 320, PH = 200;
+    const PX0 = Math.floor((W3 - PW) / 2), PY0 = Math.floor((H3 - PH) / 2);
+    const TAB_H = 14, HEAD_H = 12, ROW_H = 10;
+    const BODY_Y = PY0 + TAB_H + HEAD_H;
+    const BODY_H = PH - TAB_H - HEAD_H - 6;
+    const MAX_ROWS = Math.floor(BODY_H / ROW_H);
+    ctx.fillStyle = "rgba(0,0,0,0.82)";
+    ctx.fillRect(PX0 - 2, PY0 - 2, PW + 4, PH + 4);
+    ctx.fillStyle = PAL.black;
+    ctx.fillRect(PX0, PY0, PW, PH);
+    ctx.strokeStyle = PAL.darkGold;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PX0 + 0.5, PY0 + 0.5, PW - 1, PH - 1);
+    const tabW = Math.floor(PW / TAB_NAMES.length);
+    for (let t = 0; t < TAB_NAMES.length; t++) {
+      const tx = PX0 + t * tabW;
+      if (t === this._catalogueTab) {
+        ctx.fillStyle = PAL.darkRed;
+        ctx.fillRect(tx, PY0, tabW, TAB_H);
+      }
+      ctx.strokeStyle = PAL.darkGold;
+      ctx.strokeRect(tx + 0.5, PY0 + 0.5, tabW - 1, TAB_H - 1);
+      drawTextCentered(ctx, TAB_NAMES[t], tx + Math.floor(tabW / 2), PY0 + 3, t === this._catalogueTab ? PAL.gold : PAL.midGray, 1, t === this._catalogueTab);
+    }
+    const hdrY = PY0 + TAB_H + 1;
+    drawText(ctx, "NOM", PX0 + 4, hdrY, PAL.gold);
+    drawText(ctx, "DESCRIPTION", PX0 + 100, hdrY, PAL.gold);
+    const items = TAB_DATA[this._catalogueTab];
+    const scroll = this._catalogueScroll;
+    const visible = items.slice(scroll, scroll + MAX_ROWS);
+    const RARITY_COL = { common: PAL.white, uncommon: PAL.green, rare: PAL.blue, legendary: PAL.gold };
+    for (let i = 0; i < visible.length; i++) {
+      const it = visible[i];
+      const ry = BODY_Y + i * ROW_H;
+      const col = it.rarity ? RARITY_COL[it.rarity] || PAL.white : PAL.white;
+      drawSpriteCentered(ctx, it.sprite, PX0 + 4 + Math.floor(SPRITE_SIZE / 2), ry + Math.floor(ROW_H / 2), 1);
+      drawText(ctx, it.name, PX0 + 4 + SPRITE_SIZE + 2, ry, col);
+      drawText(ctx, it.desc, PX0 + 100, ry, PAL.midGray, 1, false);
+    }
+    if (items.length > MAX_ROWS) {
+      const pct = scroll / Math.max(1, items.length - MAX_ROWS);
+      const sbH = Math.max(8, Math.floor(BODY_H * MAX_ROWS / items.length));
+      const sbY = BODY_Y + Math.floor((BODY_H - sbH) * pct);
+      ctx.fillStyle = PAL.darkGold;
+      ctx.fillRect(PX0 + PW - 5, sbY, 3, sbH);
+    }
+    drawTextCentered(ctx, "[ESC] FERMER", PX0 + Math.floor(PW / 2), PY0 + PH - 9, PAL.darkGold);
+    const dbtnW = 80, dbtnH = 12;
+    const dbtnX = PX0 + Math.floor((PW - dbtnW) / 2);
+    const dbtnY = PY0 + PH + 4;
+    ctx.fillStyle = PAL.darkGray;
+    ctx.fillRect(dbtnX, dbtnY, dbtnW, dbtnH);
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(dbtnX + 0.5, dbtnY + 0.5, dbtnW - 1, dbtnH - 1);
+    drawTextCentered(ctx, "DEBUG SPRITES", dbtnX + Math.floor(dbtnW / 2), dbtnY + 2, PAL.white);
+  }
+  _catalogueClick(x, y) {
+    const PW2 = 320, PH2 = 200;
+    const PX02 = Math.floor((W3 - PW2) / 2), PY02 = Math.floor((H3 - PH2) / 2);
+    const dbtnW = 80, dbtnH = 12;
+    const dbtnX = PX02 + Math.floor((PW2 - dbtnW) / 2);
+    const dbtnY = PY02 + PH2 + 4;
+    if (x >= dbtnX && x <= dbtnX + dbtnW && y >= dbtnY && y <= dbtnY + dbtnH) {
+      this._closeCatalogue();
+      this._debugSpritesOpen = true;
+      this._debugScroll = 0;
+      return;
+    }
+    const PW = 320, PH = 200;
+    const PX0 = Math.floor((W3 - PW) / 2), PY0 = Math.floor((H3 - PH) / 2);
+    const TAB_H = 14;
+    if (x < PX0 || x > PX0 + PW || y < PY0 || y > PY0 + PH) {
+      this._closeCatalogue();
+      return;
+    }
+    if (y >= PY0 && y < PY0 + TAB_H) {
+      const tabW = Math.floor(PW / 3);
+      const t = Math.floor((x - PX0) / tabW);
+      if (t >= 0 && t < 3) {
+        this._catalogueTab = t;
+        this._catalogueScroll = 0;
+      }
+    }
+  }
+  // ── Debug sprites grid ──
+  _drawDebugSprites(ctx) {
+    if (!this._debugSpritesOpen) return;
+    const ids = getSpriteIds();
+    const animIds = getAnimSpriteIds();
+    const allIds = [...ids, ...animIds.map((id) => "~" + id)];
+    const PW = 400, PH = 230;
+    const PX0 = Math.floor((W3 - PW) / 2), PY0 = Math.floor((H3 - PH) / 2);
+    const CELL = 28;
+    const COLS = Math.floor((PW - 8) / CELL);
+    const ROWS = Math.floor((PH - 20) / CELL);
+    const maxScroll = Math.max(0, Math.ceil(allIds.length / COLS) - ROWS);
+    this._debugScroll = Math.min(this._debugScroll, maxScroll);
+    ctx.fillStyle = "rgba(0,0,0,0.88)";
+    ctx.fillRect(PX0 - 2, PY0 - 2, PW + 4, PH + 4);
+    ctx.fillStyle = PAL.black;
+    ctx.fillRect(PX0, PY0, PW, PH);
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PX0 + 0.5, PY0 + 0.5, PW - 1, PH - 1);
+    drawTextCentered(ctx, "DEBUG SPRITES (" + allIds.length + ")", PX0 + Math.floor(PW / 2), PY0 + 3, PAL.white);
+    const gridY0 = PY0 + 14;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(PX0, gridY0, PW, PH - 20);
+    ctx.clip();
+    for (let i = 0; i < allIds.length; i++) {
+      const row = Math.floor(i / COLS) - this._debugScroll;
+      const col = i % COLS;
+      if (row < -1 || row > ROWS) continue;
+      const cx = PX0 + 6 + col * CELL + Math.floor(CELL / 2);
+      const cy = gridY0 + row * CELL + Math.floor(CELL / 2);
+      const rawId = allIds[i];
+      const isAnim = rawId.startsWith("~");
+      const id = isAnim ? rawId.slice(1) : rawId;
+      ctx.strokeStyle = PAL.darkGray;
+      ctx.strokeRect(cx - Math.floor(CELL / 2) + 0.5, cy - Math.floor(CELL / 2) + 0.5, CELL - 1, CELL - 1);
+      if (isAnim) {
+        drawAnimSpriteCentered(ctx, id, cx, cy - 3, 1, this._time);
+      } else {
+        drawSpriteCentered(ctx, id, cx, cy - 3, 1);
+      }
+      const label = id.length > 5 ? id.slice(0, 4) + "." : id;
+      drawTextCentered(ctx, label, cx, cy + 7, isAnim ? PAL.gold : PAL.darkGold, 1, false);
+    }
+    ctx.restore();
+    if (maxScroll > 0) {
+      const sbTotalH = PH - 20;
+      const pct = this._debugScroll / maxScroll;
+      const sbH = Math.max(8, Math.floor(sbTotalH * ROWS / Math.ceil(allIds.length / COLS)));
+      const sbY = gridY0 + Math.floor((sbTotalH - sbH) * pct);
+      ctx.fillStyle = PAL.midGray;
+      ctx.fillRect(PX0 + PW - 5, sbY, 3, sbH);
+    }
+    drawTextCentered(ctx, "[ESC] FERMER", PX0 + Math.floor(PW / 2), PY0 + PH - 9, PAL.midGray);
+  }
+  _debugSpritesClick(x, y) {
+    this._debugSpritesOpen = false;
+  }
+  _handleShopClick(hit) {
+    const state = this.game.getState();
+    const run = state.run;
+    const meta = state.meta;
+    if (!run) return;
+    if (hit.type === "offering") {
+      const offering = run.shopOfferings[hit.index];
+      if (!offering) return;
+      if (meta.tickets < offering.finalCost) {
+        this._pop("NO TICKETS!");
+        return;
+      }
+      this.wheel.shopRemoveOffering(hit.index);
+      const ok = this.game.shopBuy(hit.index);
+      if (ok) {
+        const label = offering.shopType === "symbol" ? "ADDED!" : offering.shopType === "special_ball" ? "ADDED!" : "BOUGHT!";
+        this._pop(label);
+        this._shakeStart(3, 0.2);
+        this._playBuy();
+        const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
+        const nextQuota = getQuota(run.round + 1);
+        this.wheel.setShop(run.shopOfferings, meta.tickets, rerollCost, nextQuota);
+        this._syncRelicSlots();
+        this._syncWheel();
+      }
+    } else if (hit.type === "reroll") {
+      const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
+      if (meta.tickets < rerollCost) {
+        this._pop("NO TICKETS!");
+        return;
+      }
+      const ok = this.game.shopReroll();
+      if (ok) {
+        this._pop("REROLL!");
+        this._shakeStart(2, 0.15);
+        const newRerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
+        const nextQuota = getQuota(run.round + 1);
+        this.wheel.setShop(run.shopOfferings, meta.tickets, newRerollCost, nextQuota);
+      }
+    } else if (hit.type === "leave") {
+      this.game.endShop();
+      this._closeForgeShop();
+    }
+  }
+  _syncRelicSlots() {
+    const run = this.game.getState().run;
+    if (!run) return;
+    const slots = [];
+    const upgrades = run.purchasedUpgrades || [];
+    for (let i = 0; i < 8; i++) {
+      if (upgrades[i]) {
+        const u = upgrades[i];
+        slots.push({ id: u.sprite || "ball", label: u.name });
+      } else {
+        slots.push(null);
+      }
+    }
+    this.wheel.setSlots(slots);
+  }
+  // ── Game flow ──
+  _syncWheel() {
+    const state = this.game.getState();
+    if (state.run) {
+      this.wheel.setWheel(state.run.wheel);
+      const previewBalls = this._inShop ? BALANCE.BALLS_PER_ROUND + state.run.specialBalls.length + (state.run.genericBallsBought || 0) : state.run.ballsLeft;
+      this.wheel.placeBalls(previewBalls, state.run.specialBalls);
+      this.wheel.setCorruption(state.run.corruption);
+    }
+    this.wheel.setCounters(
+      state.run ? state.run.score : 0,
+      this.game.getState().meta.tickets
+    );
+    this.wheel.setRelics(state.run ? state.run.relics : []);
+    this.wheel.setSegmentValues(this.game.getSegmentDisplayValues());
+  }
+  _onAction() {
+    const phase = this.game.getPhase();
+    if (phase === "IDLE" && !this._spinning) {
+      this._doSpin();
+    }
+  }
+  /** Auto-advance through non-interactive phases silently. */
+  _autoAdvance() {
+    let safety = 10;
+    while (safety-- > 0) {
+      const phase = this.game.getPhase();
+      if (phase === "IDLE") break;
+      if (phase === "RESULTS") {
+        this.game.continueFromResults();
+      } else if (phase === "CHOICE") {
+        this.game.skipChoice();
+      } else if (phase === "SHOP") {
+        if (this._inShop) break;
+        this.game.endShop();
+      } else if (phase === "GAME_OVER" || phase === "VICTORY") {
+        this.game.startRun();
+      } else break;
+    }
+    this._syncWheel();
+  }
+  _updateGaugeUnlocks() {
+    const meta = this.game.getState().meta;
+    this.wheel.setGaugeUnlocks([
+      true,
+      meta.unlocks.includes("unlock_gauge_2"),
+      meta.unlocks.includes("unlock_gauge_3"),
+      true
+      // gauge 3 = corruption gauge, always visible
+    ]);
+  }
+  async _doSpin() {
+    if (this._spinning) return;
+    this._spinning = true;
+    this._playSpin();
+    this._shakeStart(4, 0.3);
+    const startScore = this.game.getState().run.score;
+    this.wheel.hubSnapScore(startScore);
+    this._goldDisplay = startScore;
+    this.wheel.setCounters(startScore, this._lastTicketDisplay);
+    const results = await this.wheel.spinAndEject();
+    this._stopSpin();
+    for (let i = 0; i < results.length; i++) {
+      const result = this.game.resolveBallAt(results[i]);
+      if (!result) continue;
+      this.wheel.highlight(results[i]);
+      this.wheel.hubShowValue(result.result.segment?.symbolId, result.value);
+      this.wheel.hubSetScore(this.game.getState().run.score);
+      this._goldDisplay = this.game.getState().run.score;
+      const run2 = this.game.getState().run;
+      this._playReveal(i, results.length);
+      const pos = this.wheel.getPocketPosition(results[i], WHEEL_CX, WHEEL_CY);
+      this.wheel.startGoldFly("+" + result.value, result.value, pos.x, pos.y - 15, WHEEL_CX, WHEEL_CY);
+      if (result.result.segment?.symbolId === "cherry") this._shakeStart(2, 0.2);
+      const run3 = this.game.getState().run;
+      if (run3.score >= getQuota(run3.round) && run3.score - result.value < getQuota(run3.round)) {
+        this._shakeStart(5, 0.5);
+        this._flash = 0.3;
+        this.wheel.setBonusMode(true);
+      }
+      await this._delay(450);
+    }
+    this._spinning = false;
+    this.wheel.setBonusMode(false);
+    while (this.wheel._goldAnims.length > 0) await this._delay(50);
+    const currentRun = this.game.getState().run;
+    const quota = getQuota(currentRun.round - 1);
+    if (quota > 0) {
+      await this._delay(300);
+      this.wheel.startGoldQuotaAnim(quota);
+      this._shakeStart(3, 0.4);
+      while (!this.wheel.goldQuotaAnimDone) await this._delay(50);
+      await this._delay(200);
+    }
+    this._advanceToShop();
+    const postState = this.game.getState();
+    const postRun = postState.run;
+    if (postRun?.lastRoundResult?.passed) {
+      const ticketsEarned = BALANCE.TICKETS_PER_ROUND;
+      this.wheel.setCounters(this._goldDisplay, postState.meta.tickets - ticketsEarned);
+      await this._delay(300);
+      this.wheel.startTicketAnim(ticketsEarned);
+      this._shakeStart(3, 0.4);
+      this._playTicketFanfare();
+      while (!this.wheel.ticketAnimDone) await this._delay(50);
+      this.wheel.setCounters(this._goldDisplay, postState.meta.tickets);
+      await this._delay(200);
+    }
+    const phase = this.game.getPhase();
+    if (phase === "GAME_OVER") {
+      this._spinning = false;
+      return;
+    }
+    if (phase === "VICTORY") {
+      await this._delay(1e3);
+      this._autoAdvance();
+      return;
+    }
+    await this._delay(500);
+    this._openForgeShop();
+    this.wheel.startFlip();
+    this._playFlipToShop();
+    await this._delay(600);
+    await new Promise((resolve) => {
+      this._shopResolve = resolve;
+    });
+    this.wheel.startFlip();
+    this._playFlipBack();
+    await this._delay(600);
+    this._autoAdvance();
+  }
+  _advanceToShop() {
+    let safety = 10;
+    while (safety-- > 0) {
+      const phase = this.game.getPhase();
+      if (phase === "SHOP") break;
+      if (phase === "GAME_OVER" || phase === "VICTORY") break;
+      if (phase === "RESULTS") {
+        this.game.continueFromResults();
+      } else if (phase === "CHOICE") {
+        this.game.skipChoice();
+      } else break;
+    }
+  }
+  _openForgeShop() {
+    const state = this.game.getState();
+    const run = state.run;
+    if (!run) return;
+    const rerollCost = BALANCE.SHOP_REROLL_BASE * Math.pow(2, run.rerollCount || 0);
+    const nextQuota = getQuota(run.round + 1);
+    this.wheel.placeBalls(BALANCE.BALLS_PER_ROUND + run.specialBalls.length + (run.genericBallsBought || 0), run.specialBalls);
+    this.wheel.setShop(run.shopOfferings, state.meta.tickets, rerollCost, nextQuota);
+    this._inShop = true;
+  }
+  _closeForgeShop() {
+    this._inShop = false;
+    if (this._shopResolve) {
+      const resolve = this._shopResolve;
+      this._shopResolve = null;
+      resolve();
+    }
+  }
+  _pop(text, x, y) {
+    this._pops.push({
+      text,
+      x: x != null ? x : WHEEL_CX + (Math.random() - 0.5) * 60,
+      y: y != null ? y : WHEEL_CY - 50 - Math.random() * 20,
+      age: 0
+    });
+  }
+  // ── Render loop ──
+  _loop(time) {
+    requestAnimationFrame((t) => this._loop(t));
+    const dt = Math.min((time - this._lastTime) / 1e3, 0.05);
+    this._lastTime = time;
+    this._time += dt;
+    this.wheel.update(dt);
+    if (this._shake.intensity > 0) {
+      this._shake.time += dt;
+      const t = Math.min(1, this._shake.time / this._shake.decay);
+      const amp = this._shake.intensity * (1 - t);
+      this._shake.x = Math.round((Math.random() - 0.5) * 2 * amp);
+      this._shake.y = Math.round((Math.random() - 0.5) * 2 * amp);
+      if (t >= 1) {
+        this._shake.intensity = 0;
+        this._shake.x = 0;
+        this._shake.y = 0;
+      }
+    }
+    for (let i = this._pops.length - 1; i >= 0; i--) {
+      this._pops[i].age += dt;
+      this._pops[i].y -= dt * 25;
+      if (this._pops[i].age > 1.5) this._pops.splice(i, 1);
+    }
+    this._render();
+  }
+  // ═══ Pre-rendered background ("Forge Aura") ═══
+  _initBackground(wheelData) {
+    const BW = W3 + BG_PAD * 2, BH = H3 + BG_PAD * 2;
+    const c = document.createElement("canvas");
+    c.width = BW;
+    c.height = BH;
+    const bgCtx = c.getContext("2d");
+    bgCtx.imageSmoothingEnabled = false;
+    const imgData = bgCtx.createImageData(BW, BH);
+    const buf = new Uint32Array(imgData.data.buffer);
+    const CX2 = WHEEL_CX + BG_PAD, CY2 = WHEEL_CY + BG_PAD;
+    const ORBIT_OUTER = 115;
+    const AURA_TRANS = 8;
+    const numSegs = 16;
+    const TWO_PI2 = Math.PI * 2;
+    const initAngle = -Math.PI / 2 - Math.PI / numSegs;
+    const hieroArcs = new Float64Array(numSegs + 1);
+    for (let i = 0; i <= numSegs; i++) {
+      hieroArcs[i] = i * TWO_PI2 / numSegs;
+    }
+    const menuSegs = {};
+    for (const def of HIERO_MENU_DEFS) {
+      const idx = numSegs - def.offsetFromEnd;
+      if (idx >= 0 && idx < numSegs) menuSegs[idx] = { id: def.id, glyph: def.glyph };
+    }
+    const BAYER = [
+      [0, 8, 2, 10],
+      [12, 4, 14, 6],
+      [3, 11, 1, 9],
+      [15, 7, 13, 5]
+    ];
+    const hash = (x, y) => x * 374761393 + y * 668265263 >>> 0 & 255;
+    for (let y = 0; y < BH; y++) {
+      for (let x = 0; x < BW; x++) {
+        const dx = x - CX2, dy = y - CY2;
+        const dist2 = dx * dx + dy * dy;
+        const idx = y * BW + x;
+        if (dist2 < ORBIT_OUTER * ORBIT_OUTER) {
+          buf[idx] = 0;
+          continue;
+        }
+        const dist = Math.sqrt(dist2);
+        const bayer = BAYER[y & 3][x & 3];
+        let zoneAtt;
+        if (dist < ORBIT_OUTER + AURA_TRANS) {
+          zoneAtt = (dist - ORBIT_OUTER) / AURA_TRANS;
+        } else {
+          zoneAtt = 1;
+        }
+        const ex = x - BG_PAD, ey = y - BG_PAD;
+        const edgeDist = Math.min(ex, ey, W3 - 1 - ex, H3 - 1 - ey);
+        const vignette = Math.min(1, edgeDist / 20);
+        const radialFade = Math.max(0, 1 - Math.max(0, dist - ORBIT_OUTER) / 90);
+        const angle = Math.atan2(dy, dx);
+        if (dist >= 94 && dist <= 108) {
+          const ca = (angle % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+          if (ca >= Math.PI / 2 - 0.38 && ca <= Math.PI / 2 + 0.38) {
+            buf[idx] = 0;
+            continue;
+          }
+        }
+        const ray = Math.pow(Math.max(0, Math.cos(angle * 4)), 6);
+        const ray2 = Math.pow(Math.max(0, -Math.cos(angle * 4)), 6);
+        const ringDist = (dist - ORBIT_OUTER) % 32;
+        const ring = dist > ORBIT_OUTER && ringDist < 1 ? 0.25 : 0;
+        let hieroSeg = -1;
+        if (dist >= HIERO_INNER && dist <= HIERO_OUTER) {
+          let ha = angle - initAngle;
+          ha = (ha % TWO_PI2 + TWO_PI2) % TWO_PI2;
+          for (let i = 0; i < numSegs; i++) {
+            if (ha < hieroArcs[i + 1]) {
+              hieroSeg = i;
+              break;
+            }
+          }
+          if (hieroSeg < 0) hieroSeg = numSegs - 1;
+        }
+        const inHiero = hieroSeg >= 0;
+        const hieroAtt = inHiero ? 1 : zoneAtt;
+        const brightness = inHiero ? vignette * 0.8 : hieroAtt * vignette * (0.08 + 0.28 * radialFade + 0.35 * ray * radialFade + 0.15 * ray2 * radialFade + ring * radialFade);
+        const threshold = brightness * 16;
+        if (bayer < threshold) {
+          if (inHiero) {
+            buf[idx] = hieroSeg % 2 === 0 ? PAL32.darkRed : PAL32.darkGray;
+          } else {
+            buf[idx] = radialFade > 0.35 && ray > 0.15 ? PAL32.darkGold : radialFade > 0.35 && ray2 > 0.15 ? PAL32.midGray : PAL32.darkGray;
+          }
+        } else {
+          if (inHiero) {
+            buf[idx] = hieroSeg % 2 === 0 ? PAL32.darkGray : PAL32.black;
+          } else {
+            buf[idx] = radialFade > 0.35 && ray2 > 0.15 ? PAL32.darkGray : PAL32.black;
+          }
+        }
+      }
+    }
+    for (let y = 0; y < BH; y++) {
+      for (let x = 0; x < BW; x++) {
+        const dx = x - CX2, dy = y - CY2;
+        if (dx * dx + dy * dy < ORBIT_OUTER * ORBIT_OUTER) continue;
+        if (hash(x, y) < 2) buf[y * BW + x] = PAL32.midGray;
+      }
+    }
+    bgCtx.putImageData(imgData, 0, 0);
+    bgCtx.imageSmoothingEnabled = false;
+    for (let s = 0; s < numSegs; s++) {
+      const midAngle = initAngle + (hieroArcs[s] + hieroArcs[s + 1]) / 2;
+      const gcx = CX2 + Math.cos(midAngle) * HIERO_MID;
+      const gcy = CY2 + Math.sin(midAngle) * HIERO_MID;
+      bgCtx.save();
+      bgCtx.translate(gcx, gcy);
+      const menu = menuSegs[s];
+      if (menu) {
+        drawSpriteCentered(bgCtx, menu.glyph, 0, 0, menu.scale || 1);
+        if (menu.id === "retry") {
+          drawTextCentered(bgCtx, "RETRY", 0, 16, PAL.gold, 2);
+        }
+      }
+      bgCtx.restore();
+    }
+    this._menuSegments = [];
+    for (let s = 0; s < numSegs; s++) {
+      const menu = menuSegs[s];
+      if (menu) {
+        this._menuSegments.push({
+          id: menu.id,
+          glyph: menu.glyph,
+          segIdx: s,
+          startAngle: initAngle + hieroArcs[s],
+          endAngle: initAngle + hieroArcs[s + 1]
+        });
+      }
+    }
+    this._menuHover = null;
+    this._bgCanvas = c;
+  }
+  // ── Hieroglyph ring hit-test (returns menu id or null) ──
+  _hieroHitTest(mx, my) {
+    const dx = mx - WHEEL_CX, dy = my - WHEEL_CY;
+    const dist2 = dx * dx + dy * dy;
+    if (dist2 < HIERO_INNER * HIERO_INNER || dist2 > HIERO_OUTER * HIERO_OUTER) return null;
+    const a = Math.atan2(dy, dx);
+    for (const seg of this._menuSegments) {
+      const sa = seg.startAngle, ea = seg.endAngle;
+      let na = a;
+      while (na < sa) na += Math.PI * 2;
+      while (na >= sa + Math.PI * 2) na -= Math.PI * 2;
+      if (na >= sa && na < ea) return seg.id;
+    }
+    return null;
+  }
+  _render() {
+    const ctx = this._ctx;
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.scale(PX2, PX2);
+    ctx.translate(this._shake.x, this._shake.y);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, W3, H3);
+    const px = this._mx;
+    const py = this._my;
+    const pocketOx = px * 1;
+    const pocketOy = py * 0.6;
+    const labelOx = px * 1.4;
+    const labelOy = py * 0.9;
+    const wheelOx = px * 1.5;
+    const wheelOy = py * 1;
+    const rimOx = px * 2;
+    const rimOy = py * 1.3;
+    const periOx = px * 2;
+    const periOy = py * 2;
+    const hudOx = px * 4.5;
+    const hudOy = py * 3;
+    const bgOx = px * 3;
+    const bgOy = py * 2.5;
+    const uiOx = px * 3;
+    const uiOy = py * 2.5;
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.arc(WHEEL_CX + rimOx, WHEEL_CY + rimOy, 84, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.drawImage(this._bgCanvas, -BG_PAD + bgOx, -BG_PAD + bgOy);
+    if (this._menuHover) {
+      const seg = this._menuSegments.find((s) => s.id === this._menuHover);
+      if (seg) {
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = PAL.gold;
+        ctx.beginPath();
+        ctx.arc(WHEEL_CX + bgOx, WHEEL_CY + bgOy, HIERO_OUTER - 1, seg.startAngle, seg.endAngle);
+        ctx.arc(WHEEL_CX + bgOx, WHEEL_CY + bgOy, HIERO_INNER + 1, seg.endAngle, seg.startAngle, true);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    }
+    const _layers = {
+      pocket: { x: pocketOx - wheelOx, y: pocketOy - wheelOy },
+      label: { x: labelOx - wheelOx, y: labelOy - wheelOy },
+      rim: { x: rimOx - wheelOx, y: rimOy - wheelOy }
+    };
+    this.wheel.draw(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy, periOx - wheelOx, periOy - wheelOy, _layers);
+    this._drawUIRing(ctx, WHEEL_CX + uiOx, WHEEL_CY + uiOy);
+    {
+      const scale = 5;
+      const fullW = measureText("SPINFORGE") * scale;
+      const tx = Math.round(W3 / 2 + hudOx - fullW / 2);
+      const ty = 6 + hudOy;
+      const charStep = (CHAR_W + 1) * scale;
+      drawText(ctx, "SPINF", tx, ty, PAL.gold, scale);
+      const flipT = this._time % 4;
+      const flipDur = 0.6;
+      let sY = 1;
+      if (flipT < flipDur) sY = Math.cos(flipT / flipDur * Math.PI * 2);
+      const oX = tx + 5 * charStep;
+      const oCX = oX + CHAR_W * scale / 2;
+      const oCY = ty + CHAR_H * scale / 2;
+      ctx.save();
+      ctx.translate(oCX, oCY);
+      ctx.scale(1, sY);
+      drawText(ctx, "O", -CHAR_W * scale / 2, -CHAR_H * scale / 2, PAL.gold, scale);
+      ctx.restore();
+      drawText(ctx, "RGE", tx + 6 * charStep, ty, PAL.gold, scale);
+    }
+    drawText(ctx, typeof __COMMIT__ !== "undefined" ? __COMMIT__ : "???", W3 - 40, H3 - 8, PAL.midGray, 1);
+    this.wheel.drawGoldAnims(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
+    this._drawPops(ctx);
+    const hubBtnOx = px * 1.7;
+    const hubBtnOy = py * 1.1;
+    if (!this.wheel.flipped) {
+      if (this._gameOverData) {
+        this._drawGameOver(ctx, hubBtnOx, hubBtnOy);
+      } else {
+        this._drawHubBtn(ctx, hubBtnOx, hubBtnOy);
+      }
+    }
+    this.wheel.drawGoldQuotaAnim(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
+    this.wheel.drawTicketAnim(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
+    ctx.restore();
+    if (this._flash > 0) {
+      this._flash -= 1 / 60;
+      ctx.save();
+      ctx.globalCompositeOperation = "difference";
+      ctx.globalAlpha = Math.min(1, this._flash / 0.15);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, CW2, CH2);
+      ctx.restore();
+    }
+    this._postfx.apply(this._canvas);
+    const uiCtx = this._uiCtx;
+    uiCtx.clearRect(0, 0, CW2, CH2);
+    uiCtx.save();
+    uiCtx.scale(PX2, PX2);
+    this._drawCatalogue(uiCtx);
+    this._drawDebugSprites(uiCtx);
+    this._drawRelicTooltip(uiCtx);
+    this._drawShopTooltip(uiCtx);
+    uiCtx.restore();
+    this._drawLights(wheelOx, wheelOy);
+  }
+  // ── Light map (screen-mode glow, after quantize for smooth gradients) ──
+  _drawLights(wox, woy) {
+    const ctx = this._lightsCtx;
+    ctx.clearRect(0, 0, CW2, CH2);
+    if (!this._spinning && !this._inShop) {
+      const raw = Math.sin(this._time * 3);
+      const stepped = Math.floor(raw * 4) / 4;
+      const pulse = 0.12 + 0.08 * stepped;
+      this._glow(ctx, (WHEEL_CX + wox) * PX2, (WHEEL_CY + woy) * PX2, 65 * PX2, PAL.gold, pulse);
+    }
+    const clx = (W3 / 2 + this._mx * W3 / 2) * PX2;
+    const cly = (H3 / 2 + this._my * H3 / 2) * PX2;
+    this._glow(ctx, clx, cly, 80 * PX2, PAL.gold, 0.06);
+    for (const l of this.wheel.lights) {
+      this._glow(ctx, (l.x + wox) * PX2, (l.y + woy) * PX2, l.r * PX2, l.color, l.a);
+    }
+  }
+  _glow(ctx, x, y, r, color, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, color);
+    grad.addColorStop(0.5, color);
+    grad.addColorStop(1, "#000");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  // ── Hub button (round, drawn on top of everything) ──
+  _drawHubBtn(ctx, wox, woy) {
+    const r = this.wheel.hubRadius || 42;
+    const tilt = this.wheel.tilt || 0.65;
+    const t = this._time;
+    const pressed = this._spinning;
+    const hover = this._hubHover && !pressed;
+    const run = this.game.getState().run;
+    const quota = run ? getQuota(run.round) : 0;
+    const score = run ? run.score : 0;
+    ctx.save();
+    ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
+    ctx.scale(1, tilt);
+    if (!pressed) ctx.translate(0, hover ? -4 : -2);
+    const quotaReached = pressed && score >= quota;
+    if (quotaReached) {
+      ctx.fillStyle = Math.sin(t * 8 * Math.PI) > 0 ? PAL.gold : PAL.darkGold;
+    } else {
+      ctx.fillStyle = PAL.gold;
+    }
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    if (hover) {
+      ctx.fillStyle = PAL.white;
+      ctx.globalAlpha = 0.15;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (!pressed) {
+      const SWEEP_INTERVAL = 3.5;
+      const SWEEP_DUR = 0.25;
+      const periodicT = t % SWEEP_INTERVAL;
+      const hoverT = t - this._sweepTrigger;
+      const sweepActive = periodicT < SWEEP_DUR || hoverT >= 0 && hoverT < SWEEP_DUR;
+      const sweepProgress = periodicT < SWEEP_DUR ? periodicT / SWEEP_DUR : hoverT >= 0 && hoverT < SWEEP_DUR ? hoverT / SWEEP_DUR : -1;
+      if (sweepActive && sweepProgress >= 0) {
+        const sx = -r + sweepProgress * r * 2;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, r - 2, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.fillStyle = PAL.white;
+        ctx.globalAlpha = 0.65;
+        for (let dy = -r; dy <= r; dy += 1) {
+          ctx.fillRect(Math.round(sx + dy * 0.4), dy, 3, 1);
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    }
+    if (pressed && !quotaReached) {
+      ctx.fillStyle = PAL.black;
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (pressed) {
+      if (quotaReached) {
+        const surplus = score - quota;
+        drawTextCentered(ctx, "BONUS", 0, -Math.floor(CHAR_H * 1.5), PAL.black, 1, false);
+        const bStr = "+" + surplus;
+        const bW = bStr.length * CHAR_W * 2;
+        const bY = Math.floor(CHAR_H * 0.5);
+        const bCoinW = SPRITE_SIZE * 2;
+        const bOx = Math.round(-(2 + bCoinW) / 2);
+        drawTextCentered(ctx, bStr, bOx, bY, PAL.gold, 2);
+        drawAnimSpriteCentered(ctx, "coin", Math.round(bOx + bW / 2 + 2 + SPRITE_SIZE), bY + CHAR_H, 2, t, 8);
+      } else {
+        const sStr = String(score);
+        const sW = sStr.length * CHAR_W * 2;
+        const sY = -Math.floor(CHAR_H * 1.5);
+        drawTextCentered(ctx, sStr, 0, sY, PAL.gold, 2);
+        drawAnimSpriteCentered(ctx, "coin", Math.round(sW / 2 + 2 + SPRITE_SIZE), sY + CHAR_H, 2, t, 8);
+        drawTextCentered(ctx, "/" + quota, 0, Math.floor(CHAR_H * 1.5), PAL.darkGray, 2, false);
+      }
+    } else {
+      drawTextCentered(ctx, "SPIN", 0, -Math.floor(CHAR_H * 1.5), PAL.black, 2, false);
+      const qStr = "QUOTA " + quota;
+      const qW = qStr.length * CHAR_W;
+      const qY = Math.floor(CHAR_H * 0.5);
+      const coinSz = SPRITE_SIZE;
+      const qGap = 1;
+      const qOx = Math.round(-(qGap + coinSz) / 2);
+      drawTextCentered(ctx, qStr, qOx, qY, PAL.darkGray, 1, false);
+      drawAnimSpriteCentered(ctx, "coin", Math.round(qOx + qW / 2 + qGap + coinSz / 2) + 2, qY + Math.floor(CHAR_H / 2) - 1, 1, t, 4);
+    }
+    ctx.restore();
+  }
+  _drawGameOver(ctx, wox, woy) {
+    const r = this.wheel.hubRadius || 42;
+    const tilt = this.wheel.tilt || 0.65;
+    const go = this._gameOverData;
+    const hover = this._hubHover;
+    ctx.save();
+    ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
+    ctx.scale(1, tilt);
+    ctx.translate(0, hover ? -4 : -2);
+    ctx.fillStyle = PAL.darkRed;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    if (hover) {
+      ctx.fillStyle = PAL.white;
+      ctx.globalAlpha = 0.1;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    drawSpriteCentered(ctx, "skull", 0, -Math.floor(r * 0.42), 2);
+    drawTextCentered(ctx, "ROUND " + go.round, 0, -Math.floor(CHAR_H * 0.4), PAL.lightGray, 1);
+    drawTextCentered(ctx, go.score + "/" + go.quota, 0, Math.floor(CHAR_H * 0.8), PAL.red, 1);
+    drawTextCentered(ctx, "RETRY", 0, Math.floor(r * 0.55), PAL.gold, 2);
+    ctx.restore();
+  }
+  // ── UI Ring (gold + tickets + balls along right arc) ──
+  _drawUIRing(ctx, cx, cy) {
+    const RING_R = 115;
+    ctx.beginPath();
+    ctx.arc(cx, cy, RING_R, 0, Math.PI * 2);
+    ctx.strokeStyle = PAL.midGray;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  _drawShopTooltip(ctx) {
+    if (!this._inShop) return;
+    const offering = this.wheel.shopHoveredOffering;
+    if (!offering) return;
+    const RARITY_COL = { common: PAL.white, uncommon: PAL.green, rare: PAL.blue, legendary: PAL.gold };
+    const TYPE_LABELS = { symbol: "SYMBOLE", special_ball: "BILLE SPECIALE", relic: "RELIQUE" };
+    const col = RARITY_COL[offering.rarity] || PAL.white;
+    const PAD = 4;
+    const LINE_H = 8;
+    const PW = 160;
+    const descMaxW = PW - PAD * 2;
+    const desc = (offering.description || "").toUpperCase();
+    const words = desc.split(" ");
+    let descLines = 0;
+    let line = "";
+    for (const word of words) {
+      const test = line ? line + " " + word : word;
+      if (measureText(test) > descMaxW && line) {
+        descLines++;
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) descLines++;
+    descLines = Math.max(1, descLines);
+    const HEADER_H = 10;
+    const TYPE_H = 8;
+    const PH = PAD * 3 + HEADER_H + TYPE_H + descLines * LINE_H;
+    const PX0 = Math.floor((W3 - PW) / 2);
+    const PY0 = H3 - PH - 8;
+    ctx.fillStyle = "rgba(0,0,0,0.88)";
+    ctx.fillRect(PX0 - 1, PY0 - 1, PW + 2, PH + 2);
+    ctx.fillStyle = PAL.black;
+    ctx.fillRect(PX0, PY0, PW, PH);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PX0 + 0.5, PY0 + 0.5, PW - 1, PH - 1);
+    const title = (offering.name || offering.id || "???").toUpperCase();
+    drawTextCentered(ctx, title, PX0 + Math.floor(PW / 2), PY0 + PAD, col);
+    const typeLabel = TYPE_LABELS[offering.shopType] || "";
+    drawTextCentered(ctx, typeLabel, PX0 + Math.floor(PW / 2), PY0 + PAD + HEADER_H, PAL.midGray);
+    drawTextWrapped(ctx, offering.description || "", PX0 + PAD, PY0 + PAD * 2 + HEADER_H + TYPE_H, descMaxW, PAL.lightGray, 1);
+  }
+  _drawRelicTooltip(ctx) {
+    const rarity = this._relicHoverRarity;
+    if (!rarity) return;
+    const state = this.game.getState();
+    const run = state.run;
+    if (!run) return;
+    const RARITY_NAMES = { common: "COMMUNE", uncommon: "PEU COMMUNE", rare: "RARE", legendary: "LEGENDAIRE" };
+    const RARITY_COL = { common: PAL.white, uncommon: PAL.green, rare: PAL.blue, legendary: PAL.gold };
+    const col = RARITY_COL[rarity] || PAL.white;
+    const owned = run.relics.filter((r) => r.rarity === rarity);
+    const LINE_H = 8;
+    const PAD = 4;
+    const HEADER_H = 12;
+    const PW = 200;
+    const DESC_X_OFF = 90;
+    const descMaxW = PW - DESC_X_OFF - PAD;
+    const rowInfos = owned.map((r) => {
+      const def = RELIC_MAP.get(r.id);
+      const desc = def ? def.description : "";
+      const descUpper = desc.toUpperCase();
+      const words = descUpper.split(" ");
+      let descLines = 0;
+      let line = "";
+      for (const word of words) {
+        const test = line ? line + " " + word : word;
+        if (measureText(test) > descMaxW && line) {
+          descLines++;
+          line = word;
+        } else {
+          line = test;
+        }
+      }
+      if (line) descLines++;
+      return { name: def ? def.name : r.id, desc, descLines: Math.max(1, descLines), relic: r };
+    });
+    const ROW_H = 10;
+    let totalBodyH = 0;
+    if (owned.length === 0) {
+      totalBodyH = ROW_H;
+    } else {
+      for (const info of rowInfos) {
+        totalBodyH += Math.max(ROW_H, info.descLines * LINE_H) + 2;
+      }
+    }
+    const PH = HEADER_H + totalBodyH + PAD * 3;
+    const PX0 = Math.floor((W3 - PW) / 2);
+    const PY0 = WHEEL_CY - 60;
+    ctx.fillStyle = "rgba(0,0,0,0.88)";
+    ctx.fillRect(PX0 - 1, PY0 - 1, PW + 2, PH + 2);
+    ctx.fillStyle = PAL.black;
+    ctx.fillRect(PX0, PY0, PW, PH);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PX0 + 0.5, PY0 + 0.5, PW - 1, PH - 1);
+    drawTextCentered(ctx, RARITY_NAMES[rarity], PX0 + Math.floor(PW / 2), PY0 + PAD, col);
+    let curY = PY0 + PAD + HEADER_H;
+    if (owned.length === 0) {
+      drawTextCentered(ctx, "AUCUNE", PX0 + Math.floor(PW / 2), curY, PAL.midGray);
+    } else {
+      for (const info of rowInfos) {
+        drawSpriteCentered(ctx, "relic_" + rarity, PX0 + PAD + Math.floor(SPRITE_SIZE / 2), curY + Math.floor(ROW_H / 2), 1);
+        drawText(ctx, info.name, PX0 + PAD + SPRITE_SIZE + 2, curY, col);
+        drawTextWrapped(ctx, info.desc, PX0 + DESC_X_OFF, curY, descMaxW, PAL.midGray, 1);
+        curY += Math.max(ROW_H, info.descLines * LINE_H) + 2;
+      }
+    }
+  }
+  // ── Popups ──
+  _drawPops(ctx) {
+    for (const p of this._pops) {
+      const col = p.age < 1 ? PAL.gold : PAL.darkGold;
+      const px = Math.round(p.x);
+      const py = Math.round(p.y);
+      const textW = p.text.length * CHAR_W;
+      const coinSz = SPRITE_SIZE;
+      const totalW = coinSz + 2 + textW;
+      const alpha = p.age < 1 ? 1 : Math.max(0, 1 - (p.age - 1) / 0.5);
+      ctx.globalAlpha = alpha;
+      drawTextCenteredOutlined(ctx, p.text, Math.round(px - totalW / 2 + textW / 2), py, col, 1);
+      drawAnimSpriteCentered(ctx, "coin", Math.round(px - totalW / 2 + textW + 2 + coinSz / 2), py + Math.floor(CHAR_H / 2), 1, this._time, 6);
+      ctx.globalAlpha = 1;
+    }
+  }
+  // ── Audio ──
+  _initAudio() {
+    if (this._audioCtx) return;
+    this._audioCtx = getIntroAudioCtx() || new (window.AudioContext || window.webkitAudioContext)();
+  }
+  _tone(freq, dur, type = "square", vol = 0.06) {
+    if (!this._audioCtx) return;
+    const o = this._audioCtx.createOscillator(), g = this._audioCtx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, this._audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(1e-3, this._audioCtx.currentTime + dur);
+    o.connect(g).connect(this._audioCtx.destination);
+    o.start();
+    o.stop(this._audioCtx.currentTime + dur);
+  }
+  _tick() {
+    this._tone(800 + Math.random() * 400, 0.02, "square", 0.03);
+  }
+  _playEject() {
+    this._tone(1400 + Math.random() * 200, 0.04, "sine", 0.05);
+    setTimeout(() => this._tone(900 + Math.random() * 200, 0.03, "square", 0.03), 20);
+  }
+  _playReveal(idx, total) {
+    const notes = [523, 587, 659, 784, 880, 1047];
+    const f = notes[Math.min(idx, notes.length - 1)];
+    this._tone(f, 0.2, "square", 0.08);
+    setTimeout(() => this._tone(f * 1.5, 0.15, "sine", 0.04), 50);
+  }
+  _playStreak() {
+  }
+  _playSpin() {
+    if (!this._audioCtx) return;
+    this._killSpin();
+    const bufLen = this._audioCtx.sampleRate * 2;
+    const buf = this._audioCtx.createBuffer(1, bufLen, this._audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    this._spinNoise = this._audioCtx.createBufferSource();
+    this._spinNoise.buffer = buf;
+    this._spinNoise.loop = true;
+    this._spinFilter = this._audioCtx.createBiquadFilter();
+    this._spinFilter.type = "bandpass";
+    this._spinFilter.frequency.value = 300;
+    this._spinFilter.Q.value = 2;
+    this._spinGain = this._audioCtx.createGain();
+    this._spinGain.gain.value = 0.03;
+    this._spinNoise.connect(this._spinFilter);
+    this._spinFilter.connect(this._spinGain);
+    this._spinGain.connect(this._audioCtx.destination);
+    this._spinNoise.start();
+    this._spinInterval = setInterval(() => {
+      const spd = Math.min(1, this.wheel.speed / 18);
+      if (this._spinFilter) this._spinFilter.frequency.value = 200 + spd * 800;
+      if (this._spinGain) this._spinGain.gain.value = 0.01 + spd * 0.04;
+    }, 50);
+  }
+  _stopSpin() {
+    clearInterval(this._spinInterval);
+    this._spinInterval = null;
+    if (!this._spinGain) return;
+    try {
+      this._spinGain.gain.setValueAtTime(this._spinGain.gain.value, this._audioCtx.currentTime);
+      this._spinGain.gain.exponentialRampToValueAtTime(1e-3, this._audioCtx.currentTime + 0.3);
+    } catch {
+    }
+    setTimeout(() => this._killSpin(), 350);
+  }
+  _killSpin() {
+    try {
+      this._spinNoise?.stop();
+    } catch {
+    }
+    this._spinNoise = null;
+    this._spinFilter = null;
+    this._spinGain = null;
+  }
+  _playCoin() {
+    this._tone(1200, 0.08, "sine", 0.08);
+    setTimeout(() => this._tone(1600, 0.06, "sine", 0.06), 60);
+  }
+  _playSelect() {
+    this._tone(660, 0.06, "square", 0.06);
+    setTimeout(() => this._tone(880, 0.08, "square", 0.06), 50);
+  }
+  _playHover() {
+    this._tone(1100, 0.03, "sine", 0.03);
+  }
+  _playBuy() {
+    this._tone(880, 0.1, "square", 0.07);
+    setTimeout(() => this._tone(1175, 0.1, "square", 0.07), 60);
+    setTimeout(() => this._tone(1760, 0.18, "sine", 0.09), 120);
+    setTimeout(() => this._tone(2640, 0.12, "sine", 0.04), 180);
+  }
+  _playFlipToShop() {
+    if (!this._audioCtx) return;
+    const ctx = this._audioCtx;
+    const bufLen = ctx.sampleRate * 0.25;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const flt = ctx.createBiquadFilter();
+    flt.type = "bandpass";
+    flt.Q.value = 3;
+    flt.frequency.setValueAtTime(200, ctx.currentTime);
+    flt.frequency.exponentialRampToValueAtTime(1400, ctx.currentTime + 0.2);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.06, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.05);
+    g.gain.exponentialRampToValueAtTime(1e-3, ctx.currentTime + 0.25);
+    src.connect(flt).connect(g).connect(ctx.destination);
+    src.start();
+    src.stop(ctx.currentTime + 0.25);
+    setTimeout(() => this._tone(250, 0.08, "square", 0.07), 200);
+    setTimeout(() => this._tone(190, 0.06, "triangle", 0.05), 220);
+    setTimeout(() => {
+      this._tone(130, 0.12, "square", 0.08);
+      this._tone(95, 0.15, "triangle", 0.06);
+    }, 420);
+  }
+  _playFlipBack() {
+    if (!this._audioCtx) return;
+    const ctx = this._audioCtx;
+    const bufLen = ctx.sampleRate * 0.25;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const flt = ctx.createBiquadFilter();
+    flt.type = "bandpass";
+    flt.Q.value = 3;
+    flt.frequency.setValueAtTime(1400, ctx.currentTime);
+    flt.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.2);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.06, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.05);
+    g.gain.exponentialRampToValueAtTime(1e-3, ctx.currentTime + 0.25);
+    src.connect(flt).connect(g).connect(ctx.destination);
+    src.start();
+    src.stop(ctx.currentTime + 0.25);
+    setTimeout(() => this._tone(220, 0.08, "square", 0.07), 200);
+    setTimeout(() => this._tone(165, 0.06, "triangle", 0.05), 220);
+    setTimeout(() => {
+      this._tone(110, 0.12, "square", 0.08);
+      this._tone(85, 0.15, "triangle", 0.06);
+    }, 420);
+  }
+  _playTicketFanfare() {
+    this._tone(660, 0.12, "square", 0.06);
+    setTimeout(() => this._tone(880, 0.12, "square", 0.06), 80);
+    setTimeout(() => this._tone(1100, 0.15, "sine", 0.08), 160);
+    setTimeout(() => this._tone(1320, 0.2, "sine", 0.07), 260);
+    setTimeout(() => this._tone(1760, 0.3, "sine", 0.05), 380);
+  }
+  _delay(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+  _shakeStart(intensity, decay) {
+    this._shake.intensity = intensity;
+    this._shake.decay = decay;
+    this._shake.time = 0;
+  }
+};
+window.addEventListener(
+  "DOMContentLoaded",
+  () => preloadSprites().then(() => playIntro()).then(() => new App())
+);

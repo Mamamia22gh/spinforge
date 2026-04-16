@@ -101,6 +101,9 @@ export class PixelWheel {
     // Ticket animation state
     this._ticketAnim = null; // { phase, elapsed, duration, earned, counted, fromX, fromY, scale, shake }
 
+    // Gold quota animation state
+    this._goldQuotaAnim = null; // { phase, elapsed, flyDur, countDur, holdDur, flybackDur, quota, startGold, fromA, fromMidR }
+
     this._tilt = 1.0;
     this._flip = null;
     this.onFlipMid = null;
@@ -516,6 +519,30 @@ export class PixelWheel {
       }
       if (ga.elapsed >= ga.duration + 0.15) {
         this._goldAnims.splice(i, 1);
+      }
+    }
+
+    // Gold quota animation update
+    if (this._goldQuotaAnim) {
+      const ga = this._goldQuotaAnim;
+      ga.elapsed += dt;
+      if (ga.phase === 'fly' && ga.elapsed >= ga.flyDur) {
+        ga.phase = 'count';
+        ga.elapsed = 0;
+      } else if (ga.phase === 'count' && ga.elapsed >= ga.countDur) {
+        ga.phase = 'hold';
+        ga.elapsed = 0;
+        this._counterGold = ga.startGold - ga.quota;
+      } else if (ga.phase === 'hold' && ga.elapsed >= ga.holdDur) {
+        ga.phase = 'flyback';
+        ga.elapsed = 0;
+      } else if (ga.phase === 'flyback' && ga.elapsed >= ga.flybackDur) {
+        this._goldQuotaAnim = null;
+      }
+      // Count down during count phase
+      if (ga && ga.phase === 'count') {
+        const t = Math.min(1, ga.elapsed / ga.countDur);
+        this._counterGold = ga.startGold - Math.floor(ga.quota * t);
       }
     }
 
@@ -1338,7 +1365,7 @@ export class PixelWheel {
       this._ticketShake.time = 0;
     }
     // Don't overwrite gold during fly anims
-    if (this._goldAnims.length === 0) this._counterGold = gold;
+    if (this._goldAnims.length === 0 && !this._goldQuotaAnim) this._counterGold = gold;
     // Don't overwrite tickets during animation
     if (!this._ticketAnim) this._counterTickets = tickets;
   }
@@ -1381,6 +1408,103 @@ export class PixelWheel {
       drawAnimSpriteCentered(ctx, 'coin', dx + txtW + 2 + Math.floor(coinSz / 2), dy, scale, this._time, 6);
       ctx.globalAlpha = 1;
     }
+  }
+
+  startGoldQuotaAnim(quota) {
+    const cfg = GAUGE_CONFIGS[2];
+    const INNER = RIM_R + 16;
+    const OUTER = RIM_R + 21;
+    const MID_R = (INNER + OUTER) / 2;
+    const arcLen = cfg.end - cfg.start;
+    const goldA = cfg.start + arcLen * 0.75;
+    this._goldQuotaAnim = {
+      phase: 'fly',
+      elapsed: 0,
+      flyDur: 0.4,
+      countDur: 0.8,
+      holdDur: 0.6,
+      flybackDur: 0.3,
+      quota,
+      startGold: this._counterGold,
+      fromA: goldA,
+      fromMidR: MID_R,
+    };
+  }
+
+  get goldQuotaAnimDone() {
+    return !this._goldQuotaAnim;
+  }
+
+  drawGoldQuotaAnim(ctx, cx, cy) {
+    const ga = this._goldQuotaAnim;
+    if (!ga) return;
+
+    const srcX = Math.cos(ga.fromA) * ga.fromMidR;
+    const srcY = Math.sin(ga.fromA) * ga.fromMidR;
+    const tgtX = 0;
+    const tgtY = -(HUB_R + 14);
+
+    let t, x, y, scale, alpha;
+
+    if (ga.phase === 'fly') {
+      t = Math.min(1, ga.elapsed / ga.flyDur);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      x = srcX + (tgtX - srcX) * ease;
+      y = srcY + (tgtY - srcY) * ease;
+      scale = 1 + 2 * ease;
+      alpha = 0.5 + 0.5 * ease;
+    } else if (ga.phase === 'count') {
+      t = Math.min(1, ga.elapsed / ga.countDur);
+      x = tgtX; y = tgtY; scale = 3; alpha = 1;
+    } else if (ga.phase === 'hold') {
+      x = tgtX; y = tgtY; scale = 3; alpha = 1;
+    } else if (ga.phase === 'flyback') {
+      t = Math.min(1, ga.elapsed / ga.flybackDur);
+      const ease = t * t;
+      x = tgtX + (srcX - tgtX) * ease;
+      y = tgtY + (srcY - tgtY) * ease;
+      scale = 3 - 2 * ease;
+      alpha = 1 - 0.5 * ease;
+    } else return;
+
+    let shakeX = 0, shakeY = 0;
+    if (ga.phase === 'count') {
+      const intensity = 2.5 * (1 - Math.min(1, ga.elapsed / ga.countDur));
+      shakeX = Math.round((Math.random() - 0.5) * 2 * intensity);
+      shakeY = Math.round((Math.random() - 0.5) * 2 * intensity);
+    }
+
+    ctx.save();
+    ctx.translate(cx + x + shakeX, cy + y + shakeY);
+    ctx.globalAlpha = alpha;
+
+    if (ga.phase === 'count' || ga.phase === 'hold') {
+      ctx.fillStyle = PAL.gold;
+      ctx.globalAlpha = 0.12 + 0.06 * Math.sin(this._time * 12);
+      ctx.beginPath();
+      ctx.arc(0, 0, 22 * scale / 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = alpha;
+    }
+
+    // Coin sprite (centered)
+    drawAnimSpriteCentered(ctx, 'coin', 0, -Math.floor(CHAR_H * scale / 2) - 2, scale, this._time, 6);
+
+    // Gold count text (showing current gold with quota being deducted)
+    const displayGold = this._counterGold;
+    const txt = String(displayGold);
+    drawTextCentered(ctx, txt, 0, Math.floor(CHAR_H * scale / 2) + 2, PAL.gold, scale);
+
+    // Show quota deduction label
+    if (ga.phase === 'count' || ga.phase === 'hold') {
+      const deducted = ga.startGold - this._counterGold;
+      if (deducted > 0) {
+        drawTextCentered(ctx, '-' + deducted, 0, Math.floor(CHAR_H * scale / 2) + 2 + Math.ceil(CHAR_H * scale) + 2, PAL.red, scale * 0.7);
+      }
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   startTicketAnim(earned) {
@@ -1623,23 +1747,28 @@ export class PixelWheel {
     const MID_R = (INNER + OUTER) / 2;
     const arcLen = cfg.end - cfg.start; // 0.60 rad
 
-    // ── Gold counter (right half) ──
-    const goldA = cfg.start + arcLen * 0.75;
-    let gx = Math.round(cx + Math.cos(goldA) * MID_R);
-    let gy = Math.round(cy + Math.sin(goldA) * MID_R);
-    if (this._goldShake.intensity > 0) {
-      const t = Math.min(1, this._goldShake.time / this._goldShake.decay);
-      const amp = this._goldShake.intensity * (1 - t);
-      gx += Math.round((Math.random() - 0.5) * 2 * amp);
-      gy += Math.round((Math.random() - 0.5) * 2 * amp);
-    }
-    const goldTxt = String(this._counterGold);
-    const goldTW = measureText(goldTxt);
+    // ── Gold counter (right half) — hidden during gold quota animation ──
     const gap = 2;
-    const goldTotalW = goldTW + gap + SPRITE_SIZE;
-    const gsx = gx - Math.floor(goldTotalW / 2);
-    drawText(ctx, goldTxt, gsx, gy - Math.floor(CHAR_H / 2), PAL.gold, 1);
-    drawAnimSpriteCentered(ctx, 'coin', gsx + goldTW + gap + Math.floor(SPRITE_SIZE / 2), gy, 1, this._time, 6);
+    if (!this._goldQuotaAnim) {
+      const goldA = cfg.start + arcLen * 0.75;
+      let gx = Math.round(cx + Math.cos(goldA) * MID_R);
+      let gy = Math.round(cy + Math.sin(goldA) * MID_R);
+      if (this._goldShake.intensity > 0) {
+        const t = Math.min(1, this._goldShake.time / this._goldShake.decay);
+        const amp = this._goldShake.intensity * (1 - t);
+        gx += Math.round((Math.random() - 0.5) * 2 * amp);
+        gy += Math.round((Math.random() - 0.5) * 2 * amp);
+      }
+      const goldTxt = String(this._counterGold);
+      const goldTW = measureText(goldTxt);
+      const goldTotalW = goldTW + gap + SPRITE_SIZE;
+      const gsx = gx - Math.floor(goldTotalW / 2);
+      drawText(ctx, goldTxt, gsx, gy - Math.floor(CHAR_H / 2), PAL.gold, 1);
+      drawAnimSpriteCentered(ctx, 'coin', gsx + goldTW + gap + Math.floor(SPRITE_SIZE / 2), gy, 1, this._time, 6);
+    }
+
+    // ── Gold counter hidden during gold quota animation ──
+    // (already drawn above, skip if goldQuotaAnim active — handled by wrapping)
 
     // ── Ticket counter (left half) — hidden during ticket animation ──
     if (!this._ticketAnim) {
@@ -1726,13 +1855,6 @@ export class PixelWheel {
     const txt = String(displayCount);
     drawTextCentered(ctx, txt, 0, Math.floor(CHAR_H * scale / 2) + 2, PAL.green, scale);
 
-    // "+earned" floating text during count
-    if (ta.phase === 'count' || ta.phase === 'hold') {
-      const earnTxt = '+' + ta.earned;
-      const earnAlpha = ta.phase === 'hold' ? Math.max(0, 1 - ta.elapsed / ta.holdDur) : 1;
-      ctx.globalAlpha = earnAlpha * 0.9;
-      drawTextCentered(ctx, earnTxt, 20 * scale / 3, -Math.floor(CHAR_H * scale / 2) - 6, PAL.white, Math.max(1, Math.floor(scale * 0.6)));
-    }
 
     ctx.globalAlpha = 1;
     ctx.restore();

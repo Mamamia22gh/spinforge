@@ -27,6 +27,49 @@ const HIERO_INIT = -Math.PI / 2 - Math.PI / N_HIERO;
 const H_IN    = 174;
 const H_OUT   = 220;
 
+// ── Raccoon mascot sprite (25×18) ──
+const _RACCOON = [
+  '.......KK.......KK.......',
+  '......KMLK.....KLMK......',
+  '.....KMLWK.....KWLMK.....',
+  '....KMLLDKKKKKKKDLLMK....',
+  '...KDLLLLLLLLLLLLLLLDK...',
+  '...KDLLLLLLLWLLLLLLLDK...',
+  '...KDLLLLLLWWWLLLLLLDK...',
+  '...KDLDDDDLWWWLDDDDLDK...',
+  '...KDLDDWGKDWDKGWDDLDK...',
+  '...KDDDDKKLLLLLKKDDDDK...',
+  '...KDDDDDLLLLLLLDDDDDK...',
+  '...KDLLLLLLLLLLLLLLLDK...',
+  '....KDLLLLLWWWLLLLLDK....',
+  '....KDLLLLLWKWLLLLLDK....',
+  '....KDLLLLLWWWLLLLLDK....',
+  '.....KDLLLLLLLLLLLDK.....',
+  '......KDDDDDDDDDDDK......',
+  '.......KKKKKKKKKKK.......',
+];
+const _RCW = _RACCOON[0].length, _RCH = _RACCOON.length;
+const _RCCX = Math.floor(_RCW / 2), _RCCY = Math.floor(_RCH / 2);
+const _RCOL = {
+  K: PAL.black, D: PAL.darkGray, M: PAL.midGray,
+  L: PAL.lightGray, W: PAL.white, G: PAL.gold,
+};
+function _drawRaccoon(ctx, ox, oy, revealR) {
+  for (let ry = 0; ry < _RCH; ry++) {
+    const row = _RACCOON[ry];
+    for (let rx = 0; rx < row.length; rx++) {
+      const ch = row[rx];
+      if (ch === '.') continue;
+      if (revealR !== undefined) {
+        const dx = rx - _RCCX, dy = ry - _RCCY;
+        if (Math.sqrt(dx * dx + dy * dy) > revealR) continue;
+      }
+      ctx.fillStyle = _RCOL[ch] || PAL.lightGray;
+      ctx.fillRect(ox + rx, oy + ry, 1, 1);
+    }
+  }
+}
+
 // ── Audio ──
 let _ac = null;
 function _initAudio() {
@@ -127,18 +170,10 @@ export async function playIntro() {
       ctx.clearRect(0, 0, CW, CH);
       ctx.save(); ctx.scale(PX, PX);
       ctx.fillStyle = PAL.black; ctx.fillRect(0, 0, W, H);
-      // Pulsing diamond
+      // Pulsing raccoon
       const pulse = 0.6 + 0.4 * Math.sin(frame * 0.06);
-      const r = 4;
-      for (let y = -r; y <= r; y++) {
-        const hw = r - Math.abs(y);
-        for (let x = -hw; x <= hw; x++) {
-          const d = r > 0 ? (Math.abs(x) + Math.abs(y)) / r : 0;
-          ctx.globalAlpha = pulse;
-          ctx.fillStyle = d < 0.3 ? PAL.white : d < 0.6 ? PAL.gold : PAL.darkGold;
-          ctx.fillRect(CX + x, CY - 10 + y, 1, 1);
-        }
-      }
+      ctx.globalAlpha = pulse;
+      _drawRaccoon(ctx, CX - _RCCX, CY - 10 - _RCCY);
       ctx.globalAlpha = 1;
       if ((frame % 80) < 55) {
         drawTextCentered(ctx, 'CLICK TO START', CX, CY + 8, PAL.midGray, 1);
@@ -193,7 +228,7 @@ function _runPhase(ctx, dur, renderFn, shouldSkip) {
 // PHASE 1 — "JOJO'S DEN" LOGO
 // ═══════════════════════════════════════════════════════════════
 //
-// 0.0 – 0.6   diamond materializes from center spark
+// 0.0 – 0.6   raccoon materializes from center
 // 0.6 – 1.5   "JOJO'S" types in letter by letter
 // 1.5 – 1.9   "DEN" slams in (zoom + shake + bass hit)
 // 1.9 – 2.3   gold double-underline draws left→right
@@ -208,7 +243,7 @@ function _renderLogo(ctx, t, sfx) {
   ctx.save();
   ctx.translate(sh.x, sh.y);
 
-  // ── Diamond gem ──
+  // ── Raccoon mascot ──
   if (t > 0.05) {
     if (!sfx.has('spark')) {
       sfx.add('spark');
@@ -217,25 +252,16 @@ function _renderLogo(ctx, t, sfx) {
       _tone(55, 2.0, 'sine', 0.03);
     }
     const dT = easeOut((t - 0.05) / 0.5);
-    const r = Math.floor(dT * 8);
-    if (r > 0) {
-      for (let y = -r; y <= r; y++) {
-        const hw = r - Math.abs(y);
-        for (let x = -hw; x <= hw; x++) {
-          const d = r > 0 ? (Math.abs(x) + Math.abs(y)) / r : 0;
-          // Shading: white core → gold → darkGold edge
-          ctx.fillStyle = d < 0.25 ? PAL.white : d < 0.55 ? PAL.gold : PAL.darkGold;
-          ctx.fillRect(CX + x, CY - 28 + y, 1, 1);
-        }
-      }
-      // Sparkle on top facet
-      if (t > 0.3 && t < 1.0) {
-        const sparkle = Math.sin(t * 12) > 0.5;
-        if (sparkle) {
-          ctx.fillStyle = PAL.white;
-          ctx.fillRect(CX - 1, CY - 28 - r, 1, 1);
-          ctx.fillRect(CX + 1, CY - 28 - r, 1, 1);
-        }
+    const revealR = dT * 16;
+    const rOX = CX - _RCCX, rOY = CY - 28 - _RCCY;
+    _drawRaccoon(ctx, rOX, rOY, revealR);
+    // Eye sparkle (gold eyes flash white)
+    if (dT >= 1 && t > 0.4 && t < 1.2) {
+      const sparkle = Math.sin(t * 12) > 0.5;
+      if (sparkle) {
+        ctx.fillStyle = PAL.white;
+        ctx.fillRect(rOX + 9, rOY + 8, 1, 1);
+        ctx.fillRect(rOX + 15, rOY + 8, 1, 1);
       }
     }
   }

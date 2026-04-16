@@ -29,7 +29,7 @@ const HIERO_MID   = (HIERO_INNER + HIERO_OUTER) / 2;
 // Placed ~85% around the ring = upper-left quadrant
 const HIERO_MENU_DEFS = [
   { offsetFromEnd: 12, id: 'catalogue', glyph: 'book' },
-  { offsetFromEnd: 3,  id: 'retry',     glyph: 'retry' },
+  { offsetFromEnd: 3,  id: 'retry',     glyph: 'arrow_right', scale: 3 },
   { offsetFromEnd: 4,  id: 'settings',  glyph: 'gear' },
   { offsetFromEnd: 5,  id: 'exit',      glyph: 'exit' },
 ];
@@ -648,6 +648,20 @@ class App {
     this._spinning = false;
     this.wheel.setBonusMode(false);
 
+    // Wait for all gold fly anims to finish
+    while (this.wheel._goldAnims.length > 0) await this._delay(50);
+
+    // Gold quota deduction animation
+    const currentRun = this.game.getState().run;
+    const quota = getQuota(currentRun.round - 1); // round already advanced after results
+    if (quota > 0) {
+      await this._delay(300);
+      this.wheel.startGoldQuotaAnim(quota);
+      this._shakeStart(3, 0.4);
+      while (!this.wheel.goldQuotaAnimDone) await this._delay(50);
+      await this._delay(200);
+    }
+
     // Advance game state through RESULTS → CHOICE → SHOP
     this._advanceToShop();
 
@@ -1085,6 +1099,9 @@ class App {
         this._drawHubBtn(ctx, hubBtnOx, hubBtnOy);
       }
     }
+
+    // Gold quota animation overlay
+    this.wheel.drawGoldQuotaAnim(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
 
     // Ticket animation overlay (above hub, below UI)
     this.wheel.drawTicketAnim(ctx, WHEEL_CX + wheelOx, WHEEL_CY + wheelOy);
