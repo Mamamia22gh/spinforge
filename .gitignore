@@ -4,3 +4,7 @@ legacy/node_modules/
 legacy/dist/
 .DS_Store
 Thumbs.db
+
+err.log
+out.log
+

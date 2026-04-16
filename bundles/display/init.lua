@@ -250,6 +250,7 @@ DisplayBundle.__index = DisplayBundle
 function DisplayBundle.new(opts)
     opts = opts or {}
     local self = setmetatable({}, DisplayBundle)
+    self.name = "display"
     self._kernel = nil
 
     -- Canvases

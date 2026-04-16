@@ -32,7 +32,7 @@ local function getNoiseBuffer()
     _noiseBuffer = {}
     local lfsr = 0x7FFF
     for i = 1, len do
-        local bit = ((lfsr % 2) ~ (math.floor(lfsr / 2) % 2))
+        local bit = (lfsr % 2 + math.floor(lfsr / 2) % 2) % 2
         lfsr = math.floor(lfsr / 2) + bit * 16384
         _noiseBuffer[i] = (lfsr % 2 == 1) and 1 or -1
     end

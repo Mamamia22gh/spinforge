@@ -1,22 +1,36 @@
 --[[
-    Game bundle — root game state + demo rendering.
-    No canvas ownership — uses DisplayBundle via events.
+    Game bundle — orchestrates the scene manager, owns GameLoop + EventManager,
+    bridges to the display / sprite / audio bundles via the kernel event bus.
 ]]
+
+local GameLoop     = require('src.game_loop')
+local EventManager = require('src.event_manager')
+local Save         = require('src.save')
+
+local SCENES = {
+    IDLE      = require('src.scenes.hub'),
+    SPINNING  = require('src.scenes.spin'),
+    RESULTS   = require('src.scenes.results'),
+    CHOICE    = require('src.scenes.choice'),
+    SHOP      = require('src.scenes.shop'),
+    GAME_OVER = require('src.scenes.game_over'),
+    VICTORY   = require('src.scenes.victory'),
+}
 
 local Game = {}
 Game.__index = Game
 
 function Game.new()
     return setmetatable({
-        state = "hub",
-        round = 1,
-        score = 0,
-        golds = 0,
-        tickets = 0,
+        name    = 'game',
         _kernel = nil,
-        _atlas = nil,
-        _font = nil,
-        _time = 0,
+        _atlas  = nil,
+        _font   = nil,
+        _mx = 0, _my = 0,
+        loop    = nil,
+        em      = nil,
+        scene   = nil,
+        ctx     = nil,
     }, Game)
 end
 
@@ -24,83 +38,89 @@ function Game:register(kernel)
     self._kernel = kernel
 end
 
-function Game:boot(kernel)
-    -- grab references from sprite bundle
+function Game:_switchScene(phase)
+    local S = SCENES[phase] or SCENES.IDLE
+    if self.scene then self.scene:leave() end
+    self.scene = S.new()
+    self.scene:enter(self.ctx)
+end
+
+function Game:restart()
+    self.em:clear()
+    Save.save(self.loop.state.meta)
+    local meta = self.loop.state.meta
+    self.loop = GameLoop.new({ meta = meta })
+    self.ctx.loop = self.loop
+    self:_bindLoopEvents()
+    self:_switchScene('IDLE')
+end
+
+function Game:_bindLoopEvents()
+    self.loop.events:on('phase:changed', function(d) self:_switchScene(d.phase) end)
+    self.loop.events:on('ball:resolved', function(d)
+        self._kernel:emit('audio.sfx', { name = d.isGold and 'jackpot' or 'coin' })
+    end)
+    self.loop.events:on('run:ended', function(d)
+        Save.save(self.loop.state.meta)
+        self._kernel:emit('audio.sfx', { name = (d.reason == 'victory') and 'jackpot' or 'hit' })
+    end)
+    self.loop.events:on('shop:bought', function()
+        self._kernel:emit('audio.sfx', { name = 'coin' })
+    end)
+end
+
+local function make_ctx(game, kernel)
+    local ctx = {
+        kernel = kernel,
+        loop   = game.loop,
+        em     = game.em,
+    }
+    function ctx:restart() game:restart() end
+    return ctx
+end
+
+function Game:boot(kernel, cfg)
+    local savedMeta = Save.load()
+    self.loop = GameLoop.new({ meta = savedMeta })
+    self.em   = EventManager.new()
+    self.ctx  = make_ctx(self, kernel)
+
+    self:_bindLoopEvents()
+    self:_switchScene('IDLE')
+
     kernel:on('sprite.ready', function(d)
         self._atlas = d.atlas
-        self._font = d.font
+        self._font  = d.font
     end, -10)
 
-    -- update
     kernel:on('kernel.update', function(d)
-        self._time = self._time + d.dt
+        self.em:update(d.dt)
+        if self.scene and self.scene.update then self.scene:update(d.dt) end
+        -- feed mouse pos to scene hover
+        if self.scene and self.scene.mouse then self.scene:mouse(self._mx, self._my) end
     end)
 
-    -- ── Draw on main canvas (game world) ──
     kernel:on('display.draw.main', function(d)
-        self:_drawMain(d.g)
+        if not self.scene or not self._font then return end
+        self.scene:draw(d.g, self._font, self._atlas)
     end, 0)
 
-    -- ── Draw on lights canvas ──
     kernel:on('display.draw.lights', function(d)
-        self:_drawLights(d.g)
+        d.g:glow(self._mx, self._my, 50, 1, 0.9, 0.5, 0.05)
     end, 0)
 
-    -- input demo
-    kernel:on('input.keypressed', function(d)
-        if d.key == 's' then
-            kernel:emit('audio.sfx', { name = 'coin' })
-        elseif d.key == 'm' then
-            kernel:emit('audio.sfx', { name = 'jackpot' })
-        elseif d.key == 'f' then
-            -- test flash
-            kernel:emit('display.draw.main', {}) -- no-op, just for demo
-        end
+    kernel:on('display.click', function(d)
+        if self.scene and self.scene.click then self.scene:click(d.x, d.y) end
     end)
-end
 
-function Game:_drawMain(g)
-    love.graphics.setColor(1, 1, 1, 1)
+    kernel:on('display.mouse', function(d)
+        self._mx = d.x
+        self._my = d.y
+    end)
 
-    -- demo: draw some sprites and text
-    if self._font then
-        self._font:drawCentered("SPINFORGE", 240, 50, {1, 0.85, 0.3, 1}, 3)
-        self._font:drawCentered("STATE: " .. self.state:upper(), 240, 90, {1, 1, 1, 1}, 2)
-        self._font:drawCentered("PRESS S FOR COIN SFX", 240, 580, {0.5, 0.5, 0.5, 1}, 1)
-        self._font:drawCentered("PRESS M FOR JACKPOT", 240, 595, {0.5, 0.5, 0.5, 1}, 1)
-    end
-
-    if self._atlas then
-        local sprites = { 'red', 'blue', 'ball', 'skull', 'anvil', 'ticket' }
-        for i, id in ipairs(sprites) do
-            self._atlas:drawCentered(id, 80 + (i-1) * 60, 160, 4)
-        end
-
-        local relics = { 'relic_common', 'relic_uncommon', 'relic_rare', 'relic_legendary' }
-        for i, id in ipairs(relics) do
-            self._atlas:drawCentered(id, 120 + (i-1) * 80, 240, 4)
-        end
-
-        self._atlas:drawAnim('coin', 240, 320, 5, self._time, 4)
-
-        local hieros = { 'gear', 'exit', 'book', 'retry' }
-        for i, id in ipairs(hieros) do
-            self._atlas:drawCentered(id, 60 + (i-1) * 110, 430, 2)
-        end
-
-        self._atlas:drawCentered('cursor_default', 160, 520, 3)
-        self._atlas:drawCentered('cursor_pointer', 320, 520, 3)
-    end
-end
-
-function Game:_drawLights(g)
-    -- Demo: pulsing glow at center
-    local pulse = 0.12 + 0.08 * math.floor(math.sin(self._time * 3) * 4) / 4
-    g:glow(240, 320, 80, 1, 0.85, 0.3, pulse)
-
-    -- Mouse-following glow
-    local m = g:getMouse()
-    g:glow(m.x, m.y, 60, 1, 0.85, 0.3, 0.06)
+    kernel:on('input.keypressed', function(d)
+        if self.scene and self.scene.key then self.scene:key(d.key) end
+    end)
 end
 
 return Game
