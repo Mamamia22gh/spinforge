@@ -1,11 +1,8 @@
 --[[
     SpriteBundle — pixel art rendering + bitmap font
-    Port of PixelSprites.js + BitmapFont.js + generate-sprites.js
     
     ZERO dependencies on other bundles.
-    
-    Events listened:
-        kernel.boot             → generates all sprite data into memory
+    All data definitions come from config/sprite.lua via kernel.
     
     Events emitted:
         sprite.ready            → { sprites = SpriteAtlas }
@@ -41,8 +38,8 @@ end
 
 function SpriteBundle:boot(kernel, cfg)
     self.atlas = SpriteAtlas.new()
-    self.atlas:generateAll()
-    self.font = BitmapFont.new()
+    self.atlas:generateAll(cfg)
+    self.font = BitmapFont.new(cfg.font)
 
     -- ── Sprite drawing events ───────────────────────────────────
     kernel:on('sprite.draw', function(d)

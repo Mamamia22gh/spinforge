@@ -1,6 +1,6 @@
 --[[
     SpriteAtlas — generates pixel art sprites in memory as Love2D ImageData/Images
-    Port of generate-sprites.js + PixelSprites.js
+    Palette and hiero color come from config (injected via boot).
 ]]
 
 local sprites_data = require("bundles.sprite.sprites_data")
@@ -31,18 +31,19 @@ local function renderSprite(rows, palette)
                     imgData:setPixel(x, y, col[1]/255, col[2]/255, col[3]/255, 1)
                 end
             end
-            -- transparent pixels default to 0,0,0,0
         end
     end
     return imgData
 end
 
---- Convert hieroglyph (monochrome '#' = white pixel)
-local function renderHiero(rows)
+--- Convert hieroglyph (monochrome)
+local function renderHiero(rows, hieroColor)
     local h = #rows
     local w = #rows[1]
     local imgData = love.image.newImageData(w, h)
-    local wr, wg, wb = 0xe8/255, 0xe0/255, 0xd0/255
+    local wr = hieroColor[1]/255
+    local wg = hieroColor[2]/255
+    local wb = hieroColor[3]/255
     for y = 0, h - 1 do
         local row = rows[y + 1]
         for x = 0, w - 1 do
@@ -54,12 +55,15 @@ local function renderHiero(rows)
     return imgData
 end
 
-function SpriteAtlas:generateAll()
+function SpriteAtlas:generateAll(cfg)
+    cfg = cfg or {}
+    local palette = cfg.palette or sprites_data.PALETTE
+    local hieroColor = cfg.hieroColor or { 0xe8, 0xe0, 0xd0 }
     local data = sprites_data
 
     -- Static sprites
     for id, info in pairs(data.SPRITES) do
-        local imgData = renderSprite(info.rows, data.PALETTE)
+        local imgData = renderSprite(info.rows, palette)
         local img = love.graphics.newImage(imgData)
         img:setFilter('nearest', 'nearest')
         self._images[id] = img
@@ -70,7 +74,7 @@ function SpriteAtlas:generateAll()
     for id, info in pairs(data.ANIM_SPRITES) do
         local frames = {}
         for f, frameRows in ipairs(info.frames) do
-            local imgData = renderSprite(frameRows, data.PALETTE)
+            local imgData = renderSprite(frameRows, palette)
             local img = love.graphics.newImage(imgData)
             img:setFilter('nearest', 'nearest')
             frames[f] = img
@@ -80,7 +84,7 @@ function SpriteAtlas:generateAll()
 
     -- Hieroglyphs
     for id, rows in pairs(data.HIERO_GLYPHS) do
-        local imgData = renderHiero(rows)
+        local imgData = renderHiero(rows, hieroColor)
         local img = love.graphics.newImage(imgData)
         img:setFilter('nearest', 'nearest')
         self._images[id] = img

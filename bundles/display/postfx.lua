@@ -10,13 +10,7 @@
 local PostFX = {}
 PostFX.__index = PostFX
 
--- Default palette (Dawnbringer DB16)
-local DEFAULT_PALETTE = {
-    "140c1c", "442434", "30346d", "4e4a4e",
-    "854c30", "346524", "d04648", "757161",
-    "597dce", "d27d2c", "8595a1", "6daa2c",
-    "d2aa99", "6dc2ca", "dad45e", "deeed6",
-}
+-- No default palette — must come from config/display.lua
 
 local function hexToRGB(hex)
     local r = tonumber(hex:sub(1, 2), 16) / 255
@@ -78,7 +72,10 @@ function PostFX.new(opts)
     self._chromaIntensity  = opts.chroma or 0.5
 
     -- Upload palette (from config or default)
-    local paletteHex = opts.palette or DEFAULT_PALETTE
+    local paletteHex = opts.palette
+    if not paletteHex then
+        error("PostFX: palette must be provided via config/display.lua")
+    end
     local flat = {}
     for i, hex in ipairs(paletteHex) do
         local r, g, b = hexToRGB(hex)

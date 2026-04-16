@@ -4,7 +4,8 @@
     Applies ADSR envelopes, vibrato LFO
 ]]
 
-local SAMPLE_RATE = 44100
+-- SAMPLE_RATE injected via configure()
+local SAMPLE_RATE = 44100  -- default, overridden by Synth.new(cfg)
 local TAU = math.pi * 2
 
 -- ── Note frequency table ────────────────────────────────────────────
@@ -64,7 +65,8 @@ local function wavNoise(phase)
 end
 
 -- ── ADSR envelope ───────────────────────────────────────────────────
-local DEFAULT_ENV = { a = 0.005, d = 0.08, s = 0.6, r = 0.06 }
+-- DEFAULT_ENV injected via configure()
+local DEFAULT_ENV = { a = 0.005, d = 0.08, s = 0.6, r = 0.06 }  -- default, overridden by Synth.new(cfg)
 
 local function adsrAt(env, t, duration)
     local a, d, s, r = env.a, env.d, env.s, env.r
@@ -85,7 +87,10 @@ end
 local Synth = {}
 Synth.__index = Synth
 
-function Synth.new()
+function Synth.new(cfg)
+    cfg = cfg or {}
+    if cfg.sampleRate then SAMPLE_RATE = cfg.sampleRate end
+    if cfg.envelope then DEFAULT_ENV = cfg.envelope end
     return setmetatable({
         _sources = {},  -- active love.audio Sources for GC
     }, Synth)

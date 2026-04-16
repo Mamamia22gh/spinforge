@@ -1,94 +1,39 @@
 --[[
-    BitmapFont — 4x6 pixel bitmap font
-    Port of BitmapFont.js
+    BitmapFont — pixel bitmap font
+    Glyph definitions come from config (injected via configure()).
     Draws pixel-by-pixel via love.graphics.rectangle
 ]]
 
-local W = 4
-local H = 6
-
--- ── Glyph definitions ('.'/space = empty, '#' = pixel) ──────────────
-local GLYPHS = {
-    ['0'] = {'.##.','#..#','#..#','#..#','.##.','....'},
-    ['1'] = {'..#.','..#.','..#.','..#.','..#.','....'},
-    ['2'] = {'.##.','#..#','..#.','.#..','####','....'},
-    ['3'] = {'.##.','#..#','..#.','#..#','.##.','....'},
-    ['4'] = {'#..#','#..#','####','...#','...#','....'},
-    ['5'] = {'####','#...','###.','...#','###.','....'},
-    ['6'] = {'.##.','#...','###.','#..#','.##.','....'},
-    ['7'] = {'####','...#','..#.','.#..','.#..','....'},
-    ['8'] = {'.##.','#..#','.##.','#..#','.##.','....'},
-    ['9'] = {'.##.','#..#','.###','...#','.##.','....'},
-    ['A'] = {'.##.','#..#','####','#..#','#..#','....'},
-    ['B'] = {'###.','#..#','###.','#..#','###.','....'},
-    ['C'] = {'.###','#...','#...','#...','.###','....'},
-    ['D'] = {'###.','#..#','#..#','#..#','###.','....'},
-    ['E'] = {'####','#...','###.','#...','####','....'},
-    ['F'] = {'####','#...','###.','#...','#...','....'},
-    ['G'] = {'.###','#...','#.##','#..#','.###','....'},
-    ['H'] = {'#..#','#..#','####','#..#','#..#','....'},
-    ['I'] = {'###.','.#..','.#..','.#..','###.','....'},
-    ['J'] = {'..##','...#','...#','#..#','.##.','....'},
-    ['K'] = {'#..#','#.#.','##..','#.#.','#..#','....'},
-    ['L'] = {'#...','#...','#...','#...','####','....'},
-    ['M'] = {'#..#','####','####','#..#','#..#','....'},
-    ['N'] = {'#..#','##.#','#.##','#..#','#..#','....'},
-    ['O'] = {'.##.','#..#','#..#','#..#','.##.','....'},
-    ['P'] = {'###.','#..#','###.','#...','#...','....'},
-    ['Q'] = {'.##.','#..#','#..#','#.#.','.#.#','....'},
-    ['R'] = {'###.','#..#','###.','#.#.','#..#','....'},
-    ['S'] = {'.###','#...','####','...#','###.','....'},
-    ['T'] = {'####','..#.','..#.','..#.','..#.','....'},
-    ['U'] = {'#..#','#..#','#..#','#..#','.##.','....'},
-    ['V'] = {'#..#','#..#','#..#','.##.','..#.','....'},
-    ['W'] = {'#..#','#..#','####','####','#..#','....'},
-    ['X'] = {'#..#','.##.','..#.','.##.','#..#','....'},
-    ['Y'] = {'#..#','.##.','..#.','..#.','..#.','....'},
-    ['Z'] = {'####','..#.','.#..','#...','####','....'},
-    ['+'] = {'....','..#.','.###','..#.','....','....'},
-    ['-'] = {'....','....','####','....','....','....'},
-    ['/'] = {'...#','..#.','.#..','#...','....','....'},
-    ['!'] = {'..#.','..#.','..#.','....','..#.','....'},
-    [':'] = {'....','..#.','....','..#.','....','....'},
-    ['.'] = {'....','....','....','....','..#.','....'},
-    [' '] = {'....','....','....','....','....','....'},
-    ['?'] = {'.##.','#..#','..#.','....','..#.','....'},
-    -- Accented
-    ['\195\137'] = {'..#.','####','#...','###.','#...','####'}, -- É
-    ['\195\136'] = {'.#..','####','#...','###.','#...','####'}, -- È
-    ['\195\138'] = {'.##.','####','#...','###.','#...','####'}, -- Ê
-    ['\195\128'] = {'.#..','.##.','#..#','####','#..#','#..#'}, -- À
-    ['\195\148'] = {'.##.','.##.','#..#','#..#','#..#','.##.'}, -- Ô
-    ['\195\142'] = {'.##.','###.','.#..','.#..','.#..','###.'}, -- Î
-    ['\195\153'] = {'.#..','#..#','#..#','#..#','#..#','.##.'}, -- Ù
-    ['\195\135'] = {'.###','#...','#...','#...','.###','.#..'}, -- Ç
-    ["'"] = {'..#.','..#.','....','....','....','....'},
-    ['('] = {'..#.','.#..','.#..','.#..','..#.','....'},
-    [')'] = {'.#..','..#.','..#.','..#.','.#..','....'},
-}
-
--- Pre-parse into bitmask arrays
-local PARSED = {}
-for ch, rows in pairs(GLYPHS) do
-    local bits = {}
-    for r = 1, #rows do
-        local b = 0
-        for i = 1, W do
-            if rows[r]:sub(i, i) == '#' then
-                b = b + (2 ^ (W - i))
-            end
-        end
-        bits[r] = b
-    end
-    PARSED[ch] = bits
-end
-
--- ── BitmapFont class ────────────────────────────────────────────────
 local BitmapFont = {}
 BitmapFont.__index = BitmapFont
 
-function BitmapFont.new()
-    return setmetatable({}, BitmapFont)
+function BitmapFont.new(cfg)
+    cfg = cfg or {}
+    local W = cfg.charWidth  or 4
+    local H = cfg.charHeight or 6
+    local glyphs = cfg.glyphs or {}
+
+    -- Pre-parse into bitmask arrays
+    local parsed = {}
+    for ch, rows in pairs(glyphs) do
+        local bits = {}
+        for r = 1, #rows do
+            local b = 0
+            for i = 1, W do
+                if rows[r]:sub(i, i) == '#' then
+                    b = b + (2 ^ (W - i))
+                end
+            end
+            bits[r] = b
+        end
+        parsed[ch] = bits
+    end
+
+    return setmetatable({
+        _W = W,
+        _H = H,
+        _parsed = parsed,
+    }, BitmapFont)
 end
 
 --- Internal: draw raw text (no outline)
@@ -96,15 +41,17 @@ function BitmapFont:_drawRaw(text, x, y, color, scale)
     love.graphics.setColor(color)
     local str = text:upper()
     local cx = x
+    local W, H = self._W, self._H
+    local parsed = self._parsed
     local i = 1
     while i <= #str do
         -- try 2-byte UTF-8 first
         local ch2 = str:sub(i, i + 1)
-        local bits = PARSED[ch2]
+        local bits = parsed[ch2]
         local advance = 2
         if not bits then
             local ch1 = str:sub(i, i)
-            bits = PARSED[ch1]
+            bits = parsed[ch1]
             advance = 1
         end
         if not bits then
@@ -142,7 +89,7 @@ end
 
 --- Measure text width in pixels (before scaling)
 function BitmapFont:measure(text)
-    return #text * (W + 1) - 1
+    return #text * (self._W + 1) - 1
 end
 
 --- Draw centered at cx
@@ -167,6 +114,7 @@ end
 --- Draw with word-wrap. Returns total height used.
 function BitmapFont:drawWrapped(text, x, y, maxW, color, scale)
     scale = scale or 1
+    local H = self._H
     local str = text:upper()
     local words = {}
     for w in str:gmatch('%S+') do table.insert(words, w) end
@@ -186,7 +134,7 @@ function BitmapFont:drawWrapped(text, x, y, maxW, color, scale)
     return ly + H * scale - y
 end
 
-BitmapFont.CHAR_W = W
-BitmapFont.CHAR_H = H
+BitmapFont.CHAR_W = 4  -- legacy compat, use instance._W
+BitmapFont.CHAR_H = 6  -- legacy compat, use instance._H
 
 return BitmapFont

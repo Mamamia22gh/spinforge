@@ -47,7 +47,7 @@ function AudioBundle:boot(kernel, cfg)
     self._bgmVol    = cfg.bgmVolume    or self._bgmVol
     self._sfxVol    = cfg.sfxVolume    or self._sfxVol
 
-    self.synth = Synth.new()
+    self.synth = Synth.new(cfg)
     self.sequencer = Sequencer.new(self.synth)
 
     kernel:on('kernel.update', function(d)

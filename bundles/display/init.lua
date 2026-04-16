@@ -51,7 +51,7 @@
 
 local PostFX = require("bundles.display.postfx")
 
-local W, H = 480, 640
+local W, H  -- set from config in boot()
 
 -- ─── DrawAPI ─────────────────────────────────────────────────────────────────
 
@@ -295,9 +295,9 @@ end
 
 function DisplayBundle:boot(kernel, cfg)
     -- Apply config
-    W = cfg.width or W
-    H = cfg.height or H
-    self._clearColor = cfg.clearColor or { 0.05, 0.05, 0.1, 1 }
+    W = cfg.width
+    H = cfg.height
+    self._clearColor = cfg.clearColor
 
     -- Create canvases
     self._mainCanvas   = love.graphics.newCanvas(W, H)
