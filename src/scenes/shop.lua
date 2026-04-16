@@ -82,7 +82,7 @@ function SS:draw(g, font, atlas)
     for i, r in ipairs(rects) do
         local o = run.shopOfferings[i]
         UI.panel(g, r.x, r.y, r.w, r.h)
-        if o and o ~= false then
+        if o then
             local rc = UI.rarityColor[o.rarity] or UI.rarityColor.common
             if self._hot == i then g:setColor(1, 1, 1, 0.12); g:rect('fill', r.x, r.y, r.w, r.h) end
             g:setColor(rc[1], rc[2], rc[3], 1); g:rect('fill', r.x, r.y, r.w, 4)
@@ -93,7 +93,7 @@ function SS:draw(g, font, atlas)
 
             local priceColor = (run.shopCurrency >= o.cost) and { 0.95, 0.85, 0.3, 1 } or { 0.55, 0.35, 0.35, 1 }
             font:draw(o.cost .. ' G', r.x + 8, r.y + r.h - 18, priceColor, 2)
-        else
+        elseif o == false then
             font:drawCentered('SOLD', r.x + r.w/2, r.y + r.h/2 - 5, { 0.4, 0.4, 0.45, 1 }, 2)
         end
     end

@@ -6,7 +6,6 @@
 local BALANCE       = require('src.data.balance').BALANCE
 local RELICS_MOD    = require('src.data.relics')
 local CHOICES       = require('src.data.choices').CHOICES
-local getWheelUp    = require('src.data.wheel_upgrades').getWheelUpgrade
 local Effect        = require('src.systems.effect')
 
 local Shop = {}

@@ -36,6 +36,12 @@ end
 
 function Game:register(kernel)
     self._kernel = kernel
+    -- Subscribe to sprite.ready NOW (at addBundle time) so we don't miss it
+    -- when SpriteBundle emits it during its own boot().
+    kernel:on('sprite.ready', function(d)
+        self._atlas = d.atlas
+        self._font  = d.font
+    end, -10)
 end
 
 function Game:_switchScene(phase)
@@ -67,6 +73,13 @@ function Game:_bindLoopEvents()
     self.loop.events:on('shop:bought', function()
         self._kernel:emit('audio.sfx', { name = 'coin' })
     end)
+    self.loop.events:on('phase:changed', function(d)
+        if d.phase == 'SHOP' then
+            self._kernel:emit('audio.play_song', { song = require('src.data.songs').SHOP })
+        else
+            self._kernel:emit('audio.stop_song')
+        end
+    end)
 end
 
 local function make_ctx(game, kernel)
@@ -87,11 +100,6 @@ function Game:boot(kernel, cfg)
 
     self:_bindLoopEvents()
     self:_switchScene('IDLE')
-
-    kernel:on('sprite.ready', function(d)
-        self._atlas = d.atlas
-        self._font  = d.font
-    end, -10)
 
     kernel:on('kernel.update', function(d)
         self.em:update(d.dt)
