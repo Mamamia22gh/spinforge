@@ -156,8 +156,12 @@ export function drawTextWrapped(ctx, text, x, y, maxW, color, scale = 1) {
 /**
  * Draw text centered with a 1px black outline.
  */
-export function drawTextCenteredOutlined(ctx, text, cx, y, color, scale = 1) {
-  drawTextCentered(ctx, text, cx, y, color, scale);
+export function drawTextCenteredOutlined(ctx, text, cx, y, color, scale = 1, outlineColor = '#000000') {
+  // 4-directional outline
+  for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    drawTextCentered(ctx, text, cx + dx, y + dy, outlineColor, scale, false);
+  }
+  drawTextCentered(ctx, text, cx, y, color, scale, false);
 }
 
 export const CHAR_W = W;

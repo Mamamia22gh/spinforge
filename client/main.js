@@ -57,6 +57,7 @@ class App {
     this.game = createGame({ seed: Date.now() });
     this.wheel = new PixelWheel();
     this._spinning = false;
+    this._postSpinShow = true;
     this.wheel.setBonusMode(false);
     if (this._music) this._music.exitBonus();
     this._updateGaugeUnlocks();
@@ -66,6 +67,7 @@ class App {
     this._shake = { x: 0, y: 0, intensity: 0, decay: 0, time: 0 };
     this._flash = 0;
     this._goldDisplay = 0;
+    this._postSpinShow = false;
     this._lastTicketDisplay = 0;
     this._lastTicketDisplay = this.game.getState().meta.tickets; // animated gold counter // invert flash timer (>0 = active)
     this._inShop = false;
@@ -175,9 +177,9 @@ class App {
     const y = Math.floor((e.clientY - rect.top) / rect.height * H);
 
 
-    // Relic bar hover detection (top gauge area) — always active, even in shop
+    // Relic bar hover detection (top gauge area) — blocked by overlays
     const oldRelicHover = this._relicHoverRarity;
-    const relicHit = this.wheel.relicBarHitTest(x, y, WHEEL_CX, WHEEL_CY);
+    const relicHit = (this._catalogueOpen || this._debugSpritesOpen) ? null : this.wheel.relicBarHitTest(x, y, WHEEL_CX, WHEEL_CY);
     this._relicHoverRarity = relicHit;
     if (relicHit && relicHit !== oldRelicHover) this._playHover();
 
@@ -508,7 +510,22 @@ class App {
         const label = offering.shopType === 'symbol' ? 'ADDED!'
                     : offering.shopType === 'special_ball' ? 'ADDED!'
                     : 'BOUGHT!';
-        this._pop(label);
+        // Compute popup position based on item type
+        const popOpts = { noCoin: true, color: PAL.white };
+        let popX, popY;
+        if (offering.shopType === 'symbol' || offering.shopType === 'special_ball') {
+          // Ball gauge: right side (angle 0), MID_R ~ 101 from wheel center
+          popX = WHEEL_CX + 101;
+          popY = WHEEL_CY;
+        } else if (offering.shopType === 'relic') {
+          // Relic bar: top (angle -π/2), MID_R ~ 101 from wheel center
+          popX = WHEEL_CX;
+          popY = WHEEL_CY - 101;
+        } else {
+          popX = WHEEL_CX;
+          popY = WHEEL_CY - 50;
+        }
+        this._pop(label, popX, popY, popOpts);
         this._shakeStart(3, 0.2);
         this._playBuy();
         // Refresh shop display
@@ -671,6 +688,8 @@ class App {
       await this._delay(200);
     }
 
+    this._postSpinShow = false;
+
     // Advance game state through RESULTS → CHOICE → SHOP
     this._advanceToShop();
 
@@ -758,12 +777,14 @@ class App {
     }
   }
 
-  _pop(text, x, y) {
+  _pop(text, x, y, opts) {
     this._pops.push({
       text,
       x: x != null ? x : WHEEL_CX + (Math.random() - 0.5) * 60,
       y: y != null ? y : WHEEL_CY - 50 - Math.random() * 20,
       age: 0,
+      noCoin: opts?.noCoin || false,
+      color: opts?.color || null,
     });
   }
 
@@ -1193,7 +1214,7 @@ class App {
     const r = this.wheel.hubRadius || 42;
     const tilt = this.wheel.tilt || 0.65;
     const t = this._time;
-    const pressed = this._spinning;
+    const pressed = this._spinning || this._postSpinShow;
     const hover = this._hubHover && !pressed;
     const run = this.game.getState().run;
     const quota = run ? getQuota(run.round) : 0;
@@ -1497,16 +1518,20 @@ class App {
   // ── Popups ──
   _drawPops(ctx) {
     for (const p of this._pops) {
-      const col = p.age < 1.0 ? PAL.gold : PAL.darkGold;
+      const col = p.color || (p.age < 1.0 ? PAL.gold : PAL.darkGold);
       const px = Math.round(p.x);
       const py = Math.round(p.y);
-      const textW = p.text.length * CHAR_W;
-      const coinSz = SPRITE_SIZE;
-      const totalW = coinSz + 2 + textW;
       const alpha = p.age < 1.0 ? 1 : Math.max(0, 1 - (p.age - 1.0) / 0.5);
       ctx.globalAlpha = alpha;
-      drawTextCenteredOutlined(ctx, p.text, Math.round(px - totalW / 2 + textW / 2), py, col, 1);
-      drawAnimSpriteCentered(ctx, 'coin', Math.round(px - totalW / 2 + textW + 2 + coinSz / 2), py + Math.floor(CHAR_H / 2), 1, this._time, 6);
+      if (p.noCoin) {
+        drawTextCenteredOutlined(ctx, p.text, px, py, col, 1);
+      } else {
+        const textW = p.text.length * CHAR_W;
+        const coinSz = SPRITE_SIZE;
+        const totalW = coinSz + 2 + textW;
+        drawTextCenteredOutlined(ctx, p.text, Math.round(px - totalW / 2 + textW / 2), py, col, 1);
+        drawAnimSpriteCentered(ctx, 'coin', Math.round(px - totalW / 2 + textW + 2 + coinSz / 2), py + Math.floor(CHAR_H / 2), 1, this._time, 6);
+      }
       ctx.globalAlpha = 1;
     }
   }
