@@ -59,7 +59,7 @@ class App {
     this._spinning = false;
     this._postSpinShow = true;
     this.wheel.setBonusMode(false);
-    if (this._music) this._music.exitBonus();
+
     this._updateGaugeUnlocks();
 
     this._time = 0;
@@ -73,7 +73,7 @@ class App {
     this._inShop = false;
     if (this._music) {
       const round = this.game.getState().run?.round || 1;
-      this._music.setScene(this._music.hubForRound(round));
+  
     }
     this._shopResolve = null;
     this._debugSpritesOpen = false;
@@ -274,7 +274,7 @@ class App {
     this._shakeStart(4, 0.3);
     this.game.startRun();
     this._syncWheel();
-    if (this._music) this._music.setScene('hub');
+
   }
 
   // ── Catalogue overlay ──
@@ -635,7 +635,7 @@ class App {
     this._spinning = true;
 
     this._playSpin();
-    if (this._music) this._music.setScene('spin');
+
     this._shakeStart(4, 0.3);
     const startScore = this.game.getState().run.score;
     this.wheel.hubSnapScore(startScore);
@@ -665,7 +665,7 @@ class App {
         this._shakeStart(5, 0.5);
         this._flash = 0.3;
         this.wheel.setBonusMode(true);
-        if (this._music) this._music.enterBonus();
+
       }
 
       await this._delay(450);
@@ -711,13 +711,13 @@ class App {
 
     const phase = this.game.getPhase();
     if (phase === 'GAME_OVER') {
-      if (this._music) this._music.setScene('gameover');
+
       // Failed — show game over screen, wait for user click
       this._spinning = false;
       return;
     }
     if (phase === 'VICTORY') {
-      if (this._music) this._music.setScene('victory');
+
       await this._delay(1000);
       this._autoAdvance();
       return;
@@ -1548,7 +1548,7 @@ class App {
     this._chipEngine.sfxVolume = 0.8;
     this._music = new MusicManager(this._chipEngine);
     const round = this.game.getState().run?.round || 1;
-    this._music.setScene(this._music.hubForRound(round));
+
   }
 
   _tone(freq, dur, type = 'square', vol = 0.06) {
