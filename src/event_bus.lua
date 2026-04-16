@@ -1,6 +1,5 @@
 --[[
     Lightweight EventBus for game logic (distinct from the kernel bundle bus).
-    Port of legacy/src/core/EventBus.js.
 ]]
 local EB = {}
 EB.__index = EB

@@ -35,7 +35,7 @@ end
 function Hub:draw(g, font, atlas)
     local meta = self.ctx.loop.state.meta
     font:drawCentered('SPINFORGE', 240, 80, { 1, 0.85, 0.3, 1 }, 4)
-    font:drawCentered('ROUGHLIKE ROULETTE', 240, 130, { 0.7, 0.7, 0.8, 1 }, 1)
+    font:drawCentered('ROGUELIKE ROULETTE', 240, 130, { 0.7, 0.7, 0.8, 1 }, 1)
 
     font:drawCentered('TICKETS: ' .. tostring(meta.tickets), 240, 200, { 0.85, 0.85, 0.95, 1 }, 2)
     font:drawCentered('BEST ROUND: ' .. tostring(meta.bestRound), 240, 240, { 0.65, 0.65, 0.75, 1 }, 1)

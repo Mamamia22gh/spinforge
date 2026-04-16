@@ -1,5 +1,5 @@
 --[[
-    Choice/shop items — port of legacy/src/data/choices.js
+    Choice / shop item definitions.
 ]]
 
 local CHOICES = {

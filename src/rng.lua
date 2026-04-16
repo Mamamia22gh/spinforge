@@ -1,5 +1,5 @@
 --[[
-    Seeded RNG — Mulberry32 port from legacy/src/core/RNG.js
+    Seeded RNG — Mulberry32 algorithm.
 ]]
 
 local RNG = {}

@@ -1,5 +1,5 @@
 --[[
-    Master balance constants — port of legacy/src/data/balance.js
+    Master balance constants — all tunable numbers in one place.
 ]]
 
 local BALANCE = {
@@ -16,7 +16,7 @@ local BALANCE = {
     MIN_SEGMENTS = 20,
     MAX_WEIGHT_PER_SEGMENT = 5,
 
-    -- 0-indexed segment indices (match legacy exactly)
+    -- 0-indexed segment indices with gold-pocket multiplier
     GOLD_POCKETS = { 14, 24, 34, 44 },
 
     SHOP_REROLL_BASE = 5,

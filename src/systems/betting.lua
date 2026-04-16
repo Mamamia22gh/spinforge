@@ -1,6 +1,5 @@
 --[[
-    BettingSystem — skip for now (legacy uses in intro/hub; not required for main loop).
-    Minimal stub; can be fleshed out later.
+    BettingSystem — stub. Side-bets not wired into the main loop yet.
 ]]
 local Betting = {}
 Betting.__index = Betting

@@ -1,6 +1,5 @@
 --[[
-    Wheel Upgrades — replace the old symbols category in the shop.
-    Port of legacy/src/data/wheelUpgrades.js
+    Wheel Upgrades — stackable multipliers applied across the whole wheel.
 ]]
 
 local WHEEL_UPGRADES = {

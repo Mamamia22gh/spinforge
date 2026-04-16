@@ -11,7 +11,7 @@ function BitmapFont.new(cfg)
     cfg = cfg or {}
     local W = cfg.charWidth  or 4
     local H = cfg.charHeight or 6
-    local charMap = cfg.charMap or cfg.glyphs or {}
+    local charMap = cfg.charMap or {}
 
     -- Pre-parse into bitmask arrays
     local parsed = {}

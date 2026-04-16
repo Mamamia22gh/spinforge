@@ -1,6 +1,5 @@
 --[[
     Game state — PHASE enum and state factories.
-    Port of legacy/src/core/GameState.js
 ]]
 
 local BALANCE = require('src.data.balance').BALANCE
@@ -51,7 +50,6 @@ function M.createRunState()
     for i = 1, BALANCE.INITIAL_SEGMENTS do
         wheel[i] = {
             id        = M.uid('seg'),
-            symbolId  = nil,
             weight    = 1,
             modifiers = {},
         }
@@ -64,7 +62,7 @@ function M.createRunState()
         wheel = wheel,
 
         ballsLeft   = BALANCE.BALLS_PER_ROUND,
-        spinResults = {},   -- entries: { segmentIndex, segment, symbol, value }
+        spinResults = {},   -- entries: { segmentIndex, segment, value, ballType, tickets, isGold }
 
         -- Economy
         shopCurrency = 0,

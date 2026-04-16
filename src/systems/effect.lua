@@ -1,6 +1,6 @@
 --[[
     EffectSystem — apply relic effects.
-    Port of legacy/src/systems/EffectSystem.js
+    Aggregates relic effects into per-stat getters.
 ]]
 
 local getRelic = require('src.data.relics').getRelic

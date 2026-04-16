@@ -2,7 +2,7 @@
     DisplayBundle — owns the render pipeline, canvas, scaling, post-fx.
     100% independent — no knowledge of game, sprites, audio, etc.
 
-    RENDER PIPELINE (4 passes, like legacy):
+    RENDER PIPELINE (4 passes):
       1. Main canvas (480×640) — game world with shake + parallax
       2. Post-FX shader        — palette quantize + scanlines + vignette + chromatic aberration
       3. UI overlay canvas      — popups/menus, NOT post-processed

@@ -58,7 +58,7 @@ end
 function SpriteAtlas:generateAll(cfg)
     cfg = cfg or {}
     local palette = cfg.palette or sprites_data.PALETTE
-    local monoColor = cfg.monoColor or cfg.hieroColor or { 0xe8, 0xe0, 0xd0 }
+    local monoColor = cfg.monoColor or { 0xe8, 0xe0, 0xd0 }
     local data = sprites_data
 
     -- Static sprites

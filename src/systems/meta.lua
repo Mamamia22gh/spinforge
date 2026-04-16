@@ -1,6 +1,6 @@
 --[[
     MetaSystem — persistent unlocks & ticket economy.
-    Port of legacy/src/systems/MetaSystem.js
+    Meta-progression (tickets, unlocks, best-round tracking).
 ]]
 
 local META_UNLOCKS = {

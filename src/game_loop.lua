@@ -1,6 +1,5 @@
 --[[
-    GameLoop — the orchestrator.
-    Port of legacy/src/core/GameLoop.js
+    GameLoop — orchestrates spins, rounds, shop, choices, scoring, meta.
 ]]
 
 local BALANCE, getQuota = (function() local b = require('src.data.balance'); return b.BALANCE, b.getQuota end)()
@@ -136,7 +135,6 @@ function GL:_resolveSegment(segIndex)
     table.insert(run.spinResults, {
         segmentIndex = segIndex,
         segment = segment,
-        symbol = segment.symbolId,
         value = value,
         ballType = ballType,
         tickets = tickets,

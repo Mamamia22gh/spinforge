@@ -2,13 +2,14 @@
     Sprite bundle configuration
 ]]
 return {
-    -- Bitmap font glyph dimensions (pixels)
+    -- Bitmap font cell dimensions (pixels)
     font = {
         charWidth  = 4,
         charHeight = 6,
         spacing    = 1,
 
         -- Character map: char → array of row strings ('.' = empty, '#' = pixel)
+        -- Each row string is `charWidth` chars long, total `charHeight` rows.
         charMap = {
             ['0'] = {'.##.','#..#','#..#','#..#','.##.','....'},
             ['1'] = {'..#.','..#.','..#.','..#.','..#.','....'},

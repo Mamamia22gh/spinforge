@@ -1,6 +1,6 @@
 --[[
     ShopSystem — generate & resolve shop offerings.
-    Port of legacy/src/systems/ShopSystem.js
+    Generates shop offerings, handles purchases and rerolls.
 ]]
 
 local BALANCE       = require('src.data.balance').BALANCE

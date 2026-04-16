@@ -1,10 +1,8 @@
 --[[
-    WheelSystem — wheel manipulation.
-    Port of legacy/src/systems/WheelSystem.js (framework-agnostic).
+    WheelSystem — wheel manipulation (add/remove segments, upgrades, weighted pick).
 ]]
 
 local BALANCE = require('src.data.balance').BALANCE
-local getSymbol = require('src.data.symbols').getSymbol
 local uid = require('src.state').uid
 
 local Wheel = {}
@@ -31,15 +29,14 @@ function Wheel:pickSegment(wheelSegments, rng)
     return { index = #wheelSegments - 1, segment = wheelSegments[#wheelSegments] }
 end
 
-function Wheel:addSegment(run, symbolId)
+function Wheel:addSegment(run)
     if #run.wheel >= BALANCE.MAX_SEGMENTS then return false end
     table.insert(run.wheel, {
         id = uid('seg'),
-        symbolId = symbolId,
         weight = 1,
         modifiers = {},
     })
-    if self._events then self._events:emit('wheel:segment_added', { symbolId = symbolId }) end
+    if self._events then self._events:emit('wheel:segment_added', {}) end
     return true
 end
 

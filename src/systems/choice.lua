@@ -1,6 +1,6 @@
 --[[
     ChoiceSystem — generate and apply choices between rounds.
-    Port of legacy/src/systems/ChoiceSystem.js
+    Generates and applies between-round reward choices.
 ]]
 
 local CHOICES = require('src.data.choices').CHOICES

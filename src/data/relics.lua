@@ -1,5 +1,5 @@
 --[[
-    Relic definitions — port of legacy/src/data/relics.js
+    Relic definitions and rarity weights.
 ]]
 
 local RELICS = {

@@ -1,12 +1,8 @@
 --[[
-    PixelWheel — vertical plinko-style drop wheel.
-    Simplified port of legacy/client/objects/PixelWheel.js.
-    
-    Keeps the visual spirit:
-      - a big circle at screen bottom, divided into N pockets (the legacy spins
-        horizontally, but for a cleaner Love2D rewrite we keep the circle radial)
+    PixelWheel — radial plinko-style drop wheel.
+      - a big circle at screen bottom, divided into N pockets
       - ball drops from top, hits pegs with gravity and bounces, lands in a pocket
-      - rotation spins while balls fall for dynamism
+      - wheel rotates while balls fall for dynamism
 ]]
 
 local BALANCE = require('src.data.balance').BALANCE
@@ -49,7 +45,7 @@ end
 function PW:setSegments(n)
     self.segments = {}
     for i = 1, n do
-        self.segments[i] = { index = i - 1, value = i }  -- 0-based index like legacy
+        self.segments[i] = { index = i - 1, value = i }  -- 0-based index
     end
     self:_rebuildPegs()
 end
