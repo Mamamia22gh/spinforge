@@ -1,4 +1,6 @@
-node_modules/
-dist/
+*.love
+*.exe
+legacy/node_modules/
+legacy/dist/
 .DS_Store
-*.log
+Thumbs.db
