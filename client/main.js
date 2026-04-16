@@ -5,6 +5,7 @@ import { PAL, PAL32 } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextCenteredOutlined, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
 import { preloadSprites, drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, getSpriteIds, getAnimSpriteIds, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { SYMBOLS, getSymbol } from '../src/data/symbols.js';
+import { WHEEL_UPGRADES } from '../src/data/wheelUpgrades.js';
 import { RELICS, RELIC_MAP } from '../src/data/relics.js';
 import { CHOICES } from '../src/data/choices.js';
 import { PostFXGL } from './gfx/PostFXGL.js';
@@ -138,7 +139,7 @@ class App {
         return;
       }
       if (!this._catalogueOpen) return;
-      const TAB_DATA_LENS = [SYMBOLS.length, RELICS.length, CHOICES.length];
+      const TAB_DATA_LENS = [WHEEL_UPGRADES.length, RELICS.length, CHOICES.length];
       const maxScroll = Math.max(0, TAB_DATA_LENS[this._catalogueTab] - 18);
       this._catalogueScroll = Math.max(0, Math.min(maxScroll, this._catalogueScroll + (e.deltaY > 0 ? 1 : -1)));
       e.preventDefault();
@@ -279,9 +280,9 @@ class App {
 
   _drawCatalogue(ctx) {
     if (!this._catalogueOpen) return;
-    const TAB_NAMES = ['BILLES', 'RELIQUES', 'BILLES SP.'];
+    const TAB_NAMES = ['UPGRADES', 'RELIQUES', 'BILLES SP.'];
     const TAB_DATA = [
-      SYMBOLS.map(s => ({ name: s.name, sprite: s.id, rarity: s.rarity, desc: `val ${s.baseValue}${s.specialEffect ? ' — ' + s.specialEffect : ''}` })),
+      WHEEL_UPGRADES.map(u => ({ name: u.name, sprite: null, rarity: u.rarity, desc: u.description })),
       RELICS.map(r => ({ name: r.name, sprite: 'relic_' + r.rarity, rarity: r.rarity, desc: r.description })),
       CHOICES.filter(c => c.type === 'special_ball').map(c => ({ name: c.name, sprite: 'ball', rarity: c.rarity, desc: c.description })),
     ];
@@ -631,8 +632,6 @@ class App {
       const pos = this.wheel.getPocketPosition(results[i], WHEEL_CX, WHEEL_CY);
       this.wheel.startGoldFly('+' + result.value, result.value, pos.x, pos.y - 15, WHEEL_CX, WHEEL_CY);
 
-      // Shake on cherry pocket
-      if (result.result.segment?.symbolId === 'cherry') this._shakeStart(2, 0.2);
 
       // Shake on quota reached + invert flash + bonus mode
       const run3 = this.game.getState().run;
@@ -1317,7 +1316,8 @@ class App {
     // Score / Quota
     drawTextCentered(ctx, go.score + '/' + go.quota, 0, Math.floor(CHAR_H * 0.8), PAL.red, 1);
 
-    // RETRY label
+    // RETRY label + arrow
+    drawSpriteCentered(ctx, 'arrow_right', 0, Math.floor(r * 0.35), 3);
     drawTextCentered(ctx, 'RETRY', 0, Math.floor(r * 0.55), PAL.gold, 2);
 
     ctx.restore();

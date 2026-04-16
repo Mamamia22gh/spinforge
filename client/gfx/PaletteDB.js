@@ -42,9 +42,7 @@ for (const [k, hex] of Object.entries(PAL)) {
 }
 
 // Symbol color → palette mapping
-export const SYM_COLORS = {
-  void:   { fg: PAL.darkPurple, bg: PAL.black },
-};
+export const SYM_COLORS = {};
 
 // Segment alternation (casino red/black → dark/darker)
 export const SEG_A = PAL.darkGray;

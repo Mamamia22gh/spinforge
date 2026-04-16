@@ -97,6 +97,7 @@ export class PixelWheel {
     this._goldAnims = []; // flying gold popups [{x,y,targetX,targetY,text,value,elapsed,duration,arrived}]
     this._relics = []; // array of { rarity } objects from run.relics
     this._segmentValues = []; // resolved display values per segment
+    this._goldPockets = []; // gold pocket indices
 
     // Ticket animation state
     this._ticketAnim = null; // { phase, elapsed, duration, earned, counted, fromX, fromY, scale, shake }
@@ -232,6 +233,7 @@ export class PixelWheel {
 
   setRelics(relics) { this._relics = relics || []; }
   setSegmentValues(values) { this._segmentValues = values || []; }
+  setGoldPockets(indices) { this._goldPockets = indices || []; }
 
   placeBalls(n, specialBalls) {
     this._placedBalls = [];
@@ -844,7 +846,7 @@ export class PixelWheel {
     for (let i = 0; i < data.length; i++) {
       const seg = data[i], angle = (seg.weight / tw) * Math.PI * 2;
       const isBlue = false; // cosmetic only — no symbol colors
-      const isGold = false;
+      const isGold = this._goldPockets.includes(i);
       const dark = i % 2 === 0;
       const mid = off + angle / 2;
 
@@ -1164,7 +1166,7 @@ export class PixelWheel {
           ctx.arc(cx, cy, slotInner + 1, a1, a0, true);
           ctx.closePath();
           ctx.fillStyle = rarity.bg;
-          ctx.globalAlpha = 0.3;
+          ctx.globalAlpha = offering.rarity === 'common' ? 0.15 : 0.3;
           ctx.fill();
           ctx.globalAlpha = 1;
 
@@ -1271,7 +1273,7 @@ export class PixelWheel {
     ctx.strokeStyle = leaveHover ? PAL.lightGray : PAL.midGray;
     ctx.lineWidth = 1;
     ctx.stroke();
-    drawSpriteCentered(ctx, 'arrow_right', cx, Math.round(cy - 8), 1);
+    drawSpriteCentered(ctx, 'arrow_right', cx, Math.round(cy - 8), 3);
     drawTextCentered(ctx, 'CONTINUER', cx, Math.round(cy), PAL.lightGray, 1);
     if (shop.nextQuota) {
       drawTextCentered(ctx, 'QUOTA ' + shop.nextQuota, cx, Math.round(cy + 10), PAL.midGray, 1, false);
@@ -1286,10 +1288,9 @@ export class PixelWheel {
       let haloColor;
       switch (specialEffect) {
         case 'double':   haloColor = PAL.gold;     break;
-        case 'weight':   haloColor = PAL.midGray;  break;
-        case 'ghost':    haloColor = PAL.purple;   break;
         case 'splash':   haloColor = PAL.red;      break;
         case 'critical': haloColor = PAL.neonPink;  break;
+        case 'ticket':   haloColor = PAL.purple;     break;
         default:         haloColor = PAL.white;    break;
       }
       ctx.fillStyle = haloColor;
@@ -1601,8 +1602,8 @@ export class PixelWheel {
       ctx.fillRect(bx - 4, by - 3, 7, 7);
       this._drawPixelBall(ctx, bx, by, false, pb.special?.effect);
       const glowColor = pb.special ? ({
-        double: PAL.gold, weight: PAL.white, ghost: PAL.purple,
-        splash: PAL.red, critical: PAL.neonPink,
+        double: PAL.gold,
+        splash: PAL.red, critical: PAL.neonPink, ticket: PAL.purple,
       }[pb.special.effect] || PAL.white) : PAL.white;
       this._frameLights.push({
         x: cx + pb.gaugeX, y: cy + pb.gaugeY * this.tilt,

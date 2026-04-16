@@ -11,9 +11,6 @@ const SIZE = 9;
 const BASE = import.meta.env.BASE_URL ?? '/';
 
 const SPRITE_MANIFEST = {
-  // Symbols
-  cherry:           { path: 'assets/symbols/cherry.png',           w: 9,  h: 9 },
-  void:             { path: 'assets/symbols/void.png',             w: 9,  h: 9 },
 
   // UI
   ball:             { path: 'assets/ui/ball.png',                  w: 9,  h: 9 },

@@ -1,6 +1,7 @@
 import { CHOICES } from '../data/choices.js';
 import { BALANCE } from '../data/balance.js';
 import { uid } from '../core/GameState.js';
+import { WHEEL_UPGRADE_MAP } from '../data/wheelUpgrades.js';
 
 /**
  * Generates and applies between-round choices.
@@ -56,6 +57,11 @@ export class ChoiceSystem {
    */
   apply(run, choice, targetIndex, wheelSystem) {
     switch (choice.type) {
+      case 'wheel_upgrade': {
+        const upg = WHEEL_UPGRADE_MAP.get(choice.payload.upgradeId);
+        if (upg) (run.purchasedUpgrades = run.purchasedUpgrades || []).push({ ...upg });
+        return true;
+      }
       case 'add_symbol':
         return wheelSystem.addSegment(run, choice.payload.symbolId);
 

@@ -21,6 +21,9 @@ export const BALANCE = Object.freeze({
   MIN_SEGMENTS: 20,
   MAX_WEIGHT_PER_SEGMENT: 5,
 
+  // Gold pockets (0-indexed segment indices) — double payout
+  GOLD_POCKETS: [14, 24, 34, 44],
+
   // Shop
   SHOP_REROLL_BASE: 5,
   SHOP_PRICE_SCALING: 0.5,

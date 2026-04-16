@@ -92,10 +92,6 @@ export class BettingSystem {
 
         winnings = Math.floor(bet.wager * payout);
 
-        // Symbol special effects
-        if (symbol.specialEffect === 'double_payout') {
-          winnings *= 2;
-        }
 
         totalWon += winnings;
         run.consecutiveWins++;

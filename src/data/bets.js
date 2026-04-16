@@ -16,7 +16,6 @@
 export const BET_TYPES = [
   { id: 'sector',       name: 'Secteur',      emoji: '🧭', description: 'Tombe dans une zone de 3',    payout: 3,   condition: 'sector',   target: null,     startsUnlocked: true,  minRound: 1 },
   { id: 'wildcard',     name: 'Wildcard',     emoji: '🌟', description: "N'importe quel résultat",     payout: 1.2, condition: 'wildcard', target: null,     startsUnlocked: true,  minRound: 1 },
-  { id: 'void_bet',     name: 'Pari Void',    emoji: '🌀', description: 'Le Void tombe',               payout: 15,  condition: 'exact',    target: 'void',   startsUnlocked: false, minRound: 7 },
   { id: 'double_or_nothing', name: 'Quitte ou Double', emoji: '💀', description: 'x2 ou perd tout', payout: 3, condition: 'coin_flip', target: null, startsUnlocked: false, minRound: 6 },
 ];
 

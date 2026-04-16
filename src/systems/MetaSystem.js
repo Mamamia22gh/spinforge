@@ -11,13 +11,9 @@ import { BALANCE } from '../data/balance.js';
 
 /** @type {MetaUnlock[]} */
 export const META_UNLOCKS = [
-  // Symbols
-  { id: 'unlock_cherry',   name: 'Cerise',            description: 'Cerise (double payout) dans choix',  cost: 5,  category: 'symbol' },
-  { id: 'unlock_void',     name: 'Void',              description: 'Void (burst) dans les choix',        cost: 15, category: 'symbol' },
 
   // Bet types
   { id: 'unlock_chain_bet',name: 'Pari Chaîne',       description: 'Débloque le pari Chaîne',            cost: 6,  category: 'bet' },
-  { id: 'unlock_void_bet', name: 'Pari Void',         description: 'Débloque le pari Void',              cost: 8,  category: 'bet' },
   { id: 'unlock_coin_flip',name: 'Quitte ou Double',   description: 'Débloque Quitte ou Double',          cost: 7,  category: 'bet' },
 
   // General

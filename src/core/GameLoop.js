@@ -95,9 +95,12 @@ export class GameLoop {
 
   #recordBall(run, segmentIndex) {
     // Check if this ball is a special ball (special balls fire first)
+    // specialBallsFired tracks how many have been used this round (reset each round)
     let specialBall = null;
-    if (run.specialBalls.length > 0) {
-      specialBall = run.specialBalls.shift();
+    if (!run._specialBallsFired) run._specialBallsFired = 0;
+    if (run._specialBallsFired < run.specialBalls.length) {
+      specialBall = run.specialBalls[run._specialBallsFired];
+      run._specialBallsFired++;
     }
 
     const { segment, symbol, value } = this.#resolveSegment(run, segmentIndex, specialBall);
@@ -107,17 +110,13 @@ export class GameLoop {
     run.score += value;
     run.ballsLeft--;
 
-    // Ghost ball: refund the turn (don't consume a ball slot)
-    if (specialBall?.effect === 'ghost') {
-      run.ballsLeft++;
-    }
-
-    // Weight ball: +1 weight to the segment hit
-    if (specialBall?.effect === 'weight') {
-      if (segment.weight < BALANCE.MAX_WEIGHT_PER_SEGMENT) {
-        segment.weight++;
-        this.events.emit('special_ball:weight', { segmentIndex, newWeight: segment.weight });
-      }
+    // Ticket ball: award tickets equal to pocket number
+    if (specialBall?.effect === 'ticket') {
+      const ticketsEarned = segmentIndex + 1;
+      this.state.meta.tickets += ticketsEarned;
+      this.state.meta.totalTickets = (this.state.meta.totalTickets || 0) + ticketsEarned;
+      spinResult.ticketsEarned = ticketsEarned;
+      this.events.emit('tickets:earned', { amount: ticketsEarned, total: this.state.meta.tickets });
     }
 
     // Splash ball: also score adjacent segments
@@ -160,11 +159,13 @@ export class GameLoop {
 
     let value = baseVal * segment.weight;
 
-    // Symbol special effects (cherry, void, etc.)
-    if (symbol?.specialEffect === 'double_payout') {
+    // Wheel upgrade: value_plus_2
+    const upgradeCount = (run.purchasedUpgrades || []).filter(u => u.effect === 'value_plus_2').length;
+    if (upgradeCount > 0) value += 2 * upgradeCount;
+
+    // Gold pocket: ×2
+    if (BALANCE.GOLD_POCKETS.includes(segmentIndex)) {
       value *= 2;
-    } else if (symbol?.specialEffect === 'void_burst') {
-      value = 0;
     }
 
     // Special ball effects (post-symbol)
@@ -172,6 +173,8 @@ export class GameLoop {
       value *= 2;
     } else if (specialBall?.effect === 'critical') {
       value *= 5;
+    } else if (specialBall?.effect === 'ticket') {
+      value = 0;
     }
 
     return { segment, symbol, value };
@@ -314,6 +317,7 @@ export class GameLoop {
     }
 
     // Reset for next round — special balls + generic balls bought carry over
+    run._specialBallsFired = 0;
     run.ballsLeft = BALANCE.BALLS_PER_ROUND + run.specialBalls.length + (run.genericBallsBought || 0);
     run.spinResults = [];
     run.shopDiscount = 0;

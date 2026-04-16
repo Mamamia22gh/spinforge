@@ -151,7 +151,7 @@ describe('Special Balls', () => {
     // Base value = 1, doubled = 2
     expect(r.value).toBe(2);
     // Special ball consumed
-    expect(run.specialBalls.length).toBe(0);
+    expect(run.specialBalls.length).toBe(1); // persists across rounds
   });
 
   it('critical ball quintuples the segment value', () => {
@@ -164,30 +164,19 @@ describe('Special Balls', () => {
     expect(r.value).toBe(50);
   });
 
-  it('ghost ball does not consume a ball slot', () => {
+
+  it('ticket ball gives 0 coins and awards tickets equal to pocket number', () => {
     const state = game.getState();
     const run = state.run;
-    const initialBalls = run.ballsLeft; // 5
-    run.specialBalls.push({ id: 'ball_ghost', name: 'Bille Fantôme', effect: 'ghost', rarity: 'uncommon' });
-    run.ballsLeft++; // 6
-
-    const before = run.ballsLeft; // 6
-    game.resolveBallAt(5);
-    // Ghost: ballsLeft-- then ballsLeft++ → net zero change
-    expect(run.ballsLeft).toBe(before); // still 6
-    // Effectively same as not having used a turn
-  });
-
-  it('weight ball increases segment weight', () => {
-    const state = game.getState();
-    const run = state.run;
-    run.specialBalls.push({ id: 'ball_heavy', name: 'Bille Lourde', effect: 'weight', rarity: 'common' });
+    run.specialBalls.push({ id: 'ball_ticket', name: 'Bille Ticket', effect: 'ticket', rarity: 'rare' });
     run.ballsLeft++;
 
-    const segIdx = 3;
-    const wBefore = run.wheel[segIdx].weight;
-    game.resolveBallAt(segIdx);
-    expect(run.wheel[segIdx].weight).toBe(wBefore + 1);
+    const ticketsBefore = state.meta.tickets;
+    const segIdx = 4; // pocket number = 5
+    const r = game.resolveBallAt(segIdx);
+    expect(r.value).toBe(0);
+    expect(r.result.ticketsEarned).toBe(5);
+    expect(state.meta.tickets).toBe(ticketsBefore + 5);
   });
 
   it('splash ball scores adjacent segments too', () => {

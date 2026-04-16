@@ -78,17 +78,7 @@ const SPRITES = {
     '...BBB...',
     '.........',
   ],
-  cherry: [
-    '....ggg..',
-    '...g..g..',
-    '..g...g..',
-    '.RR..RR..',
-    'RRWR.RRW.',
-    'RRRR.RRRR',
-    '.RRr..RRr',
-    '..RR...RR',
-    '.........',
-  ],
+
   ball: [
     '.........',
     '.........',
@@ -100,17 +90,7 @@ const SPRITES = {
     '.........',
     '.........',
   ],
-  void: [
-    '...ppp...',
-    '..p...p..',
-    '.p.PPP.p.',
-    '.p.P.P.p.',
-    '.p.P...p.',
-    '.p.PPPp..',
-    '.p.....p.',
-    '..p...p..',
-    '...ppp...',
-  ],
+
   relic_common: [
     '....L....',
     '...LWL...',
@@ -555,8 +535,7 @@ function saveSprite(category, name, imgData) {
 const CATEGORIES = {
   red:              'symbols',
   blue:             'symbols',
-  cherry:           'symbols',
-  void:             'symbols',
+
 
   ball:             'ui',
   anvil:            'ui',
