@@ -1,7 +1,5 @@
 --[[
     SFX — preset one-shot sound effects
-    Port of SFX_PRESETS from ChiptuneEngine.js
-    
     Each preset generates and plays tones through the Synth.
     Pre-generates SoundData on first call, then caches.
 ]]

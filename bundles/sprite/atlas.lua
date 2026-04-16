@@ -1,6 +1,6 @@
 --[[
     SpriteAtlas — generates pixel art sprites in memory as Love2D ImageData/Images
-    Palette and hiero color come from config (injected via boot).
+    Palette and monochrome color come from config (injected at boot).
 ]]
 
 local sprites_data = require("bundles.sprite.sprites_data")
@@ -36,14 +36,14 @@ local function renderSprite(rows, palette)
     return imgData
 end
 
---- Convert hieroglyph (monochrome)
-local function renderHiero(rows, hieroColor)
+--- Convert monochrome icon (single-color sprite)
+local function renderMono(rows, monoColor)
     local h = #rows
     local w = #rows[1]
     local imgData = love.image.newImageData(w, h)
-    local wr = hieroColor[1]/255
-    local wg = hieroColor[2]/255
-    local wb = hieroColor[3]/255
+    local wr = monoColor[1]/255
+    local wg = monoColor[2]/255
+    local wb = monoColor[3]/255
     for y = 0, h - 1 do
         local row = rows[y + 1]
         for x = 0, w - 1 do
@@ -58,7 +58,7 @@ end
 function SpriteAtlas:generateAll(cfg)
     cfg = cfg or {}
     local palette = cfg.palette or sprites_data.PALETTE
-    local hieroColor = cfg.hieroColor or { 0xe8, 0xe0, 0xd0 }
+    local monoColor = cfg.monoColor or cfg.hieroColor or { 0xe8, 0xe0, 0xd0 }
     local data = sprites_data
 
     -- Static sprites
@@ -82,9 +82,9 @@ function SpriteAtlas:generateAll(cfg)
         self._anims[id] = { frames = frames, w = #info.frames[1][1], h = #info.frames[1] }
     end
 
-    -- Hieroglyphs
-    for id, rows in pairs(data.HIERO_GLYPHS) do
-        local imgData = renderHiero(rows, hieroColor)
+    -- Monochrome icons
+    for id, rows in pairs(data.MONO_ICONS) do
+        local imgData = renderMono(rows, monoColor)
         local img = love.graphics.newImage(imgData)
         img:setFilter('nearest', 'nearest')
         self._images[id] = img

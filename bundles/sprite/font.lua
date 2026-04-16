@@ -1,6 +1,6 @@
 --[[
     BitmapFont — pixel bitmap font
-    Glyph definitions come from config (injected via configure()).
+    Character definitions come from config (injected at boot).
     Draws pixel-by-pixel via love.graphics.rectangle
 ]]
 
@@ -11,11 +11,11 @@ function BitmapFont.new(cfg)
     cfg = cfg or {}
     local W = cfg.charWidth  or 4
     local H = cfg.charHeight or 6
-    local glyphs = cfg.glyphs or {}
+    local charMap = cfg.charMap or cfg.glyphs or {}
 
     -- Pre-parse into bitmask arrays
     local parsed = {}
-    for ch, rows in pairs(glyphs) do
+    for ch, rows in pairs(charMap) do
         local bits = {}
         for r = 1, #rows do
             local b = 0
@@ -134,7 +134,7 @@ function BitmapFont:drawWrapped(text, x, y, maxW, color, scale)
     return ly + H * scale - y
 end
 
-BitmapFont.CHAR_W = 4  -- legacy compat, use instance._W
-BitmapFont.CHAR_H = 6  -- legacy compat, use instance._H
+BitmapFont.CHAR_W = 4
+BitmapFont.CHAR_H = 6
 
 return BitmapFont

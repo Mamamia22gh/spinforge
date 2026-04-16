@@ -4,8 +4,7 @@
     Applies ADSR envelopes, vibrato LFO
 ]]
 
--- SAMPLE_RATE injected via configure()
-local SAMPLE_RATE = 44100  -- default, overridden by Synth.new(cfg)
+local SAMPLE_RATE = 44100  -- default, overridden at boot via config
 local TAU = math.pi * 2
 
 -- ── Note frequency table ────────────────────────────────────────────
@@ -65,8 +64,7 @@ local function wavNoise(phase)
 end
 
 -- ── ADSR envelope ───────────────────────────────────────────────────
--- DEFAULT_ENV injected via configure()
-local DEFAULT_ENV = { a = 0.005, d = 0.08, s = 0.6, r = 0.06 }  -- default, overridden by Synth.new(cfg)
+local DEFAULT_ENV = { a = 0.005, d = 0.08, s = 0.6, r = 0.06 }  -- default, overridden at boot via config
 
 local function adsrAt(env, t, duration)
     local a, d, s, r = env.a, env.d, env.s, env.r
@@ -133,9 +131,6 @@ function Synth:generateTone(freq, duration, wave, vol, env, duty, vibrato)
         if vSpeed > 0 and vDepth > 0 then
             f = freq * (1 + math.sin(t * vSpeed * TAU) * vDepth)
         end
-
-        local phase = t * f / SAMPLE_RATE * SAMPLE_RATE  -- simplifies to t * f
-        -- Actually: phase = t * f
 
         local sample
         if waveFn then

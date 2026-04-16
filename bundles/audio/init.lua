@@ -1,6 +1,5 @@
 --[[
     AudioBundle — 8-channel chiptune synth + SFX engine
-    Port of ChiptuneEngine.js to Love2D
     
     ZERO dependencies on other bundles.
     

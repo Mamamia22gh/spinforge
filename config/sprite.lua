@@ -8,8 +8,8 @@ return {
         charHeight = 6,
         spacing    = 1,
 
-        -- Glyph definitions: char → array of row strings ('.' = empty, '#' = pixel)
-        glyphs = {
+        -- Character map: char → array of row strings ('.' = empty, '#' = pixel)
+        charMap = {
             ['0'] = {'.##.','#..#','#..#','#..#','.##.','....'},
             ['1'] = {'..#.','..#.','..#.','..#.','..#.','....'},
             ['2'] = {'.##.','#..#','..#.','.#..','####','....'},
@@ -84,6 +84,6 @@ return {
         ['3'] = {0x33, 0x77, 0x99},
     },
 
-    -- Hieroglyph monochrome color (0-255 RGB)
-    hieroColor = { 0xe8, 0xe0, 0xd0 },
+    -- Monochrome icon color (0-255 RGB)
+    monoColor = { 0xe8, 0xe0, 0xd0 },
 }

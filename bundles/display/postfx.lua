@@ -1,10 +1,6 @@
 --[[
     PostFX — GPU palette quantization + scanlines + vignette + chromatic aberration.
-    Port of legacy PostFXGL.js — single shader pass on the main canvas.
-
-    16-color palette (Dawnbringer DB16-inspired, same as legacy PaletteDB.js):
-        black, darkRed, navy, brown, darkGreen, slate, silver, beige,
-        red, orange, blue, yellow, green, midGray, pink, white
+    Single shader pass on the main canvas. Palette comes from config.
 ]]
 
 local PostFX = {}

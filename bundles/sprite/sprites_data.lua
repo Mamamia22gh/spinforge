@@ -1,6 +1,6 @@
 --[[
     Sprite pixel data — all pixel art definitions
-    Port of generate-sprites.js SPRITES/ANIM_SPRITES/HIERO_GLYPHS + palette
+    Static sprites, animated sprites, monochrome icons, and palette.
 ]]
 
 local M = {}
@@ -231,8 +231,8 @@ M.ANIM_SPRITES = {
     }},
 }
 
--- ── Hieroglyph menu glyphs ─────────────────────────────────────────
-M.HIERO_GLYPHS = {
+-- ── Monochrome icons ─────────────────────────────────────────────
+M.MONO_ICONS = {
     gear = {
         '...........................',
         '..........#######..........',
