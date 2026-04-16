@@ -10,6 +10,8 @@ import { RELICS, RELIC_MAP } from '../src/data/relics.js';
 import { CHOICES } from '../src/data/choices.js';
 import { PostFXGL } from './gfx/PostFXGL.js';
 import { playIntro, getIntroAudioCtx } from './intro.js';
+import { getChiptuneEngine } from './audio/ChiptuneEngine.js';
+import { MusicManager } from './audio/songs.js';
 
 // ── Canvas resolution (CSS scales this to viewport with nearest-neighbor) ──
 const W = 480, H = 270;
@@ -56,6 +58,7 @@ class App {
     this.wheel = new PixelWheel();
     this._spinning = false;
     this.wheel.setBonusMode(false);
+    if (this._music) this._music.exitBonus();
     this._updateGaugeUnlocks();
 
     this._time = 0;
@@ -66,6 +69,10 @@ class App {
     this._lastTicketDisplay = 0;
     this._lastTicketDisplay = this.game.getState().meta.tickets; // animated gold counter // invert flash timer (>0 = active)
     this._inShop = false;
+    if (this._music) {
+      const round = this.game.getState().run?.round || 1;
+      this._music.setScene(this._music.hubForRound(round));
+    }
     this._shopResolve = null;
     this._debugSpritesOpen = false;
     this._debugScroll = 0;
@@ -265,6 +272,7 @@ class App {
     this._shakeStart(4, 0.3);
     this.game.startRun();
     this._syncWheel();
+    if (this._music) this._music.setScene('hub');
   }
 
   // ── Catalogue overlay ──
@@ -610,6 +618,7 @@ class App {
     this._spinning = true;
 
     this._playSpin();
+    if (this._music) this._music.setScene('spin');
     this._shakeStart(4, 0.3);
     const startScore = this.game.getState().run.score;
     this.wheel.hubSnapScore(startScore);
@@ -639,6 +648,7 @@ class App {
         this._shakeStart(5, 0.5);
         this._flash = 0.3;
         this.wheel.setBonusMode(true);
+        if (this._music) this._music.enterBonus();
       }
 
       await this._delay(450);
@@ -682,11 +692,13 @@ class App {
 
     const phase = this.game.getPhase();
     if (phase === 'GAME_OVER') {
+      if (this._music) this._music.setScene('gameover');
       // Failed — show game over screen, wait for user click
       this._spinning = false;
       return;
     }
     if (phase === 'VICTORY') {
+      if (this._music) this._music.setScene('victory');
       await this._delay(1000);
       this._autoAdvance();
       return;
@@ -734,6 +746,7 @@ class App {
     this.wheel.placeBalls(BALANCE.BALLS_PER_ROUND + run.specialBalls.length + (run.genericBallsBought || 0), run.specialBalls);
     this.wheel.setShop(run.shopOfferings, state.meta.tickets, rerollCost, nextQuota);
     this._inShop = true;
+    if (this._music) this._music.setScene('shop');
   }
 
   _closeForgeShop() {
@@ -1499,7 +1512,18 @@ class App {
   }
 
   // ── Audio ──
-  _initAudio() { if (this._audioCtx) return; this._audioCtx = getIntroAudioCtx() || new (window.AudioContext || window.webkitAudioContext)(); }
+  _initAudio() {
+    if (this._audioCtx) return;
+    this._audioCtx = getIntroAudioCtx() || new (window.AudioContext || window.webkitAudioContext)();
+    this._chipEngine = getChiptuneEngine(this._audioCtx);
+    this._chipEngine.init(this._audioCtx);
+    this._chipEngine.masterVolume = 0.5;
+    this._chipEngine.bgmVolume = 0.45;
+    this._chipEngine.sfxVolume = 0.8;
+    this._music = new MusicManager(this._chipEngine);
+    const round = this.game.getState().run?.round || 1;
+    this._music.setScene(this._music.hubForRound(round));
+  }
 
   _tone(freq, dur, type = 'square', vol = 0.06) {
     if (!this._audioCtx) return;
