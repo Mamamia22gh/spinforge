@@ -1281,12 +1281,13 @@ class App {
 
     if (pressed) {
       if (quotaReached) {
-        // Quota reached: BONUS + surplus with coin on right (scale 2)
+        // Quota reached: score/quota line, BONUS, +surplus with coin
         const surplus = score - quota;
-        drawTextCentered(ctx, 'BONUS', 0, -Math.floor(CHAR_H * 1.5), PAL.black, 1, false);
+        drawTextCentered(ctx, score + '/' + quota, 0, -Math.floor(CHAR_H * 3), PAL.gold, 1, false);
+        drawTextCentered(ctx, 'BONUS', 0, -Math.floor(CHAR_H * 1), PAL.black, 1, false);
         const bStr = '+' + surplus;
         const bW = bStr.length * CHAR_W * 2;
-        const bY = Math.floor(CHAR_H * 0.5);
+        const bY = Math.floor(CHAR_H * 1.5);
         const bCoinW = SPRITE_SIZE * 2;
         const bOx = Math.round(-(2 + bCoinW) / 2);
         drawTextCentered(ctx, bStr, bOx, bY, PAL.gold, 2);
