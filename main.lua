@@ -1,44 +1,49 @@
 --[[
     SpinForge — Mystic roulette roguelike
-    Love2D rewrite
+    Love2D rewrite — event-driven architecture
 ]]
 
-local Game = require("src.game")
+local Kernel         = require("src.kernel")
+local DisplayBundle  = require("bundles.display")
+local AudioBundle    = require("bundles.audio")
+local SpriteBundle   = require("bundles.sprite")
+local Game           = require("src.game")
 
-local game
+local kernel
 
 function love.load()
-    -- pixel-perfect rendering
     love.graphics.setDefaultFilter("nearest", "nearest")
     love.graphics.setLineStyle("rough")
 
-    game = Game()
-    game:load()
+    kernel = Kernel.new()
+    kernel:addBundle(DisplayBundle.new())
+    kernel:addBundle(AudioBundle.new())
+    kernel:addBundle(SpriteBundle.new())
+    kernel:addBundle(Game.new())
+    kernel:boot()
 end
 
 function love.update(dt)
-    game:update(dt)
+    kernel:update(dt)
 end
 
 function love.draw()
-    game:draw()
+    kernel:draw()
 end
 
 function love.keypressed(key)
-    if key == "escape" then
-        love.event.quit()
-    end
-    game:keypressed(key)
+    if key == "escape" then love.event.quit() end
+    kernel:keypressed(key)
 end
 
 function love.mousepressed(x, y, button)
-    game:mousepressed(x, y, button)
+    kernel:mousepressed(x, y, button)
 end
 
 function love.mousereleased(x, y, button)
-    game:mousereleased(x, y, button)
+    kernel:mousereleased(x, y, button)
 end
 
 function love.resize(w, h)
-    game:resize(w, h)
+    kernel:resize(w, h)
 end
