@@ -681,11 +681,11 @@ export class ChiptuneEngine {
     this._bgmSong = song;
     this._bgmBPM = song.bpm || 120;
     this._bgmPlaying = true;
-    this._bgmNextBeat = this._ctx.currentTime + 0.05;
-    this._bgmPatternIdx = [];
     this._bgmNoteIdx = [];
     this._bgmSeqIdx = [];
+    this._bgmChTime = [];  // per-channel time cursor
 
+    const startTime = this._ctx.currentTime + 0.05;
     const chCount = Math.min(song.channels.length, 8);
     for (let i = 0; i < chCount; i++) {
       const ch = song.channels[i];
@@ -696,6 +696,7 @@ export class ChiptuneEngine {
       if (ch.vibrato) channel.setVibrato(ch.vibrato[0], ch.vibrato[1]);
       this._bgmSeqIdx.push(0);
       this._bgmNoteIdx.push(0);
+      this._bgmChTime.push(startTime);
     }
 
     this._bgmLoopId++;
@@ -708,35 +709,39 @@ export class ChiptuneEngine {
     const song = this._bgmSong;
     const secPerBeat = 60 / this._bgmBPM;
     const chCount = Math.min(song.channels.length, 8);
+    const horizon = this._ctx.currentTime + this._bgmScheduleAhead;
 
-    while (this._bgmNextBeat < this._ctx.currentTime + this._bgmScheduleAhead) {
-      for (let i = 0; i < chCount; i++) {
-        const chDef = song.channels[i];
-        const channel = this._channels[i];
-        const seqIdx = this._bgmSeqIdx[i];
-        const seq = chDef.sequence || [0];
+    // Track cumulative beat position per channel for swing
+    if (!this._bgmBeatPos) this._bgmBeatPos = new Float64Array(8);
 
-        if (seqIdx >= seq.length) {
+    let anyActive = false;
+    for (let i = 0; i < chCount; i++) {
+      const chDef = song.channels[i];
+      const channel = this._channels[i];
+      const seq = chDef.sequence || [0];
+
+      // Schedule notes for this channel until we're past the horizon
+      while (this._bgmChTime[i] < horizon) {
+        // Check if sequence is done
+        if (this._bgmSeqIdx[i] >= seq.length) {
           if (song.loop !== false) {
             this._bgmSeqIdx[i] = 0;
-          } else continue;
+            this._bgmBeatPos[i] = 0;
+          } else break;
         }
 
         const patIdx = seq[this._bgmSeqIdx[i]];
         const pattern = chDef.patterns[patIdx];
-        if (!pattern) continue;
+        if (!pattern || pattern.length === 0) break;
 
-        const noteIdx = this._bgmNoteIdx[i];
-        if (noteIdx >= pattern.length) {
+        // Advance to next pattern if we finished this one
+        if (this._bgmNoteIdx[i] >= pattern.length) {
           this._bgmNoteIdx[i] = 0;
           this._bgmSeqIdx[i]++;
-          if (this._bgmSeqIdx[i] >= seq.length && song.loop !== false) {
-            this._bgmSeqIdx[i] = 0;
-          }
-          continue; // will pick up next iteration
+          continue; // re-check sequence bounds
         }
 
-        const noteData = pattern[noteIdx];
+        const noteData = pattern[this._bgmNoteIdx[i]];
         const noteName = noteData[0];
         const durationBeats = noteData[1];
         const overrides = noteData[2];
@@ -746,47 +751,34 @@ export class ChiptuneEngine {
           if (overrides.voice) channel.setVoice(overrides.voice);
         }
 
-        const freq = noteToFreq(noteName);
         const durSec = durationBeats * secPerBeat;
 
-        // Swing: delay off-beats slightly
-        let time = this._bgmNextBeat;
-        if (song.swing && noteIdx % 2 === 1) {
-          time += secPerBeat * song.swing * 0.33;
+        // Swing: offset notes that land on off-beats (odd 8th-note positions)
+        let time = this._bgmChTime[i];
+        if (song.swing) {
+          const eighthPos = Math.round(this._bgmBeatPos[i] * 2);
+          if (eighthPos % 2 === 1) {
+            time += secPerBeat * 0.5 * song.swing * 0.5;
+          }
         }
 
+        const freq = noteToFreq(noteName);
         channel.playNote(freq, time, durSec * 0.9);
 
+        this._bgmBeatPos[i] += durationBeats;
+        this._bgmChTime[i] += durSec;
         this._bgmNoteIdx[i]++;
       }
 
-      // Advance by the smallest note duration across channels
-      // For simplicity, advance by 1 beat subdivision
-      this._bgmNextBeat += secPerBeat * this._getSmallestStep();
+      if (this._bgmSeqIdx[i] < seq.length || song.loop !== false) anyActive = true;
+    }
+
+    if (!anyActive) {
+      this._bgmPlaying = false;
+      return;
     }
 
     setTimeout(() => this._schedulerLoop(loopId), this._bgmLookahead);
-  }
-
-  _getSmallestStep() {
-    // Find the current note's duration for timing — default to quarter note
-    const song = this._bgmSong;
-    if (!song) return 1;
-    let smallest = 1;
-    const chCount = Math.min(song.channels.length, 8);
-    for (let i = 0; i < chCount; i++) {
-      const chDef = song.channels[i];
-      const seq = chDef.sequence || [0];
-      const seqIdx = this._bgmSeqIdx[i] % seq.length;
-      const pattern = chDef.patterns[seq[seqIdx]];
-      if (!pattern) continue;
-      const noteIdx = this._bgmNoteIdx[i];
-      if (noteIdx > 0 && noteIdx <= pattern.length) {
-        const dur = pattern[noteIdx - 1][1];
-        if (dur < smallest) smallest = dur;
-      }
-    }
-    return smallest;
   }
 
   stopSong() {
