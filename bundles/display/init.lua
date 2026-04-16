@@ -293,7 +293,12 @@ function DisplayBundle:register(kernel)
     self._kernel = kernel
 end
 
-function DisplayBundle:boot(kernel)
+function DisplayBundle:boot(kernel, cfg)
+    -- Apply config
+    W = cfg.width or W
+    H = cfg.height or H
+    self._clearColor = cfg.clearColor or { 0.05, 0.05, 0.1, 1 }
+
     -- Create canvases
     self._mainCanvas   = love.graphics.newCanvas(W, H)
     self._uiCanvas     = love.graphics.newCanvas(W, H)
@@ -305,8 +310,14 @@ function DisplayBundle:boot(kernel)
     self._lightsCanvas:setFilter("nearest", "nearest")
 
     -- Post-FX shader
-    if self._postfxEnabled then
-        self._postfx = PostFX.new()
+    local pfxCfg = cfg.postfx or {}
+    if pfxCfg.enabled ~= false then
+        self._postfx = PostFX.new({
+            scanlines = pfxCfg.scanlines,
+            vignette  = pfxCfg.vignette,
+            chroma    = pfxCfg.chroma,
+            palette   = cfg.palette,
+        })
     end
 
     -- Initial resize
@@ -380,7 +391,7 @@ function DisplayBundle:_render()
 
     -- ── Pass 1: Main canvas (game world) ──────────────────────
     love.graphics.setCanvas(self._mainCanvas)
-    love.graphics.clear(0.05, 0.05, 0.1, 1)
+    love.graphics.clear(self._clearColor[1], self._clearColor[2], self._clearColor[3], self._clearColor[4] or 1)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setBlendMode("alpha")
 

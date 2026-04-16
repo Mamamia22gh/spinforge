@@ -16,6 +16,12 @@ function love.load()
     love.graphics.setLineStyle("rough")
 
     kernel = Kernel.new()
+
+    -- Load bundle configurations
+    kernel:configure("display", require("config.display"))
+    kernel:configure("audio",   require("config.audio"))
+    kernel:configure("sprite",  require("config.sprite"))
+
     kernel:addBundle(DisplayBundle.new())
     kernel:addBundle(AudioBundle.new())
     kernel:addBundle(SpriteBundle.new())

@@ -10,8 +10,8 @@
 local PostFX = {}
 PostFX.__index = PostFX
 
--- Legacy palette (hex → normalized RGB)
-local PALETTE_HEX = {
+-- Default palette (Dawnbringer DB16)
+local DEFAULT_PALETTE = {
     "140c1c", "442434", "30346d", "4e4a4e",
     "854c30", "346524", "d04648", "757161",
     "597dce", "d27d2c", "8595a1", "6daa2c",
@@ -70,16 +70,17 @@ function PostFX.new(opts)
     local self = setmetatable({}, PostFX)
 
     self._shader = love.graphics.newShader(SHADER_CODE)
-    self._canvas = nil -- output canvas, created on first use
+    self._canvas = nil
 
     -- Settings
     self._scanIntensity    = opts.scanlines or 0.06
     self._vignetteIntensity = opts.vignette or 0.25
     self._chromaIntensity  = opts.chroma or 0.5
 
-    -- Upload palette
+    -- Upload palette (from config or default)
+    local paletteHex = opts.palette or DEFAULT_PALETTE
     local flat = {}
-    for i, hex in ipairs(PALETTE_HEX) do
+    for i, hex in ipairs(paletteHex) do
         local r, g, b = hexToRGB(hex)
         flat[i] = { r, g, b }
     end

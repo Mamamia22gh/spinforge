@@ -29,6 +29,7 @@ SpriteBundle.__index = SpriteBundle
 
 function SpriteBundle.new()
     return setmetatable({
+        name = "sprite",
         atlas = nil,
         font = nil,
     }, SpriteBundle)
@@ -38,7 +39,7 @@ function SpriteBundle:register(kernel)
     -- nothing
 end
 
-function SpriteBundle:boot(kernel)
+function SpriteBundle:boot(kernel, cfg)
     self.atlas = SpriteAtlas.new()
     self.atlas:generateAll()
     self.font = BitmapFont.new()

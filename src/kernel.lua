@@ -11,7 +11,20 @@ function Kernel.new()
     self._listeners = {}  -- event_name → { {callback, priority}, ... }
     self._bundles = {}
     self._sorted = {}     -- cache: event_name → sorted list
+    self._configs = {}    -- bundle_name → config table
     return self
+end
+
+--- Load a config table for a bundle by name.
+--- @param name string  bundle identifier (e.g. "display")
+--- @param config table
+function Kernel:configure(name, config)
+    self._configs[name] = config
+end
+
+--- Get config for a bundle. Returns empty table if none set.
+function Kernel:config(name)
+    return self._configs[name] or {}
 end
 
 --- Register a bundle. Calls bundle:register(kernel) if available.
@@ -56,11 +69,13 @@ function Kernel:emit(event, data)
     return data
 end
 
---- Boot all bundles. Calls bundle:boot(kernel) if available.
+--- Boot all bundles. Calls bundle:boot(kernel, config) if available.
+--- Config is looked up by bundle.name or falls back to empty table.
 function Kernel:boot()
     for _, bundle in ipairs(self._bundles) do
         if bundle.boot then
-            bundle:boot(self)
+            local cfg = self._configs[bundle.name] or {}
+            bundle:boot(self, cfg)
         end
     end
     self:emit('kernel.boot')

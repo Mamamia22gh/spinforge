@@ -28,6 +28,7 @@ AudioBundle.__index = AudioBundle
 
 function AudioBundle.new()
     return setmetatable({
+        name = "audio",
         synth = nil,
         sequencer = nil,
         _masterVol = 0.5,
@@ -41,7 +42,11 @@ function AudioBundle:register(kernel)
     -- nothing needed at registration
 end
 
-function AudioBundle:boot(kernel)
+function AudioBundle:boot(kernel, cfg)
+    self._masterVol = cfg.masterVolume or self._masterVol
+    self._bgmVol    = cfg.bgmVolume    or self._bgmVol
+    self._sfxVol    = cfg.sfxVolume    or self._sfxVol
+
     self.synth = Synth.new()
     self.sequencer = Sequencer.new(self.synth)
 
