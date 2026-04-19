@@ -11,6 +11,7 @@ export const CHOICES = [
   { id: 'upgrade_value_plus2', name: 'Amplificateur', emoji: '🔺', description: '+2 à toutes les valeurs pendant le décompte', type: 'wheel_upgrade', weight: 5, minRound: 3, requiresUnlock: null, payload: { upgradeId: 'upgrade_value_plus2' } },
   { id: 'remove_segment', name: 'Retirer Segment',  emoji: '✂️', description: 'Retire un segment (au choix)',       type: 'remove_symbol', weight: 6,  minRound: 2, requiresUnlock: null, payload: {} },
   { id: 'boost_weight',   name: 'Lester',           emoji: '⚖️', description: '+1 poids à un segment',             type: 'boost_weight',  weight: 7,  minRound: 2, requiresUnlock: null, payload: {} },
+  { id: 'purify',          name: 'Purification',     emoji: '💧', description: 'Réduit la corruption de 15%',       type: 'purify',        weight: 5,  minRound: 3, requiresUnlock: null, payload: {} },
 
   // ── Special balls (purchasable in shop & offered as choices) ──
   { id: 'ball_golden',   name: 'Bille Dorée',     emoji: '🟡', description: '×2 la valeur du segment',             type: 'special_ball', weight: 8,  minRound: 1, requiresUnlock: null, effect: 'double',       rarity: 'common',    cost: 20 },

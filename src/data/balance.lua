@@ -17,7 +17,7 @@ local BALANCE = {
     MAX_WEIGHT_PER_SEGMENT = 5,
 
     -- 0-indexed segment indices with gold-pocket multiplier
-    GOLD_POCKETS = { 14, 24, 34, 44 },
+    GOLD_POCKETS = { 4, 14, 24, 34 },
 
     SHOP_REROLL_BASE = 5,
     SHOP_PRICE_SCALING = 0.5,

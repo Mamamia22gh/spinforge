@@ -1,6 +1,5 @@
 --[[
-    ScoringSystem — evaluate a round's results.
-    Evaluates a completed round against its quota and computes payouts.
+    ScoringSystem — ISO with legacy JS ScoringSystem.js.
 ]]
 
 local BAL = require('src.data.balance')

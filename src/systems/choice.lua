@@ -1,10 +1,12 @@
 --[[
-    ChoiceSystem — generate and apply choices between rounds.
-    Generates and applies between-round reward choices.
+    ChoiceSystem — ISO with legacy JS ChoiceSystem.js.
+    Generates weighted choices with type diversity, applies them.
 ]]
 
 local CHOICES = require('src.data.choices').CHOICES
-local RELICS_MOD = require('src.data.relics')
+local BALANCE = require('src.data.balance').BALANCE
+local uid = require('src.state').uid
+local WHEEL_UPGRADE_MAP = require('src.data.wheel_upgrades').WHEEL_UPGRADE_MAP
 
 local Choice = {}
 Choice.__index = Choice
@@ -13,56 +15,132 @@ function Choice.new(events)
     return setmetatable({ _events = events }, Choice)
 end
 
-function Choice:generate(run, rng, count)
-    count = count or 3
-    local pool = {}
-    -- Wheel upgrades
+--- Generate 3 random choices for the player (weighted, type-diverse).
+function Choice:generate(run, meta, rng)
+    local available = {}
     for _, c in ipairs(CHOICES) do
-        if c.type == 'wheel_upgrade' then pool[#pool+1] = c end
-    end
-    -- Special balls
-    for _, c in ipairs(CHOICES) do
-        if c.type == 'special_ball' then pool[#pool+1] = c end
-    end
-    -- Some relics as choices
-    for _, r in ipairs(RELICS_MOD.RELICS) do
-        local owned = false
-        for _, oid in ipairs(run.relics) do if oid == r.id then owned = true; break end end
-        if not owned and (r.rarity == 'common' or r.rarity == 'uncommon') then
-            pool[#pool+1] = {
-                id = r.id, type = 'relic', name = r.name, desc = r.desc,
-                cost = 0, rarity = r.rarity,
-            }
+        if self:_isAvailable(c, run, meta) then
+            available[#available+1] = c
         end
     end
+    if #available == 0 then return {} end
 
-    -- shuffle
-    for i = #pool, 2, -1 do
-        local j = rng:int(1, i)
-        pool[i], pool[j] = pool[j], pool[i]
+    local count = math.min(3, #available)
+    local chosen = {}
+    local usedIds = {}
+    local usedTypes = {}
+
+    for _ = 1, count do
+        local remaining = {}
+        for _, c in ipairs(available) do
+            if not usedIds[c.id] then remaining[#remaining+1] = c end
+        end
+        if #remaining == 0 then break end
+
+        -- Type diversity
+        local diverse = {}
+        for _, c in ipairs(remaining) do
+            if not usedTypes[c.type] then diverse[#diverse+1] = c end
+        end
+        if #diverse > 0 then remaining = diverse end
+
+        -- Weighted pick
+        local weights = {}
+        for i, c in ipairs(remaining) do weights[i] = c.weight end
+        local pick = rng:pickWeighted(remaining, weights)
+
+        -- Clone with instanceId
+        local instance = {}
+        for k, v in pairs(pick) do instance[k] = v end
+        instance.instanceId = uid('choice')
+        chosen[#chosen+1] = instance
+        usedIds[pick.id] = true
+        usedTypes[pick.type] = true
     end
 
-    local picks = {}
-    for i = 1, math.min(count, #pool) do picks[i] = pool[i] end
-    return picks
+    return chosen
 end
 
-function Choice:apply(run, choice, wheelSystem)
-    if not choice then return false end
-    if choice.type == 'relic' then
-        table.insert(run.relics, choice.id)
-        require('src.systems.effect').applyInstant(run, choice.id)
-    elseif choice.type == 'wheel_upgrade' then
-        if wheelSystem then wheelSystem:applyUpgrade(run, choice.upgradeId) end
-    elseif choice.type == 'special_ball' then
-        if choice.ballType == 'generic' then
-            run.genericBallsBought = (run.genericBallsBought or 0) + 1
-            run.ballsLeft = run.ballsLeft + 1
-        else
-            table.insert(run.specialBalls, choice.ballType)
+--- Apply a chosen option.
+--- @param targetIndex number|nil  0-based segment index for remove/boost
+function Choice:apply(run, choice, targetIndex, wheelSystem)
+    local t = choice.type
+    if t == 'wheel_upgrade' then
+        local upg = WHEEL_UPGRADE_MAP[choice.payload.upgradeId]
+        if upg then
+            if not run.purchasedUpgrades then run.purchasedUpgrades = {} end
+            -- Store full upgrade object (clone)
+            local clone = {}
+            for k, v in pairs(upg) do clone[k] = v end
+            table.insert(run.purchasedUpgrades, clone)
         end
+        return true
+
+    elseif t == 'add_symbol' then
+        return wheelSystem:addSegment(run, choice.payload and choice.payload.symbolId or nil)
+
+    elseif t == 'remove_symbol' then
+        if targetIndex == nil then
+            if self._events then self._events:emit('choice:needs_target', { choice = choice }) end
+            return false
+        end
+        return wheelSystem:removeSegment(run, targetIndex)
+
+    elseif t == 'boost_weight' then
+        if targetIndex == nil then
+            if self._events then self._events:emit('choice:needs_target', { choice = choice }) end
+            return false
+        end
+        return wheelSystem:boostWeight(run, targetIndex)
+
+    elseif t == 'special_ball' then
+        return self:_addSpecialBall(run, choice)
+
+    else
+        if self._events then self._events:emit('error', { message = 'Unknown choice type: ' .. tostring(t) }) end
+        return false
     end
-    if self._events then self._events:emit('choice:applied', { choice = choice }) end
+end
+
+function Choice:_isAvailable(choice, run, meta)
+    if choice.requiresUnlock then
+        local found = false
+        for _, u in ipairs(meta.unlocks) do
+            if u == choice.requiresUnlock then found = true; break end
+        end
+        if not found then return false end
+    end
+    if choice.minRound and run.round < choice.minRound then return false end
+
+    local t = choice.type
+    if t == 'add_symbol' then
+        return #run.wheel < BALANCE.MAX_SEGMENTS
+    elseif t == 'remove_symbol' then
+        return #run.wheel > BALANCE.MIN_SEGMENTS
+    elseif t == 'boost_weight' then
+        for _, s in ipairs(run.wheel) do
+            if s.weight < BALANCE.MAX_WEIGHT_PER_SEGMENT then return true end
+        end
+        return false
+    end
+    return true
+end
+
+function Choice:_addSpecialBall(run, choice)
+    table.insert(run.specialBalls, {
+        id = choice.id,
+        name = choice.name,
+        effect = choice.effect,
+        rarity = choice.rarity or 'common',
+    })
+    run.ballsLeft = run.ballsLeft + 1
+    if self._events then
+        self._events:emit('special_ball:added', {
+            ball = choice,
+            totalSpecial = #run.specialBalls,
+            ballsLeft = run.ballsLeft,
+        })
+    end
     return true
 end
 

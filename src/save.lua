@@ -39,7 +39,10 @@ function Save.load()
     if not love.filesystem.getInfo(SAVE_FILE) then return nil end
     local content = love.filesystem.read(SAVE_FILE)
     local ok, data = pcall(function() return loadstring(content)() end)
-    if ok then return data end
+    if ok and data then
+        data.settings = data.settings or { masterVol = 0.5, bgmVol = 0.6, sfxVol = 0.8, fullscreen = true }
+        return data
+    end
     return nil
 end
 

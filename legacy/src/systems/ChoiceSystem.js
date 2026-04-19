@@ -79,6 +79,11 @@ export class ChoiceSystem {
         }
         return wheelSystem.boostWeight(run, targetIndex);
 
+      case 'purify':
+        run.corruption = Math.max(0, run.corruption - 0.15);
+        this.#events.emit('corruption:purified', { newCorruption: run.corruption });
+        return true;
+
       case 'special_ball':
         return this.#addSpecialBall(run, choice);
 

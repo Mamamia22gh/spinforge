@@ -1,13 +1,14 @@
 import { BALANCE } from '../data/balance.js';
 
 export const PHASE = Object.freeze({
-  IDLE:       'IDLE',
-  SPINNING:   'SPINNING',
-  RESULTS:    'RESULTS',
-  CHOICE:     'CHOICE',
-  SHOP:       'SHOP',
-  GAME_OVER:  'GAME_OVER',
-  VICTORY:    'VICTORY',
+  IDLE:            'IDLE',
+  SPINNING:        'SPINNING',
+  RESULTS:         'RESULTS',
+  CHOICE:          'CHOICE',
+  SHOP:            'SHOP',
+  FREE_SPIN_OFFER: 'FREE_SPIN_OFFER',
+  GAME_OVER:       'GAME_OVER',
+  VICTORY:         'VICTORY',
 });
 
 let _nextId = 0;
@@ -29,6 +30,7 @@ export function createMetaState() {
     totalTickets: 0,
     runsCompleted: 0,
     bestRound: 0,
+    lastLostRound: null,
     unlocks: [],
   };
 }
@@ -49,6 +51,7 @@ export function createRunState() {
 
     ballsLeft: BALANCE.BALLS_PER_ROUND,
     spinResults: [],    // { segmentIndex, segment, symbol, value }
+    freeSpinUsed: false,
 
     // Economy
     shopCurrency: 0,
@@ -75,6 +78,14 @@ export function createRunState() {
     // Corruption
     corruption: BALANCE.CORRUPTION_START,
 
-
+    // DDA state
+    dda: {
+      frustrationScore: 0,
+      flowScore: 0,
+      tiltScore: 0,
+      consecutiveMisses: 0,
+      consecutiveHits: 0,
+      nearMissesThisRound: 0,
+    },
   };
 }

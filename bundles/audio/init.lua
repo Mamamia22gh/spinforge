@@ -76,9 +76,9 @@ function AudioBundle:boot(kernel, cfg)
     end)
 
     kernel:on('audio.set_volume', function(d)
-        if d.master then self._masterVol = math.max(0, math.min(1, d.master)) end
-        if d.bgm then self._bgmVol = math.max(0, math.min(1, d.bgm)) end
-        if d.sfx then self._sfxVol = math.max(0, math.min(1, d.sfx)) end
+        if d.master ~= nil then self._masterVol = math.max(0, math.min(1, d.master)) end
+        if d.bgm ~= nil then self._bgmVol = math.max(0, math.min(1, d.bgm)) end
+        if d.sfx ~= nil then self._sfxVol = math.max(0, math.min(1, d.sfx)) end
         self.sequencer:setVolume(self._bgmVol * self._masterVol)
     end)
 

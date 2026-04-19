@@ -105,10 +105,35 @@ export class GameLoop {
 
     const { segment, symbol, value } = this.#resolveSegment(run, segmentIndex, specialBall);
 
-    const spinResult = { segmentIndex, segment, symbol, value, specialBall };
+    const isMiss = BALANCE.MISS_POCKETS.includes(segmentIndex);
+    const spinResult = { segmentIndex, segment, symbol, value, specialBall, isMiss };
     run.spinResults.push(spinResult);
     run.score += value;
     run.ballsLeft--;
+
+    // Corruption tick
+    run.corruption = Math.min(1, run.corruption + BALANCE.CORRUPTION_PER_SPIN);
+
+    // DDA updates
+    const dda = run.dda;
+    if (isMiss || value === 0) {
+      dda.consecutiveMisses++;
+      dda.consecutiveHits = 0;
+      dda.frustrationScore = Math.min(1, dda.frustrationScore + 0.15);
+      dda.flowScore = Math.max(0, dda.flowScore - 0.2);
+    } else {
+      dda.consecutiveHits++;
+      dda.consecutiveMisses = 0;
+      dda.flowScore = Math.min(1, dda.flowScore + 0.15);
+      dda.frustrationScore = Math.max(0, dda.frustrationScore - 0.1);
+    }
+    // Tilt: high when close to quota but failing
+    const quota = getQuota(run.round);
+    if (run.score >= quota * 0.7 && run.score < quota && run.ballsLeft <= 1) {
+      dda.tiltScore = Math.min(1, dda.tiltScore + 0.3);
+    } else {
+      dda.tiltScore = Math.max(0, dda.tiltScore - 0.05);
+    }
 
     // Ticket ball: award tickets equal to pocket number
     if (specialBall?.effect === 'ticket') {
@@ -153,6 +178,11 @@ export class GameLoop {
     // Base value: relic override or pocket number (1-indexed)
     let baseVal = mods.setBaseValue !== null ? mods.setBaseValue : (segmentIndex + 1);
 
+    // Corruption penalty: above critical threshold, lose 1 base value
+    if (run.corruption > BALANCE.CORRUPTION_CRITICAL) {
+      baseVal = Math.max(1, baseVal - 1);
+    }
+
     // Even/odd value bonuses from relics
     if (baseVal % 2 === 0) baseVal += mods.addEven;
     else                   baseVal += mods.addOdd;
@@ -166,6 +196,11 @@ export class GameLoop {
     // Gold pocket: ×2
     if (BALANCE.GOLD_POCKETS.includes(segmentIndex)) {
       value *= 2;
+    }
+
+    // Miss pocket: 0
+    if (BALANCE.MISS_POCKETS.includes(segmentIndex)) {
+      value = 0;
     }
 
     // Special ball effects (post-symbol)
@@ -210,20 +245,45 @@ export class GameLoop {
 
     run.shopCurrency += shopCoins;
 
-    // Award tickets for passing the round
     if (passed) {
       const earned = BALANCE.TICKETS_PER_ROUND;
       this.state.meta.tickets += earned;
       this.state.meta.totalTickets += earned;
       this.events.emit('tickets:earned', { amount: earned, total: this.state.meta.tickets });
-    }
 
-    this.#setPhase(PHASE.RESULTS);
-    this.events.emit('round:ended', run.lastRoundResult);
-
-    if (!passed) {
+      this.#setPhase(PHASE.RESULTS);
+      this.events.emit('round:ended', run.lastRoundResult);
+    } else if (!run.freeSpinUsed) {
+      // Offer one free spin before game over
+      this.#setPhase(PHASE.FREE_SPIN_OFFER);
+      this.events.emit('free_spin:offered', { score: totalWon, quota });
+    } else {
+      this.#setPhase(PHASE.RESULTS);
+      this.events.emit('round:ended', run.lastRoundResult);
       this.#gameOver();
     }
+  }
+
+  // ─── Free Spin ───
+
+  acceptFreeSpin() {
+    if (this.state.phase !== PHASE.FREE_SPIN_OFFER) return false;
+    const run = this.state.run;
+    run.freeSpinUsed = true;
+    run.ballsLeft = 1;
+    this.#setPhase(PHASE.IDLE);
+    this.events.emit('free_spin:accepted', { ballsLeft: 1 });
+    return true;
+  }
+
+  declineFreeSpin() {
+    if (this.state.phase !== PHASE.FREE_SPIN_OFFER) return false;
+    const run = this.state.run;
+    run.freeSpinUsed = true;
+    this.#setPhase(PHASE.RESULTS);
+    this.events.emit('round:ended', run.lastRoundResult);
+    this.#gameOver();
+    return true;
   }
 
   // ─── Results → Choice ───
@@ -321,6 +381,7 @@ export class GameLoop {
     run.ballsLeft = BALANCE.BALLS_PER_ROUND + run.specialBalls.length + (run.genericBallsBought || 0);
     run.spinResults = [];
     run.shopDiscount = 0;
+    run.dda.nearMissesThisRound = 0;
 
     this.#setPhase(PHASE.IDLE);
     this.#emitRoundPreview();
@@ -331,6 +392,7 @@ export class GameLoop {
 
   #gameOver() {
     const run = this.state.run;
+    this.state.meta.lastLostRound = run.round;
     this.#applyRunStats(run);
 
     this.#setPhase(PHASE.GAME_OVER);

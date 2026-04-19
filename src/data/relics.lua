@@ -1,46 +1,50 @@
 --[[
-    Relic definitions and rarity weights.
+    Relic definitions — ISO with legacy JS relics.js.
+    Each relic has an effects array: { {type, value, metaLevel}, ... }
 ]]
 
 local RELICS = {
-    { id = 'lucky_charm',  name = 'Porte-Bonheur',  rarity = 'common',   cost = 8,
-      desc = '+1 bille par round', effect = { type = 'extra_ball', value = 1 } },
-    { id = 'coin_magnet',  name = 'Aimant à pièces', rarity = 'uncommon', cost = 12,
-      desc = '+25% gold à chaque round', effect = { type = 'gold_mult', value = 1.25 } },
-    { id = 'score_booster', name = 'Booster',        rarity = 'uncommon', cost = 15,
-      desc = '+1 à tous les scores', effect = { type = 'score_flat', value = 1 } },
-    { id = 'golden_edge',  name = 'Bord Doré',       rarity = 'rare',     cost = 20,
-      desc = 'Les poches dorées donnent x3 au lieu de x2', effect = { type = 'gold_pocket_mult', value = 3 } },
-    { id = 'rich_start',   name = 'Départ Riche',    rarity = 'common',   cost = 6,
-      desc = '+5 gold immédiatement',  effect = { type = 'instant_gold', value = 5 } },
-    { id = 'ticket_hoarder', name = 'Accumulateur', rarity = 'rare',       cost = 25,
-      desc = '+5 tickets par round',  effect = { type = 'bonus_tickets', value = 5 } },
-    { id = 'reroll_discount', name = 'Négociateur', rarity = 'uncommon',  cost = 10,
-      desc = '-2 gold sur les rerolls', effect = { type = 'reroll_discount', value = 2 } },
-    { id = 'perfect_seer', name = 'Oracle',          rarity = 'legendary', cost = 50,
-      desc = '+50% gold si score > quota * 1.5', effect = { type = 'perfect_mult', value = 1.5 } },
+    -- COMMON
+    { id = 'tablet_twenty',   name = 'Tablette du XX',    emoji = '📜', description = 'Tous les segments valent 20',                       rarity = 'common',    cost = 30,  minRound = 1, effects = { { type = 'set_base_value', value = 20, metaLevel = 0 } } },
+    { id = 'tablet_nineteen', name = 'Tablette du XIX',   emoji = '📜', description = 'Tous les segments valent 19',                       rarity = 'common',    cost = 25,  minRound = 1, effects = { { type = 'set_base_value', value = 19, metaLevel = 0 } } },
+
+    -- UNCOMMON
+    { id = 'even_charm',      name = 'Charme Pair',       emoji = '✨', description = '+1 aux cases de valeur paire',                      rarity = 'uncommon',  cost = 45,  minRound = 2, effects = { { type = 'add_even_segments', value = 1, metaLevel = 0 } } },
+    { id = 'odd_charm',       name = 'Charme Impair',     emoji = '✨', description = '+3 aux cases de valeur impaire',                    rarity = 'uncommon',  cost = 50,  minRound = 2, effects = { { type = 'add_odd_segments',  value = 3, metaLevel = 0 } } },
+
+    -- RARE
+    { id = 'even_totem',      name = 'Totem Pair',        emoji = '🗿', description = '+5 aux cases de valeur paire',                      rarity = 'rare',      cost = 80,  minRound = 4, effects = { { type = 'add_even_segments', value = 5, metaLevel = 0 } } },
+    { id = 'odd_totem',       name = 'Totem Impair',      emoji = '🗿', description = '+10 aux cases de valeur impaire',                   rarity = 'rare',      cost = 90,  minRound = 4, effects = { { type = 'add_odd_segments',  value = 10, metaLevel = 0 } } },
+
+    -- LEGENDARY
+    { id = 'celestial_crown', name = 'Couronne Céleste',  emoji = '👑', description = '+25 valeurs paires, +50 valeurs impaires',          rarity = 'legendary', cost = 200, minRound = 7, effects = { { type = 'add_even_segments', value = 25, metaLevel = 0 }, { type = 'add_odd_segments', value = 50, metaLevel = 0 } } },
 }
 
-local RELIC_RARITY_WEIGHTS = {
-    common    = 60,
-    uncommon  = 30,
-    rare      = 9,
-    legendary = 1,
-}
+local RELIC_MAP = {}
+for _, r in ipairs(RELICS) do RELIC_MAP[r.id] = r end
+
+local RELIC_RARITY_WEIGHTS = { common = 50, uncommon = 30, rare = 15, legendary = 5 }
 
 local function getRelic(id)
-    for _, r in ipairs(RELICS) do
-        if r.id == id then return r end
-    end
-    return nil
+    local r = RELIC_MAP[id]
+    if not r then error('Unknown relic: ' .. tostring(id)) end
+    return r
 end
 
-local function getRarityWeights()
-    return RELIC_RARITY_WEIGHTS
+--- Dynamic rarity weights based on current round (ISO with JS).
+local function getRarityWeights(round)
+    local t = math.min(1, (round - 1) / 11)
+    return {
+        common    = math.floor(50 - 30 * t + 0.5),
+        uncommon  = math.floor(30 + 5 * t + 0.5),
+        rare      = math.floor(15 + 20 * t + 0.5),
+        legendary = math.floor(5 + 15 * t + 0.5),
+    }
 end
 
 return {
     RELICS = RELICS,
+    RELIC_MAP = RELIC_MAP,
     RELIC_RARITY_WEIGHTS = RELIC_RARITY_WEIGHTS,
     getRelic = getRelic,
     getRarityWeights = getRarityWeights,

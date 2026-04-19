@@ -1,5 +1,5 @@
 import { getSymbol } from '../data/symbols.js';
-import { BALANCE } from '../data/balance.js';
+import { BALANCE, getQuota } from '../data/balance.js';
 import { uid } from '../core/GameState.js';
 
 /**
@@ -20,15 +20,67 @@ export class WheelSystem {
    */
   spin(run, rng) {
     const wheel = run.wheel;
-    const weights = wheel.map(s => s.weight);
+    const dda = run.dda;
+    const ddaOn = BALANCE.DDA_ENABLED;
+
+    // Build weight array with DDA modulation
+    const weights = wheel.map((s, i) => {
+      let w = s.weight;
+      if (!ddaOn) return w;
+
+      const isGold = BALANCE.GOLD_POCKETS.includes(i);
+      const isMiss = BALANCE.MISS_POCKETS.includes(i);
+
+      // Anti-frustration: boost high-value, nerf misses
+      if (dda.frustrationScore > BALANCE.DDA_ANTI_FRUSTRATION_THRESHOLD && run.ballsLeft <= 2) {
+        if (isGold || s.weight >= 3) w *= 1.4;
+        if (isMiss) w *= 0.5;
+      }
+
+      // Anti-runaway: nerf gold if way above quota
+      const quota = getQuota(run.round);
+      if (run.score > quota * 1.5 && run.ballsLeft > 1) {
+        if (isGold) w *= 0.6;
+      }
+
+      // First-Time Experience: boost non-miss in early rounds
+      if (run.round <= BALANCE.DDA_FIRST_TIME_ROUNDS) {
+        if (isMiss) w *= 0.6;
+        else w *= 1.2;
+      }
+
+      return w;
+    });
+
     const totalWeight = weights.reduce((s, w) => s + w, 0);
 
     let roll = rng.next() * totalWeight;
     let segmentIndex = 0;
 
     for (let i = 0; i < wheel.length; i++) {
-      roll -= wheel[i].weight;
+      roll -= weights[i];
       if (roll <= 0) { segmentIndex = i; break; }
+    }
+
+    // Near-miss engineering: if NOT gold, chance to land adjacent to gold
+    if (ddaOn
+      && !BALANCE.GOLD_POCKETS.includes(segmentIndex)
+      && run.round <= BALANCE.DDA_NEAR_MISS_MAX_ROUND
+      && dda.nearMissesThisRound < 1
+      && rng.next() < BALANCE.DDA_NEAR_MISS_CHANCE
+    ) {
+      const adj = [];
+      for (const g of BALANCE.GOLD_POCKETS) {
+        if (g >= wheel.length) continue;
+        const prev = (g - 1 + wheel.length) % wheel.length;
+        const next = (g + 1) % wheel.length;
+        if (!BALANCE.GOLD_POCKETS.includes(prev) && !BALANCE.MISS_POCKETS.includes(prev)) adj.push(prev);
+        if (!BALANCE.GOLD_POCKETS.includes(next) && !BALANCE.MISS_POCKETS.includes(next)) adj.push(next);
+      }
+      if (adj.length > 0) {
+        segmentIndex = rng.pick(adj);
+        dda.nearMissesThisRound++;
+      }
     }
 
     const segment = wheel[segmentIndex];

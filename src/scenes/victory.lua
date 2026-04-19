@@ -1,31 +1,46 @@
-local UI = require('src.ui')
+--[[
+    VICTORY — flashy overlay. Click hub or press enter for new run.
+]]
+
 local V = {}
 V.__index = V
-
-function V.new() return setmetatable({}, V) end
+function V.new() return setmetatable({ _t = 0 }, V) end
 function V:enter(ctx) self.ctx = ctx; self._t = 0 end
 function V:leave() end
 function V:update(dt) self._t = self._t + dt end
+function V:mouse(x, y) end
 
+local function inHub(ctx, x, y)
+    local g = ctx.game
+    local dx = x - g.WHEEL_CX
+    local dy = (y - g.WHEEL_CY) / math.max(0.05, ctx.wheel:getTilt())
+    local r = ctx.wheel:getHubRadius()
+    return dx*dx + dy*dy <= r*r
+end
 function V:click(x, y)
-    if UI.pointInRect(x, y, 140, 500, 200, 50) then self.ctx:restart() end
+    if inHub(self.ctx, x, y) then
+        self.ctx:playSelect()
+        self.ctx:restart()
+    end
 end
-function V:mouse(x, y)
-    self._hot = UI.pointInRect(x, y, 140, 500, 200, 50)
+function V:key(k)
+    if k == 'return' or k == 'space' then
+        self.ctx:playSelect()
+        self.ctx:restart()
+    end
 end
-function V:key(key)
-    if key == 'return' or key == 'space' then self.ctx:restart() end
+
+function V:drawUnder(g, font, atlas)
+    g:setColor(0, 0, 0, 0.35); g:rect('fill', 0, 0, 480, 270)
 end
 
 function V:draw(g, font, atlas)
+    local pulse = 0.6 + 0.4 * math.sin(self._t * 3)
     local meta = self.ctx.loop.state.meta
-    font:drawCentered('VICTORY', 240, 120, { 1, 0.9, 0.4, 1 }, 5)
-    font:drawCentered('RUN COMPLETED', 240, 190, { 0.9, 0.9, 0.95, 1 }, 2)
-    font:drawCentered('TICKETS ' .. meta.tickets, 240, 270, { 0.85, 0.95, 0.65, 1 }, 2)
-    font:drawCentered('RUNS ' .. meta.runsCompleted, 240, 310, { 0.75, 0.75, 0.85, 1 }, 1)
-
-    UI.button(g, 140, 500, 200, 50, self._hot)
-    font:drawCentered('NEW RUN', 240, 518, { 1, 0.95, 0.7, 1 }, 2)
+    font:drawCentered('VICTORY', 240, 230,
+        { 1, 0.9 * pulse + 0.1, 0.3, 1 }, 3)
+    font:drawCentered('TICKETS ' .. meta.tickets, 240, 255,
+        { 0.85, 0.95, 0.65, 1 }, 1)
 end
 
 return V

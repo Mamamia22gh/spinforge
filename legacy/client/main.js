@@ -246,6 +246,17 @@ class App {
     const dy = (y - WHEEL_CY) / (this.wheel.tilt || 0.65);
     if (dx * dx + dy * dy < 40 * 40) {
       if (this._spinning) return;
+
+      const phase = this.game.getPhase();
+
+      if (phase === 'FREE_SPIN_OFFER') {
+        this._playSelect();
+        this.game.acceptFreeSpin();
+        this._syncWheel();
+        this._doSpin();
+        return;
+      }
+
       if (this._gameOverData) {
         this._retryFromGameOver();
         return;
@@ -590,6 +601,8 @@ class App {
     );
     this.wheel.setRelics(state.run ? state.run.relics : []);
     this.wheel.setSegmentValues(this.game.getSegmentDisplayValues());
+    this.wheel.setGoldPockets(BALANCE.GOLD_POCKETS);
+    this.wheel.setMissPockets(BALANCE.MISS_POCKETS);
   }
 
   _onAction() {
@@ -605,7 +618,9 @@ class App {
     while (safety-- > 0) {
       const phase = this.game.getPhase();
       if (phase === 'IDLE') break;
-      if (phase === 'RESULTS') {
+      if (phase === 'FREE_SPIN_OFFER') {
+        this.game.declineFreeSpin();
+      } else if (phase === 'RESULTS') {
         this.game.continueFromResults();
       } else if (phase === 'CHOICE') {
         this.game.skipChoice();
@@ -661,11 +676,10 @@ class App {
 
       // Shake on quota reached + invert flash + bonus mode
       const run3 = this.game.getState().run;
-      if (run3.score >= getQuota(run3.round) && run3.score - result.value < getQuota(run3.round)) {
+      if (!this._bonusMode && run3.score >= getQuota(run3.round) && run3.score - result.value < getQuota(run3.round)) {
         this._shakeStart(5, 0.5);
         this._flash = 0.3;
         this.wheel.setBonusMode(true);
-
       }
 
       await this._delay(450);
@@ -710,9 +724,9 @@ class App {
     }
 
     const phase = this.game.getPhase();
-    if (phase === 'GAME_OVER') {
+    if (phase === 'GAME_OVER' || phase === 'FREE_SPIN_OFFER') {
 
-      // Failed — show game over screen, wait for user click
+      // Failed or free spin offered — wait for user click
       this._spinning = false;
       return;
     }
@@ -747,7 +761,7 @@ class App {
     while (safety-- > 0) {
       const phase = this.game.getPhase();
       if (phase === 'SHOP') break;
-      if (phase === 'GAME_OVER' || phase === 'VICTORY') break;
+      if (phase === 'GAME_OVER' || phase === 'VICTORY' || phase === 'FREE_SPIN_OFFER') break;
       if (phase === 'RESULTS') {
         this.game.continueFromResults();
       } else if (phase === 'CHOICE') {
@@ -1126,7 +1140,9 @@ class App {
     const hubBtnOx = px * 1.7;
     const hubBtnOy = py * 1.1;
     if (!this.wheel.flipped) {
-      if (this._gameOverData) {
+      if (this.game.getPhase() === 'FREE_SPIN_OFFER') {
+        this._drawFreeSpinOffer(ctx, hubBtnOx, hubBtnOy);
+      } else if (this._gameOverData) {
         this._drawGameOver(ctx, hubBtnOx, hubBtnOy);
       } else {
         this._drawHubBtn(ctx, hubBtnOx, hubBtnOy);
@@ -1313,6 +1329,47 @@ class App {
       drawTextCentered(ctx, qStr, qOx, qY, PAL.darkGray, 1, false);
       drawAnimSpriteCentered(ctx, 'coin', Math.round(qOx + qW / 2 + qGap + coinSz / 2) + 2, qY + Math.floor(CHAR_H / 2) - 1, 1, t, 4);
     }
+
+    ctx.restore();
+  }
+
+  _drawFreeSpinOffer(ctx, wox, woy) {
+    const r = this.wheel.hubRadius || 42;
+    const tilt = this.wheel.tilt || 0.65;
+    const hover = this._hubHover;
+    const t = this._time;
+    const run = this.game.getState().run;
+    const quota = run ? getQuota(run.round) : 0;
+    const score = run ? run.score : 0;
+
+    ctx.save();
+    ctx.translate(WHEEL_CX + wox, WHEEL_CY + woy);
+    ctx.scale(1, tilt);
+    ctx.translate(0, hover ? -4 : -2);
+
+    // Pulsing gold/darkGold fill
+    ctx.fillStyle = Math.sin(t * 6) > 0 ? PAL.gold : PAL.darkGold;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (hover) {
+      ctx.fillStyle = PAL.white;
+      ctx.globalAlpha = 0.15;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Score / Quota
+    drawTextCentered(ctx, score + '/' + quota, 0, -Math.floor(r * 0.45), PAL.red, 1);
+
+    // DERNIERE CHANCE
+    drawTextCentered(ctx, 'DERNIERE', 0, -Math.floor(CHAR_H * 1), PAL.black, 1);
+    drawTextCentered(ctx, 'CHANCE', 0, Math.floor(CHAR_H * 0.2), PAL.black, 2);
+
+    // Ball sprite + SPIN GRATUIT
+    drawSpriteCentered(ctx, 'ball', 0, Math.floor(r * 0.35), 2);
+    drawTextCentered(ctx, 'SPIN GRATUIT', 0, Math.floor(r * 0.58), PAL.white, 1);
 
     ctx.restore();
   }

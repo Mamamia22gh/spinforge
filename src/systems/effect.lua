@@ -1,95 +1,48 @@
 --[[
-    EffectSystem — apply relic effects.
-    Aggregates relic effects into per-stat getters.
+    EffectSystem — ISO with legacy JS EffectSystem.js.
+    Computes {setBaseValue, addEven, addOdd} from relic effects arrays.
+    Relics in run.relics are full relic objects (not IDs).
 ]]
 
-local getRelic = require('src.data.relics').getRelic
+local DEFAULT_MODS = {
+    setBaseValue = nil,   -- if non-nil, replaces (segmentIndex + 1) as base value
+    addEven = 0,          -- flat bonus added to even-valued segments
+    addOdd  = 0,          -- flat bonus added to odd-valued segments
+}
 
 local Effect = {}
 
-function Effect.applyInstant(run, relicId)
-    local relic = getRelic(relicId)
-    if not relic or not relic.effect then return end
-    local e = relic.effect
-    if e.type == 'instant_gold' then
-        run.shopCurrency = (run.shopCurrency or 0) + e.value
+--- Compute all modifiers from relics array (full objects with .effects).
+--- @param relics table[]  array of relic objects
+--- @return table mods {setBaseValue, addEven, addOdd}
+function Effect.compute(relics)
+    if not relics or #relics == 0 then
+        return { setBaseValue = nil, addEven = 0, addOdd = 0 }
     end
-end
 
-function Effect.getScoreFlatBonus(run)
-    local bonus = 0
-    for _, id in ipairs(run.relics) do
-        local r = getRelic(id)
-        if r and r.effect and r.effect.type == 'score_flat' then
-            bonus = bonus + r.effect.value
+    local base = { setBaseValue = nil, addEven = 0, addOdd = 0 }
+
+    for _, relic in ipairs(relics) do
+        if relic.effects then
+            for _, eff in ipairs(relic.effects) do
+                if eff.metaLevel == 0 then
+                    if eff.type == 'set_base_value' then
+                        if base.setBaseValue == nil then
+                            base.setBaseValue = eff.value
+                        else
+                            base.setBaseValue = math.max(base.setBaseValue, eff.value)
+                        end
+                    elseif eff.type == 'add_even_segments' then
+                        base.addEven = base.addEven + eff.value
+                    elseif eff.type == 'add_odd_segments' then
+                        base.addOdd = base.addOdd + eff.value
+                    end
+                end
+            end
         end
     end
-    return bonus
-end
 
-function Effect.getGoldMultiplier(run)
-    local mult = 1
-    for _, id in ipairs(run.relics) do
-        local r = getRelic(id)
-        if r and r.effect and r.effect.type == 'gold_mult' then
-            mult = mult * r.effect.value
-        end
-    end
-    return mult
-end
-
-function Effect.getExtraBalls(run)
-    local n = 0
-    for _, id in ipairs(run.relics) do
-        local r = getRelic(id)
-        if r and r.effect and r.effect.type == 'extra_ball' then
-            n = n + r.effect.value
-        end
-    end
-    return n
-end
-
-function Effect.getBonusTickets(run)
-    local n = 0
-    for _, id in ipairs(run.relics) do
-        local r = getRelic(id)
-        if r and r.effect and r.effect.type == 'bonus_tickets' then
-            n = n + r.effect.value
-        end
-    end
-    return n
-end
-
-function Effect.getRerollDiscount(run)
-    local d = 0
-    for _, id in ipairs(run.relics) do
-        local r = getRelic(id)
-        if r and r.effect and r.effect.type == 'reroll_discount' then
-            d = d + r.effect.value
-        end
-    end
-    return d
-end
-
-function Effect.getGoldPocketMult(run)
-    local best = 2
-    for _, id in ipairs(run.relics) do
-        local r = getRelic(id)
-        if r and r.effect and r.effect.type == 'gold_pocket_mult' then
-            if r.effect.value > best then best = r.effect.value end
-        end
-    end
-    return best
-end
-
-function Effect.getPerfectMult(run)
-    for _, id in ipairs(run.relics) do
-        local r = getRelic(id)
-        if r and r.effect and r.effect.type == 'perfect_mult' then
-            return r.effect.value
-        end
-    end
-    return 1
+    return base
 end
 
 return Effect

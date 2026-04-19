@@ -1,5 +1,6 @@
 --[[
-    Game state — PHASE enum and state factories.
+    Game state — ISO with legacy JS GameState.js.
+    PHASE enum and state factories.
 ]]
 
 local BALANCE = require('src.data.balance').BALANCE
@@ -33,6 +34,7 @@ function M.createMetaState()
         runsCompleted  = 0,
         bestRound      = 0,
         unlocks        = {},
+        settings       = { masterVol = 0.5, bgmVol = 0.6, sfxVol = 0.8, fullscreen = true },
     }
 end
 
@@ -50,6 +52,7 @@ function M.createRunState()
     for i = 1, BALANCE.INITIAL_SEGMENTS do
         wheel[i] = {
             id        = M.uid('seg'),
+            symbolId  = nil,
             weight    = 1,
             modifiers = {},
         }
@@ -62,25 +65,32 @@ function M.createRunState()
         wheel = wheel,
 
         ballsLeft   = BALANCE.BALLS_PER_ROUND,
-        spinResults = {},   -- entries: { segmentIndex, segment, value, ballType, tickets, isGold }
+        spinResults = {},
 
         -- Economy
-        shopCurrency = 0,
-        shopOfferings = {},
-        rerollCount   = 0,
-        shopDiscount  = 0,
+        shopCurrency   = 0,
+        shopOfferings  = {},
+        rerollCount    = 0,
+        shopDiscount   = 0,
 
+        -- Relics (full objects, not just IDs)
         relics = {},
+
+        -- Purchased upgrades (full objects for display in orbit slots)
         purchasedUpgrades = {},
 
+        -- Special balls queue
         specialBalls       = {},
         _specialBallsFired = 0,
 
+        -- Generic balls bought in shop
         genericBallsBought = 0,
 
+        -- Between-round
         currentChoices  = {},
         lastRoundResult = nil,
 
+        -- Corruption
         corruption = BALANCE.CORRUPTION_START,
     }
 end

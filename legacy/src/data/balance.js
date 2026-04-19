@@ -24,6 +24,16 @@ export const BALANCE = Object.freeze({
   // Gold pockets (0-indexed segment indices) — double payout
   GOLD_POCKETS: [14, 24, 34, 44],
 
+  // Miss pockets (0-indexed) — skull, 0 payout
+  MISS_POCKETS: [3, 8, 12, 18, 22, 28, 36, 39],
+
+  // DDA (Dynamic Difficulty Adjustment)
+  DDA_ENABLED: true,
+  DDA_ANTI_FRUSTRATION_THRESHOLD: 0.5,
+  DDA_NEAR_MISS_CHANCE: 0.30,
+  DDA_NEAR_MISS_MAX_ROUND: 8,
+  DDA_FIRST_TIME_ROUNDS: 3,
+
   // Shop
   SHOP_REROLL_BASE: 5,
   SHOP_PRICE_SCALING: 0.5,

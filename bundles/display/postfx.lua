@@ -20,6 +20,7 @@ extern vec3 palette[16];
 extern float scanIntensity;
 extern float vignetteIntensity;
 extern float chromaIntensity;
+extern float pixelScale;
 
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     vec2 uv = tc - 0.5;
@@ -45,7 +46,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     c = out_c;
 
     // Scanlines (every other pixel row)
-    float scan = mod(sc.y, 2.0) < 1.0 ? 1.0 : 1.0 - scanIntensity;
+    float scan = mod(floor(sc.y / max(pixelScale, 1.0)), 2.0) < 1.0 ? 1.0 : 1.0 - scanIntensity;
     c *= scan;
 
     // Vignette
@@ -65,7 +66,7 @@ function PostFX.new(opts)
     -- Settings
     self._scanIntensity    = opts.scanlines or 0.06
     self._vignetteIntensity = opts.vignette or 0.25
-    self._chromaIntensity  = opts.chroma or 0.5
+    self._chromaIntensity  = opts.chroma or 0.005
 
     -- Upload palette (from config or default)
     local paletteHex = opts.palette
@@ -81,24 +82,34 @@ function PostFX.new(opts)
     self._shader:send("scanIntensity", self._scanIntensity)
     self._shader:send("vignetteIntensity", self._vignetteIntensity)
     self._shader:send("chromaIntensity", self._chromaIntensity)
+    self._shader:send("pixelScale", 1.0)
 
     return self
 end
 
---- Apply post-FX to the input canvas. Returns the output canvas.
-function PostFX:apply(inputCanvas)
-    local w, h = inputCanvas:getDimensions()
-    if not self._canvas or self._canvas:getWidth() ~= w or self._canvas:getHeight() ~= h then
-        self._canvas = love.graphics.newCanvas(w, h)
+--- Apply post-FX at a target output resolution (screen res).
+--- Scanlines/chroma/vignette run per-output-pixel → crisp at native res.
+function PostFX:apply(inputCanvas, outW, outH, offsetX, offsetY, scale)
+    outW = outW or inputCanvas:getWidth()
+    outH = outH or inputCanvas:getHeight()
+    scale = scale or 1
+    offsetX = offsetX or 0
+    offsetY = offsetY or 0
+
+    if not self._canvas or self._canvas:getWidth() ~= outW or self._canvas:getHeight() ~= outH then
+        self._canvas = love.graphics.newCanvas(outW, outH)
         self._canvas:setFilter("nearest", "nearest")
     end
+
+    inputCanvas:setFilter("nearest", "nearest")
+    self._shader:send("pixelScale", scale)
 
     love.graphics.setCanvas(self._canvas)
     love.graphics.clear(0, 0, 0, 1)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setBlendMode("alpha")
     love.graphics.setShader(self._shader)
-    love.graphics.draw(inputCanvas)
+    love.graphics.draw(inputCanvas, offsetX, offsetY, 0, scale, scale)
     love.graphics.setShader()
     love.graphics.setCanvas()
 

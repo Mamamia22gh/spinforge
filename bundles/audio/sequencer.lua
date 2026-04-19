@@ -82,7 +82,7 @@ function Sequencer:playSong(song, volume)
     end
 
     -- pre-generate the first batch
-    self:_scheduleAhead(0, 2.0) -- schedule 2 seconds ahead
+    self:_scheduleAhead(0, 0.3)
 end
 
 function Sequencer:stop()
@@ -179,15 +179,6 @@ function Sequencer:_scheduleAhead(fromTime, toTime)
                         freq, durSec * 0.9, wave, vol, env, duty, vibrato
                     )
                     local src = love.audio.newSource(sd)
-                    -- schedule playback at the right time
-                    local delay = time - self._time
-                    if delay > 0.01 then
-                        -- use a timer-based approach: store with target time
-                        src._playAt = time
-                        src._startTime = self._time
-                        -- for now, play with slight offset handled by pre-generation
-                        -- Love2D doesn't have scheduled playback, so we adjust
-                    end
                     src:play()
                     table.insert(self._scheduled, src)
                 end

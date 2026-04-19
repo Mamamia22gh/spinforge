@@ -7,6 +7,54 @@
 local BitmapFont = {}
 BitmapFont.__index = BitmapFont
 
+local UPPER_MAP = {
+    ['\195\169'] = '\195\137', -- é → É
+    ['\195\168'] = '\195\136', -- è → È
+    ['\195\170'] = '\195\138', -- ê → Ê
+    ['\195\160'] = '\195\128', -- à → À
+    ['\195\180'] = '\195\148', -- ô → Ô
+    ['\195\174'] = '\195\142', -- î → Î
+    ['\195\185'] = '\195\153', -- ù → Ù
+    ['\195\167'] = '\195\135', -- ç → Ç
+}
+
+local function utf8Upper(s)
+    local out = {}
+    local i = 1
+    while i <= #s do
+        local b = s:byte(i)
+        if b < 0x80 then
+            out[#out + 1] = string.upper(s:sub(i, i))
+            i = i + 1
+        elseif b >= 0xC0 and b < 0xE0 then
+            local ch = s:sub(i, i + 1)
+            out[#out + 1] = UPPER_MAP[ch] or ch
+            i = i + 2
+        elseif b >= 0xE0 and b < 0xF0 then
+            out[#out + 1] = s:sub(i, i + 2)
+            i = i + 3
+        else
+            out[#out + 1] = s:sub(i, i + 3)
+            i = i + 4
+        end
+    end
+    return table.concat(out)
+end
+
+local function utf8Len(s)
+    local n = 0
+    local i = 1
+    while i <= #s do
+        local b = s:byte(i)
+        if b < 0x80 then i = i + 1
+        elseif b < 0xE0 then i = i + 2
+        elseif b < 0xF0 then i = i + 3
+        else i = i + 4 end
+        n = n + 1
+    end
+    return n
+end
+
 function BitmapFont.new(cfg)
     cfg = cfg or {}
     local W = cfg.charWidth  or 4
@@ -39,7 +87,7 @@ end
 --- Internal: draw raw text (no outline)
 function BitmapFont:_drawRaw(text, x, y, color, scale)
     love.graphics.setColor(color)
-    local str = text:upper()
+    local str = utf8Upper(text)
     local cx = x
     local W, H = self._W, self._H
     local parsed = self._parsed
@@ -77,7 +125,7 @@ end
 --- Draw text with optional 4-dir outline
 function BitmapFont:draw(text, x, y, color, scale, outline)
     scale = scale or 1
-    if outline == nil then outline = true end
+    if outline == nil then outline = false end
     if outline then
         local oc = {0, 0, 0, 1}
         for _, d in ipairs({{-1,0},{1,0},{0,-1},{0,1}}) do
@@ -89,14 +137,15 @@ end
 
 --- Measure text width in pixels (before scaling)
 function BitmapFont:measure(text)
-    return #text * (self._W + 1) - 1
+    return utf8Len(text) * (self._W + 1) - 1
 end
 
 --- Draw centered at cx
-function BitmapFont:drawCentered(text, cx, y, color, scale)
+function BitmapFont:drawCentered(text, cx, y, color, scale, outline)
     scale = scale or 1
+    if outline == nil then outline = true end
     local w = self:measure(text) * scale
-    self:draw(text, math.floor(cx - w / 2), y, color, scale, true)
+    self:draw(text, math.floor(cx - w / 2), y, color, scale, outline)
 end
 
 --- Draw centered with outline color
@@ -115,7 +164,7 @@ end
 function BitmapFont:drawWrapped(text, x, y, maxW, color, scale)
     scale = scale or 1
     local H = self._H
-    local str = text:upper()
+    local str = utf8Upper(text)
     local words = {}
     for w in str:gmatch('%S+') do table.insert(words, w) end
     local line = ''

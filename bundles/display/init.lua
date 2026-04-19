@@ -269,6 +269,13 @@ function DisplayBundle.new(opts)
 
     -- Flash (difference invert)
     self._flash = 0
+    self._invertShader = love.graphics.newShader[[
+        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+            vec4 pixel = Texel(tex, tc);
+            return vec4(vec3(1.0) - pixel.rgb, pixel.a) * color;
+        }
+    ]]
+    self._invertSnap = nil  -- lazily created at correct size
 
     -- Time
     self._time = 0
@@ -301,14 +308,18 @@ function DisplayBundle:boot(kernel, cfg)
     self._clearColor = cfg.clearColor
 
     -- Create canvases
-    self._mainCanvas   = love.graphics.newCanvas(W, H)
-    self._uiCanvas     = love.graphics.newCanvas(W, H)
-    self._lightsCanvas = love.graphics.newCanvas(W, H)
+    self._mainCanvas   = love.graphics.newCanvas(W, H, { format = "normal", readable = true })
+    -- Main canvas needs a stencil for clipCircle (DrawAPI:clipCircle uses stencil)
+    self._mainCanvasStencil = love.graphics.newCanvas(W, H, { format = "stencil8" })
+    -- UI and Lights canvases at screen resolution for crisp text/numbers
+    local sw, sh = love.graphics.getDimensions()
+    self._uiCanvas     = love.graphics.newCanvas(sw, sh)
+    self._lightsCanvas = love.graphics.newCanvas(sw, sh)
 
-    -- Set nearest-neighbor filtering on all canvases
+    -- Main stays nearest (pixel art), UI/Lights get linear for smooth edges
     self._mainCanvas:setFilter("nearest", "nearest")
-    self._uiCanvas:setFilter("nearest", "nearest")
-    self._lightsCanvas:setFilter("nearest", "nearest")
+    self._uiCanvas:setFilter("linear", "linear")
+    self._lightsCanvas:setFilter("linear", "linear")
 
     -- Post-FX shader
     local pfxCfg = cfg.postfx or {}
@@ -363,6 +374,16 @@ function DisplayBundle:_resize(w, h)
     self._scale = math.min(sx, sy)
     self._offsetX = (w - W * self._scale) / 2
     self._offsetY = (h - H * self._scale) / 2
+
+    -- Recreate UI/Lights canvases at new screen resolution
+    if self._uiCanvas then
+        self._uiCanvas = love.graphics.newCanvas(w, h)
+        self._uiCanvas:setFilter("linear", "linear")
+    end
+    if self._lightsCanvas then
+        self._lightsCanvas = love.graphics.newCanvas(w, h)
+        self._lightsCanvas:setFilter("linear", "linear")
+    end
 end
 
 function DisplayBundle:_screenToLogical(sx, sy)
@@ -391,7 +412,7 @@ function DisplayBundle:_render()
     local g = self._drawAPI
 
     -- ── Pass 1: Main canvas (game world) ──────────────────────
-    love.graphics.setCanvas(self._mainCanvas)
+    love.graphics.setCanvas({ self._mainCanvas, stencil = self._mainCanvasStencil })
     love.graphics.clear(self._clearColor[1], self._clearColor[2], self._clearColor[3], self._clearColor[4] or 1)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setBlendMode("alpha")
@@ -402,15 +423,31 @@ function DisplayBundle:_render()
 
     self._kernel:emit('display.draw.main', { g = g })
 
-    -- Invert flash (difference blend)
+    -- Invert flash (shader-based color inversion)
     if self._flash > 0 then
         self._flash = self._flash - love.timer.getDelta()
-        love.graphics.push("all")
-        love.graphics.setBlendMode("subtract")
+        if self._flash < 0 then self._flash = 0 end
         local a = math.min(1, self._flash / 0.15)
-        love.graphics.setColor(a, a, a, a)
-        love.graphics.rectangle("fill", 0, 0, W, H)
-        love.graphics.pop()
+        local canvas = love.graphics.getCanvas()
+        if canvas then
+            local cw, ch = canvas:getDimensions()
+            if not self._invertSnap or self._invertSnap:getWidth() ~= cw or self._invertSnap:getHeight() ~= ch then
+                if self._invertSnap then self._invertSnap:release() end
+                self._invertSnap = love.graphics.newCanvas(cw, ch)
+            end
+            love.graphics.push("all")
+            love.graphics.origin()
+            love.graphics.setCanvas(self._invertSnap)
+            love.graphics.clear(0, 0, 0, 0)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.setBlendMode("alpha")
+            love.graphics.draw(canvas, 0, 0)
+            love.graphics.setCanvas(canvas)
+            love.graphics.setShader(self._invertShader)
+            love.graphics.setColor(1, 1, 1, a)
+            love.graphics.draw(self._invertSnap, 0, 0)
+            love.graphics.pop()
+        end
     end
 
     love.graphics.pop() -- shake
@@ -422,29 +459,45 @@ function DisplayBundle:_render()
     if math.abs(self._shakeX) < 0.1 then self._shakeX = 0 end
     if math.abs(self._shakeY) < 0.1 then self._shakeY = 0 end
 
-    -- ── Pass 2: Apply post-FX to main canvas ──────────────────
-    local mainResult = self._mainCanvas
+    -- ── Pass 2: Apply post-FX at SCREEN resolution ────────────
+    -- PostFX upscales the 480×270 canvas to window size, then runs
+    -- scanlines/chroma/vignette per native pixel → crisp on 4K.
+    local sw, sh = love.graphics.getDimensions()
+    local mainResult
     if self._postfx then
-        mainResult = self._postfx:apply(self._mainCanvas)
+        mainResult = self._postfx:apply(self._mainCanvas, sw, sh,
+            self._offsetX, self._offsetY, self._scale)
+    else
+        mainResult = nil
     end
 
-    -- ── Pass 3: UI overlay canvas ─────────────────────────────
+    -- ── Pass 3: UI overlay canvas (screen-res for crisp text) ──
     love.graphics.setCanvas(self._uiCanvas)
     love.graphics.clear(0, 0, 0, 0)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setBlendMode("alpha")
 
+    -- Transform so game code draws in logical coords (480×270)
+    -- but pixels are rendered at native screen resolution
+    love.graphics.push()
+    love.graphics.translate(self._offsetX, self._offsetY)
+    love.graphics.scale(self._scale)
     self._kernel:emit('display.draw.ui', { g = g })
+    love.graphics.pop()
 
     love.graphics.setCanvas()
 
-    -- ── Pass 4: Lights canvas ─────────────────────────────────
+    -- ── Pass 4: Lights canvas (screen-res) ─────────────────────
     love.graphics.setCanvas(self._lightsCanvas)
     love.graphics.clear(0, 0, 0, 0)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setBlendMode("alpha")
 
+    love.graphics.push()
+    love.graphics.translate(self._offsetX, self._offsetY)
+    love.graphics.scale(self._scale)
     self._kernel:emit('display.draw.lights', { g = self._lightsAPI })
+    love.graphics.pop()
 
     love.graphics.setCanvas()
 
@@ -452,15 +505,19 @@ function DisplayBundle:_render()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setBlendMode("alpha")
 
-    -- Main (post-processed)
-    love.graphics.draw(mainResult, self._offsetX, self._offsetY, 0, self._scale, self._scale)
+    -- Main: if postfx, already at screen res (draw 1:1); otherwise scale up
+    if mainResult then
+        love.graphics.draw(mainResult, 0, 0)
+    else
+        love.graphics.draw(self._mainCanvas, self._offsetX, self._offsetY, 0, self._scale, self._scale)
+    end
 
-    -- UI overlay (no post-fx, drawn on top)
-    love.graphics.draw(self._uiCanvas, self._offsetX, self._offsetY, 0, self._scale, self._scale)
+    -- UI overlay — already at screen res, draw 1:1
+    love.graphics.draw(self._uiCanvas, 0, 0)
 
-    -- Lights (additive/screen blend on top)
+    -- Lights — already at screen res, additive blend
     love.graphics.setBlendMode("add")
-    love.graphics.draw(self._lightsCanvas, self._offsetX, self._offsetY, 0, self._scale, self._scale)
+    love.graphics.draw(self._lightsCanvas, 0, 0)
     love.graphics.setBlendMode("alpha")
 end
 

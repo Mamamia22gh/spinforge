@@ -102,6 +102,10 @@ function Kernel:mousereleased(x, y, button)
     self:emit('input.mousereleased', { x = x, y = y, button = button })
 end
 
+function Kernel:wheelmoved(x, y)
+    self:emit('input.wheelmoved', { x = x, y = y })
+end
+
 function Kernel:resize(w, h)
     self:emit('kernel.resize', { w = w, h = h })
 end

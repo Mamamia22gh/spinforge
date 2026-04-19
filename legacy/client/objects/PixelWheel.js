@@ -98,6 +98,7 @@ export class PixelWheel {
     this._relics = []; // array of { rarity } objects from run.relics
     this._segmentValues = []; // resolved display values per segment
     this._goldPockets = []; // gold pocket indices
+    this._missPockets = []; // miss pocket indices
 
     // Ticket animation state
     this._ticketAnim = null; // { phase, elapsed, duration, earned, counted, fromX, fromY, scale, shake }
@@ -234,6 +235,7 @@ export class PixelWheel {
   setRelics(relics) { this._relics = relics || []; }
   setSegmentValues(values) { this._segmentValues = values || []; }
   setGoldPockets(indices) { this._goldPockets = indices || []; }
+  setMissPockets(indices) { this._missPockets = indices || []; }
 
   placeBalls(n, specialBalls) {
     this._placedBalls = [];
@@ -845,8 +847,8 @@ export class PixelWheel {
     let off = 0;
     for (let i = 0; i < data.length; i++) {
       const seg = data[i], angle = (seg.weight / tw) * Math.PI * 2;
-      const isBlue = false; // cosmetic only — no symbol colors
       const isGold = this._goldPockets.includes(i);
+      const isMiss = this._missPockets.includes(i);
       const dark = i % 2 === 0;
       const mid = off + angle / 2;
 
@@ -855,13 +857,13 @@ export class PixelWheel {
       ctx.arc(0, 0, POCKET_OUTER, off, off + angle);
       ctx.arc(0, 0, POCKET_INNER, off + angle, off, true);
       ctx.closePath();
-      ctx.fillStyle = isGold ? PAL.darkGold : (dark ? SEG_A : SEG_B);
+      ctx.fillStyle = isGold ? PAL.darkGold : isMiss ? PAL.darkRed : (dark ? SEG_A : SEG_B);
       ctx.fill();
 
       // Pocket highlight flash
       const hl = this._highlights.find(h => h.idx === i);
       if (hl) {
-        const hlColor = isGold ? PAL.gold : PAL.white;
+        const hlColor = isGold ? PAL.gold : isMiss ? PAL.red : PAL.white;
         let a;
         if (hl.t < 0.15) a = 0.9;
         else if (hl.t < 0.4) a = 0.7;
@@ -888,7 +890,7 @@ export class PixelWheel {
             if (this._bonusMode) {
               hlColor = RAINBOW[(Math.floor(chasePos) + t) % RAINBOW.length];
             } else {
-              hlColor = isGold ? PAL.gold : PAL.white;
+              hlColor = isGold ? PAL.gold : isMiss ? PAL.red : PAL.white;
             }
             const fade = 1 - t / chaseTrail;
             ctx.fillStyle = hlColor;
@@ -953,13 +955,17 @@ export class PixelWheel {
         ctx.globalAlpha = 1;
       }
 
-      // Number (bitmap font)
+      // Number (bitmap font) or skull for miss pockets
       const numR = this.R * LABEL_P;
       ctx.save();
       ctx.translate(Math.cos(mid) * numR, Math.sin(mid) * numR);
       ctx.rotate(mid + Math.PI / 2);
-      const label = this._segmentValues[i] != null ? String(this._segmentValues[i]) : String(i + 1);
-      drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), PAL.white, 1);
+      if (this._missPockets.includes(i)) {
+        drawSpriteCentered(ctx, 'skull', 0, -Math.floor(CHAR_H / 2) + 2, 1);
+      } else {
+        const label = this._segmentValues[i] != null ? String(this._segmentValues[i]) : String(i + 1);
+        drawTextCentered(ctx, label, 0, -Math.floor(CHAR_H / 2), PAL.white, 1);
+      }
       ctx.restore();
 
       // Divider (gold 1px)

@@ -28,6 +28,8 @@ export function createGame(options = {}) {
     shopBuy:             (index)                 => loop.shopBuy(index),
     shopReroll:          ()                      => loop.shopReroll(),
     endShop:             ()                      => loop.endShop(),
+    acceptFreeSpin:      ()                      => loop.acceptFreeSpin(),
+    declineFreeSpin:     ()                      => loop.declineFreeSpin(),
 
     // ─── Events ───
     on:                  (event, fn)             => loop.events.on(event, fn),

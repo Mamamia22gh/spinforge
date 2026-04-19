@@ -1,30 +1,23 @@
 --[[
-    Choice / shop item definitions.
+    Between-round upgrade choices — ISO with legacy JS choices.js.
+    Special balls fire first during the next round.
 ]]
 
 local CHOICES = {
-    -- ── Wheel upgrades ──
-    { id = 'wheel_amplifier', type = 'wheel_upgrade', upgradeId = 'amplifier',
-      name = 'Amplificateur', desc = '+2 à toutes les valeurs', cost = 6, rarity = 'common' },
+    -- Wheel manipulation
+    { id = 'add_segment',          name = 'Segment',        emoji = '⚪', description = 'Ajoute un pocket générique',                          type = 'add_symbol',    weight = 8, minRound = 1, requiresUnlock = nil, payload = { symbolId = nil } },
+    { id = 'upgrade_value_plus2',  name = 'Amplificateur',  emoji = '🔺', description = '+2 à toutes les valeurs pendant le décompte',         type = 'wheel_upgrade', weight = 5, minRound = 3, requiresUnlock = nil, payload = { upgradeId = 'upgrade_value_plus2' } },
+    { id = 'remove_segment',      name = 'Retirer Segment', emoji = '✂️', description = 'Retire un segment (au choix)',                        type = 'remove_symbol', weight = 6, minRound = 2, requiresUnlock = nil, payload = {} },
+    { id = 'boost_weight',        name = 'Lester',          emoji = '⚖️', description = '+1 poids à un segment',                              type = 'boost_weight',  weight = 7, minRound = 2, requiresUnlock = nil, payload = {} },
 
-    -- ── Special balls ──
-    { id = 'ball_golden',   type = 'special_ball', ballType = 'golden',
-      name = 'Bille Dorée', desc = 'Double les gains de la pocket', cost = 40, rarity = 'rare' },
-    { id = 'ball_splash',   type = 'special_ball', ballType = 'splash',
-      name = 'Bille Splash', desc = 'Scores 3 pockets adjacentes', cost = 30, rarity = 'uncommon' },
-    { id = 'ball_critical', type = 'special_ball', ballType = 'critical',
-      name = 'Bille Critique', desc = '50% chance de triple score', cost = 25, rarity = 'uncommon' },
-    { id = 'ball_ticket',   type = 'special_ball', ballType = 'ticket',
-      name = 'Bille Ticket', desc = '0 coins mais donne (index+1) tickets', cost = 50, rarity = 'rare' },
-    { id = 'ball_generic',  type = 'special_ball', ballType = 'generic',
-      name = 'Bille Standard', desc = '+1 bille au round courant', cost = 15, rarity = 'common' },
+    -- Special balls
+    { id = 'ball_golden',   name = 'Bille Dorée',     emoji = '🟡', description = '×2 la valeur du segment',              type = 'special_ball', weight = 8, minRound = 1, requiresUnlock = nil, effect = 'double',   rarity = 'common',    cost = 20 },
+    { id = 'ball_splash',   name = 'Bille Explosive', emoji = '💥', description = 'Score aussi les 2 segments adjacents', type = 'special_ball', weight = 4, minRound = 4, requiresUnlock = nil, effect = 'splash',   rarity = 'rare',      cost = 70 },
+    { id = 'ball_ticket',   name = 'Bille Ticket',    emoji = '🎟️', description = '0 coins, mais donne des tickets = n° pocket', type = 'special_ball', weight = 4, minRound = 3, requiresUnlock = nil, effect = 'ticket', rarity = 'rare', cost = 50 },
+    { id = 'ball_critical', name = 'Bille Critique',  emoji = '⚡', description = '×5 la valeur du segment',              type = 'special_ball', weight = 2, minRound = 6, requiresUnlock = nil, effect = 'critical', rarity = 'legendary', cost = 120 },
 }
 
-local function getChoice(id)
-    for _, c in ipairs(CHOICES) do
-        if c.id == id then return c end
-    end
-    return nil
-end
+local CHOICE_MAP = {}
+for _, c in ipairs(CHOICES) do CHOICE_MAP[c.id] = c end
 
-return { CHOICES = CHOICES, getChoice = getChoice }
+return { CHOICES = CHOICES, CHOICE_MAP = CHOICE_MAP }
