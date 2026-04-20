@@ -21,7 +21,15 @@ uniform vec3 uPal[16];
 uniform float uScan;
 uniform float uVig;
 uniform float uChroma;
+uniform float uGrain;
+uniform float uTime;
 varying vec2 vUv;
+
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
 
 void main() {
   vec2 uv = vUv - 0.5;
@@ -45,6 +53,10 @@ void main() {
     if (dist < best) { best = dist; out_c = uPal[i]; }
   }
   c = out_c;
+
+  // Film grain
+  float n = hash21(gl_FragCoord.xy + vec2(uTime * 91.7, uTime * 47.3));
+  c += (n - 0.5) * uGrain;
 
   // Scanlines (every other row)
   float scan = mod(gl_FragCoord.y, 2.0) < 1.0 ? 1.0 : 1.0 - uScan;
@@ -105,6 +117,8 @@ export class PostFXGL {
     gl.uniform1f(gl.getUniformLocation(prog, 'uScan'), opts.scanDim ?? 0.06);
     gl.uniform1f(gl.getUniformLocation(prog, 'uVig'), opts.vignette ?? 0.4);
     gl.uniform1f(gl.getUniformLocation(prog, 'uChroma'), opts.chroma ?? 0.005);
+    gl.uniform1f(gl.getUniformLocation(prog, 'uGrain'), opts.grain ?? 0.08);
+    this._uTime = gl.getUniformLocation(prog, 'uTime');
 
     gl.viewport(0, 0, display.width, display.height);
   }
@@ -122,6 +136,7 @@ export class PostFXGL {
   /** Upload source canvas as texture → run shader → output to display. */
   apply(sourceCanvas) {
     const gl = this._gl;
+    gl.uniform1f(this._uTime, performance.now() * 0.001);
     gl.bindTexture(gl.TEXTURE_2D, this._tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

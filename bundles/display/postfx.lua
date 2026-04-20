@@ -20,7 +20,15 @@ extern vec3 palette[16];
 extern float scanIntensity;
 extern float vignetteIntensity;
 extern float chromaIntensity;
+extern float grainIntensity;
+extern float timeSec;
 extern float pixelScale;
+
+float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
 
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     vec2 uv = tc - 0.5;
@@ -45,6 +53,10 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     }
     c = out_c;
 
+    // Film grain
+    float n = hash21(sc + vec2(timeSec * 91.7, timeSec * 47.3));
+    c += (n - 0.5) * grainIntensity;
+
     // Scanlines (every other pixel row)
     float scan = mod(floor(sc.y / max(pixelScale, 1.0)), 2.0) < 1.0 ? 1.0 : 1.0 - scanIntensity;
     c *= scan;
@@ -67,6 +79,7 @@ function PostFX.new(opts)
     self._scanIntensity    = opts.scanlines or 0.06
     self._vignetteIntensity = opts.vignette or 0.25
     self._chromaIntensity  = opts.chroma or 0.005
+    self._grainIntensity   = opts.grain or 0.08
 
     -- Upload palette (from config or default)
     local paletteHex = opts.palette
@@ -82,6 +95,8 @@ function PostFX.new(opts)
     self._shader:send("scanIntensity", self._scanIntensity)
     self._shader:send("vignetteIntensity", self._vignetteIntensity)
     self._shader:send("chromaIntensity", self._chromaIntensity)
+    self._shader:send("grainIntensity", self._grainIntensity)
+    self._shader:send("timeSec", 0.0)
     self._shader:send("pixelScale", 1.0)
 
     return self
@@ -103,6 +118,7 @@ function PostFX:apply(inputCanvas, outW, outH, offsetX, offsetY, scale)
 
     inputCanvas:setFilter("nearest", "nearest")
     self._shader:send("pixelScale", scale)
+    self._shader:send("timeSec", love.timer.getTime() % 1000)
 
     love.graphics.setCanvas(self._canvas)
     love.graphics.clear(0, 0, 0, 1)
@@ -127,6 +143,9 @@ function PostFX:set(key, value)
     elseif key == "chroma" then
         self._chromaIntensity = value
         self._shader:send("chromaIntensity", value)
+    elseif key == "grain" then
+        self._grainIntensity = value
+        self._shader:send("grainIntensity", value)
     end
 end
 

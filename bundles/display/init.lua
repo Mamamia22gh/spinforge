@@ -328,6 +328,7 @@ function DisplayBundle:boot(kernel, cfg)
             scanlines = pfxCfg.scanlines,
             vignette  = pfxCfg.vignette,
             chroma    = pfxCfg.chroma,
+            grain     = pfxCfg.grain,
             palette   = cfg.palette,
         })
     end

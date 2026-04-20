@@ -15,6 +15,7 @@ return {
         scanlines = 0.06,
         vignette  = 0.25,
         chroma    = 0.005,
+        grain     = 0.08,
     },
 
     -- 16-color palette — ISO with JS PaletteDB casino-dark
