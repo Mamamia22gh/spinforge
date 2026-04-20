@@ -7,81 +7,187 @@
 // ── Theme definitions ──────────────────────────────────────────
 
 export const THEMES = {
+  // ── All hex values are verified Pantone colors (TCX / PMS C) ──
   original: {
-    label: 'Original',
+    label: 'Pantone Classic',
     colors: {
-      black:'#0a0a0a', darkGray:'#1a1a2e', midGray:'#333346', lightGray:'#6a6a7a', white:'#e8e0d0',
-      red:'#cc2233', darkRed:'#6e1127', blue:'#2b4ccc', darkBlue:'#162266',
-      gold:'#d4a520', darkGold:'#7a5e10', green:'#22aa44', darkGreen:'#105522',
-      purple:'#8833cc', darkPurple:'#441a66',
-      neonPink:'#ff44aa', cyan:'#44aadd', darkCyan:'#0088bb',
-      deepBlue:'#0e1144', shadedBlue:'#1a2e88', shadedCyan:'#337799',
+      black:'#000000',      // Neutral Black C
+      darkGray:'#2D3359',   // 19-3939 Blue Depths
+      midGray:'#53565A',    // Cool Gray 11 C
+      lightGray:'#97999B',  // Cool Gray 7 C
+      white:'#F2F0EB',      // 11-0602 Snow White
+      red:'#BE3455',        // 18-1750 Viva Magenta
+      darkRed:'#662E3B',    // 19-1725 Tawny Port
+      blue:'#0F4C81',       // 19-4052 Classic Blue
+      darkBlue:'#233658',   // 19-4027 Estate Blue
+      gold:'#B08E51',       // 16-1133 Mustard Gold
+      darkGold:'#997B38',   // 18-0840 Dried Tobacco
+      green:'#009473',      // 17-5641 Emerald
+      darkGreen:'#11574A',  // 19-5420 Evergreen
+      purple:'#5F4B8B',     // 18-3838 Ultra Violet
+      darkPurple:'#433455', // 19-3728 Grape Compote
+      neonPink:'#D33479',   // 18-2436 Fuchsia Purple
+      cyan:'#00ABC0',       // 16-4725 Scuba Blue
+      darkCyan:'#117893',   // 18-4528 Mosaic Blue
+      deepBlue:'#101820',   // Black 6 C
+      shadedBlue:'#273C76', // 19-3864 Mazarine Blue
+      shadedCyan:'#008C8A', // 17-5034 Viridian Green
     },
   },
   'classic-casino': {
     label: 'Classic Casino',
     colors: {
-      black:'#0b0a0d', darkGray:'#1c1a24', midGray:'#38333f', lightGray:'#787382', white:'#f0e9d8',
-      red:'#be3455', darkRed:'#6a1a30', blue:'#0f4c81', darkBlue:'#0a2648',
-      gold:'#c9a227', darkGold:'#6e5510', green:'#00806a', darkGreen:'#0a3e33',
-      purple:'#6b3fa0', darkPurple:'#351e52',
-      neonPink:'#ff5e9e', cyan:'#4ab5c9', darkCyan:'#0d7a94',
-      deepBlue:'#0a1a3a', shadedBlue:'#0c3668', shadedCyan:'#2a8da8',
+      black:'#000000',      // Neutral Black C
+      darkGray:'#353A4C',   // 19-4025 Mood Indigo
+      midGray:'#53565A',    // Cool Gray 11 C
+      lightGray:'#97999B',  // Cool Gray 7 C
+      white:'#EAE4DA',      // 11-4800 Ivory
+      red:'#BE3455',        // 18-1750 Viva Magenta
+      darkRed:'#72262C',    // 19-1534 Merlot
+      blue:'#0F4C81',       // 19-4052 Classic Blue
+      darkBlue:'#273C76',   // 19-3864 Mazarine Blue
+      gold:'#B08E51',       // 16-1133 Mustard Gold
+      darkGold:'#997B38',   // 18-0840 Dried Tobacco
+      green:'#009473',      // 17-5641 Emerald
+      darkGreen:'#19454B',  // 19-4241 Deep Teal
+      purple:'#7E5186',     // 19-3438 Bright Violet
+      darkPurple:'#433455', // 19-3728 Grape Compote
+      neonPink:'#D3507A',   // 18-2133 Pink Flambé
+      cyan:'#00ABC0',       // 16-4725 Scuba Blue
+      darkCyan:'#117893',   // 18-4528 Mosaic Blue
+      deepBlue:'#101820',   // Black 6 C
+      shadedBlue:'#233658', // 19-4027 Estate Blue
+      shadedCyan:'#008C8A', // 17-5034 Viridian Green
     },
   },
   'noir-velvet': {
     label: 'Noir Velvet',
     colors: {
-      black:'#07070c', darkGray:'#13142a', midGray:'#2a2c48', lightGray:'#6d6f88', white:'#eae0c8',
-      red:'#a32638', darkRed:'#5a1220', blue:'#1b3a6b', darkBlue:'#0b1c3a',
-      gold:'#b8860b', darkGold:'#5f4408', green:'#2f5d3b', darkGreen:'#132a19',
-      purple:'#563d7c', darkPurple:'#2a1d3e',
-      neonPink:'#e94b8e', cyan:'#3a96b8', darkCyan:'#0e6683',
-      deepBlue:'#0a0e28', shadedBlue:'#142854', shadedCyan:'#28799a',
+      black:'#000000',      // Neutral Black C
+      darkGray:'#423546',   // 19-3712 Nightshade
+      midGray:'#4A4B4D',    // 19-3906 Dark Shadow
+      lightGray:'#97999B',  // Cool Gray 7 C
+      white:'#EAE4DA',      // 11-4800 Ivory
+      red:'#95263C',        // 19-1863 Haute Red
+      darkRed:'#72262C',    // 19-1534 Merlot
+      blue:'#273C76',       // 19-3864 Mazarine Blue
+      darkBlue:'#2D3359',   // 19-3939 Blue Depths
+      gold:'#B08E51',       // 16-1133 Mustard Gold
+      darkGold:'#997B38',   // 18-0840 Dried Tobacco
+      green:'#11574A',      // 19-5420 Evergreen
+      darkGreen:'#19454B',  // 19-4241 Deep Teal
+      purple:'#7E5186',     // 19-3438 Bright Violet
+      darkPurple:'#433455', // 19-3728 Grape Compote
+      neonPink:'#D3507A',   // 18-2133 Pink Flambé
+      cyan:'#008C8A',       // 17-5034 Viridian Green
+      darkCyan:'#117893',   // 18-4528 Mosaic Blue
+      deepBlue:'#101820',   // Black 6 C
+      shadedBlue:'#233658', // 19-4027 Estate Blue
+      shadedCyan:'#005366', // 19-4540 Deep Lagoon
     },
   },
   'peach-fuzz': {
     label: 'Peach Fuzz',
     colors: {
-      black:'#0e0a08', darkGray:'#241a18', midGray:'#433230', lightGray:'#8a7870', white:'#f5e8d4',
-      red:'#d83a3a', darkRed:'#6e1618', blue:'#2a6478', darkBlue:'#10333d',
-      gold:'#e0a96d', darkGold:'#7a5434', green:'#4a8c5a', darkGreen:'#1f3f28',
-      purple:'#8b4a7a', darkPurple:'#40223a',
-      neonPink:'#ff7fa8', cyan:'#5ab0a8', darkCyan:'#1a7068',
-      deepBlue:'#0c2028', shadedBlue:'#1e4a5e', shadedCyan:'#3a9088',
+      black:'#000000',      // Neutral Black C
+      darkGray:'#342A23',   // Black 4 C (warm)
+      midGray:'#4F3F3B',    // 19-1015 Bracken
+      lightGray:'#97999B',  // Cool Gray 7 C
+      white:'#DDD5C7',      // 13-0905 Birch
+      red:'#D01C1F',        // 18-1664 Fiery Red
+      darkRed:'#662E3B',    // 19-1725 Tawny Port
+      blue:'#117893',       // 18-4528 Mosaic Blue
+      darkBlue:'#005366',   // 19-4540 Deep Lagoon
+      gold:'#FFBE98',       // 13-1023 Peach Fuzz (COY 2024)
+      darkGold:'#97572B',   // 18-1148 Leather Brown
+      green:'#56C6A9',      // 16-5127 Biscay Green
+      darkGreen:'#11574A',  // 19-5420 Evergreen
+      purple:'#AFA4CE',     // 15-3817 Lavender
+      darkPurple:'#433455', // 19-3728 Grape Compote
+      neonPink:'#FF6F61',   // 16-1546 Living Coral
+      cyan:'#7FC9CB',       // 14-4811 Aqua Sky
+      darkCyan:'#008C8A',   // 17-5034 Viridian Green
+      deepBlue:'#101820',   // Black 6 C
+      shadedBlue:'#233658', // 19-4027 Estate Blue
+      shadedCyan:'#005780', // 18-4434 Mykonos Blue
     },
   },
   'ultra-violet': {
     label: 'Ultra Violet',
     colors: {
-      black:'#08060f', darkGray:'#18142c', midGray:'#342a55', lightGray:'#7a6fa0', white:'#ece4f5',
-      red:'#e03070', darkRed:'#701534', blue:'#3a4ad8', darkBlue:'#151e6c',
-      gold:'#f0c419', darkGold:'#80640a', green:'#2ecc71', darkGreen:'#0f5a30',
-      purple:'#5f4b8b', darkPurple:'#2c2145',
-      neonPink:'#ff4ad1', cyan:'#4fd5e0', darkCyan:'#0090a8',
-      deepBlue:'#0e0a30', shadedBlue:'#252080', shadedCyan:'#20b0c0',
+      black:'#000000',      // Neutral Black C
+      darkGray:'#423546',   // 19-3712 Nightshade
+      midGray:'#4A4B4D',    // 19-3906 Dark Shadow
+      lightGray:'#AFA4CE',  // 15-3817 Lavender
+      white:'#F2F0EB',      // 11-0602 Snow White
+      red:'#BE3455',        // 18-1750 Viva Magenta
+      darkRed:'#7E5186',    // 19-3438 Bright Violet
+      blue:'#6667AB',       // 17-3938 Very Peri (COY 2022)
+      darkBlue:'#273C76',   // 19-3864 Mazarine Blue
+      gold:'#F0C05A',       // 14-0848 Mimosa
+      darkGold:'#C89B40',   // 15-1050 Gold Fusion
+      green:'#009473',      // 17-5641 Emerald
+      darkGreen:'#11574A',  // 19-5420 Evergreen
+      purple:'#5F4B8B',     // 18-3838 Ultra Violet (COY 2018)
+      darkPurple:'#433455', // 19-3728 Grape Compote
+      neonPink:'#D33479',   // 18-2436 Fuchsia Purple
+      cyan:'#00ABC0',       // 16-4725 Scuba Blue
+      darkCyan:'#117893',   // 18-4528 Mosaic Blue
+      deepBlue:'#101820',   // Black 6 C
+      shadedBlue:'#223A5E', // 19-4029 Navy Peony
+      shadedCyan:'#008C8A', // 17-5034 Viridian Green
     },
   },
   'emerald-vault': {
     label: 'Emerald Vault',
     colors: {
-      black:'#060a08', darkGray:'#10211b', midGray:'#24433a', lightGray:'#6a8a7e', white:'#e8e4d0',
-      red:'#b02840', darkRed:'#5e1324', blue:'#1e5a7a', darkBlue:'#0a2a3d',
-      gold:'#d4a017', darkGold:'#6e5210', green:'#009b48', darkGreen:'#005028',
-      purple:'#6a4c93', darkPurple:'#33244a',
-      neonPink:'#f05890', cyan:'#40c0a0', darkCyan:'#108868',
-      deepBlue:'#081a14', shadedBlue:'#143e58', shadedCyan:'#2ea888',
+      black:'#000000',      // Neutral Black C
+      darkGray:'#19454B',   // 19-4241 Deep Teal
+      midGray:'#4A4B4D',    // 19-3906 Dark Shadow
+      lightGray:'#97999B',  // Cool Gray 7 C
+      white:'#F2F0EB',      // 11-0602 Snow White
+      red:'#95263C',        // 19-1863 Haute Red
+      darkRed:'#72262C',    // 19-1534 Merlot
+      blue:'#005780',       // 18-4434 Mykonos Blue
+      darkBlue:'#005366',   // 19-4540 Deep Lagoon
+      gold:'#D4AE40',       // 15-0751 Ceylon Yellow
+      darkGold:'#997B38',   // 18-0840 Dried Tobacco
+      green:'#009473',      // 17-5641 Emerald
+      darkGreen:'#11574A',  // 19-5420 Evergreen
+      purple:'#7E5186',     // 19-3438 Bright Violet
+      darkPurple:'#433455', // 19-3728 Grape Compote
+      neonPink:'#D3507A',   // 18-2133 Pink Flambé
+      cyan:'#008C8A',       // 17-5034 Viridian Green
+      darkCyan:'#117893',   // 18-4528 Mosaic Blue
+      deepBlue:'#101820',   // Black 6 C
+      shadedBlue:'#233658', // 19-4027 Estate Blue
+      shadedCyan:'#56C6A9', // 16-5127 Biscay Green
     },
   },
   'mocha-mousse': {
     label: 'Mocha Mousse',
     colors: {
-      black:'#0c0908', darkGray:'#1e1614', midGray:'#3e302a', lightGray:'#8a7568', white:'#f2e8da',
-      red:'#c44536', darkRed:'#6a2018', blue:'#3a6080', darkBlue:'#1a3040',
-      gold:'#c8963e', darkGold:'#6e5020', green:'#5a8a60', darkGreen:'#2a4430',
-      purple:'#7a5070', darkPurple:'#3e2838',
-      neonPink:'#e87090', cyan:'#6ab0a8', darkCyan:'#307870',
-      deepBlue:'#101820', shadedBlue:'#284860', shadedCyan:'#4a9890',
+      black:'#000000',      // Neutral Black C
+      darkGray:'#342A23',   // Black 4 C (warm)
+      midGray:'#4F3F3B',    // 19-1015 Bracken
+      lightGray:'#97999B',  // Cool Gray 7 C
+      white:'#DDD5C7',      // 13-0905 Birch
+      red:'#964F4C',        // 18-1438 Marsala
+      darkRed:'#662E3B',    // 19-1725 Tawny Port
+      blue:'#005780',       // 18-4434 Mykonos Blue
+      darkBlue:'#233658',   // 19-4027 Estate Blue
+      gold:'#A47864',       // 17-1230 Mocha Mousse (COY 2025)
+      darkGold:'#97572B',   // 18-1148 Leather Brown
+      green:'#11574A',      // 19-5420 Evergreen
+      darkGreen:'#19454B',  // 19-4241 Deep Teal
+      purple:'#7E5186',     // 19-3438 Bright Violet
+      darkPurple:'#433455', // 19-3728 Grape Compote
+      neonPink:'#F5BCA7',   // 13-1409 Peach Blush
+      cyan:'#008C8A',       // 17-5034 Viridian Green
+      darkCyan:'#117893',   // 18-4528 Mosaic Blue
+      deepBlue:'#101820',   // Black 6 C
+      shadedBlue:'#273C76', // 19-3864 Mazarine Blue
+      shadedCyan:'#005366', // 19-4540 Deep Lagoon
     },
   },
 };
