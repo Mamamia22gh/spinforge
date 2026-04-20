@@ -7,8 +7,8 @@
   "scripts": {
     "start": "vite --open",
     "dev": "vite",
-    "build": "node scripts/build-palettes.js && node scripts/build-index.js",
-    "build:single": "vite build",
+    "build": "vite build",
+    "build:all-palettes": "node scripts/build-palettes.js && node scripts/build-index.js",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

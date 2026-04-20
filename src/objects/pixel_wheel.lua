@@ -9,33 +9,15 @@
 local balMod = require('src.data.balance')
 local BALANCE = balMod.BALANCE
 
--- ── Palette (ISO with JS PaletteDB) ─────────────────────────────────
-local PAL = {
-    black     = {0.04, 0.04, 0.04, 1},
-    darkGray  = {0.10, 0.10, 0.18, 1},
-    midGray   = {0.20, 0.20, 0.27, 1},
-    lightGray = {0.42, 0.42, 0.48, 1},
-    white     = {0.91, 0.88, 0.82, 1},
-    red       = {0.80, 0.13, 0.20, 1},
-    darkRed   = {0.43, 0.07, 0.15, 1},
-    blue      = {0.17, 0.30, 0.80, 1},
-    darkBlue  = {0.09, 0.13, 0.40, 1},
-    gold      = {0.83, 0.65, 0.13, 1},
-    darkGold  = {0.48, 0.37, 0.06, 1},
-    green     = {0.13, 0.67, 0.27, 1},
-    darkGreen = {0.06, 0.33, 0.13, 1},
-    purple    = {0.53, 0.20, 0.80, 1},
-    darkPurple= {0.27, 0.10, 0.40, 1},
-    neonPink  = {1.00, 0.27, 0.67, 1},
-    cyan      = {0.27, 0.67, 0.87, 1},
-}
+-- ── Palette (central, runtime-switchable) ──────────────────────────
+local PAL = require('src.palette')
 
-local SEG_A = PAL.darkGray
-local SEG_B = PAL.black
-local DIVIDER_COLOR = PAL.black
-local HUB_BG = PAL.black
-local HUB_BORDER = PAL.midGray
-local RIM_COLOR = PAL.darkGray
+local SEG_A         = PAL.segA
+local SEG_B         = PAL.segB
+local DIVIDER_COLOR = PAL.dividerColor
+local HUB_BG        = PAL.hubBg
+local HUB_BORDER    = PAL.hubBorder
+local RIM_COLOR     = PAL.rimColor
 
 -- ── Layout proportions (relative to R) ──
 local HUB_P          = 0.28
@@ -447,12 +429,12 @@ function PW:getSettingsValues()
     return s.masterVol, s.bgmVol, s.sfxVol, s.fullscreen
 end
 
--- Settings face geometry (shared between draw and hit test)
-local SETTINGS_GAP = 0.12
-local SETTINGS_QUAD_SPAN = math.pi / 2 - SETTINGS_GAP
-local function settingsQuadStart(q)
-    local bases = { -math.pi/2, 0, math.pi/2, math.pi }
-    return bases[q] + SETTINGS_GAP / 2
+-- Settings face geometry (5 sections: master, bgm, sfx, fullscreen, theme)
+local SETTINGS_GAP = 0.10
+local SETTINGS_COUNT = 5
+local SETTINGS_SECT_SPAN = (TWO_PI / SETTINGS_COUNT) - SETTINGS_GAP
+local function settingsSectStart(s)
+    return -math.pi/2 + (s - 1) * (TWO_PI / SETTINGS_COUNT) + SETTINGS_GAP / 2
 end
 
 function PW:settingsHitTest(x, y, cx, cy)
@@ -472,25 +454,22 @@ function PW:settingsHitTest(x, y, cx, cy)
     if dist < slotInner or dist > slotOuter then return nil end
 
     local IDS = { 'master', 'bgm', 'sfx' }
-    for q = 1, 4 do
-        local a0 = settingsQuadStart(q)
-        local a1 = a0 + SETTINGS_QUAD_SPAN
+    for s = 1, SETTINGS_COUNT do
+        local a0 = settingsSectStart(s)
+        local a1 = a0 + SETTINGS_SECT_SPAN
         local a = angle
-        if q == 4 and a < 0 then a = a + TWO_PI end
-        local inArc
-        if a1 > math.pi then
-            inArc = (a >= a0) or (a <= a1 - TWO_PI)
-        else
-            inArc = (a >= a0 and a <= a1)
-        end
-        if inArc then
-            if q == 4 then
+        while a < a0 - math.pi do a = a + TWO_PI end
+        while a > a0 + math.pi do a = a - TWO_PI end
+        if a >= a0 and a <= a1 then
+            if s == 4 then
                 return { type = 'toggle', id = 'fullscreen' }
+            elseif s == 5 then
+                return { type = 'theme' }
+            else
+                local rel = a - a0
+                local value = math.max(0, math.min(1, rel / SETTINGS_SECT_SPAN))
+                return { type = 'slider', id = IDS[s], value = value }
             end
-            local rel = a - a0
-            if rel < 0 then rel = rel + TWO_PI end
-            local value = math.max(0, math.min(1, rel / SETTINGS_QUAD_SPAN))
-            return { type = 'slider', id = IDS[q], value = value }
         end
     end
     return nil
@@ -1450,11 +1429,11 @@ function PW:_drawSettingsFace(g, font, atlas, cx, cy)
         { id = 'sfx',    label = 'EFFETS',  value = s.sfxVol },
     }
 
-    -- ── 3 volume arc sliders (Q1, Q2, Q3) ──
+    -- ── 3 volume arc sliders (S1, S2, S3) ──
     for q = 1, 3 do
         local sl = SLIDERS[q]
-        local a0 = settingsQuadStart(q)
-        local a1 = a0 + SETTINGS_QUAD_SPAN
+        local a0 = settingsSectStart(q)
+        local a1 = a0 + SETTINGS_SECT_SPAN
         local isHover = s.hoverId == sl.id
         local isDrag = s.dragging == sl.id
 
@@ -1462,16 +1441,14 @@ function PW:_drawSettingsFace(g, font, atlas, cx, cy)
         g:setColor(PAL.darkGray[1], PAL.darkGray[2], PAL.darkGray[3], 0.55)
         drawAnnularArc(cx, cy, slotInner + 1, slotOuter - 1, a0, a1, 48)
 
-        -- Filled portion (layered gold arcs for depth)
+        -- Filled portion
         if sl.value > 0.005 then
-            local fillEnd = a0 + SETTINGS_QUAD_SPAN * sl.value
+            local fillEnd = a0 + SETTINGS_SECT_SPAN * sl.value
             local baseAlpha = (isHover or isDrag) and 0.95 or 0.75
             g:setColor(PAL.darkGold[1], PAL.darkGold[2], PAL.darkGold[3], baseAlpha)
             drawAnnularArc(cx, cy, slotInner + 1, slotOuter - 1, a0, fillEnd, 48)
-            -- Brighter inner band
             g:setColor(PAL.gold[1], PAL.gold[2], PAL.gold[3], baseAlpha)
             drawAnnularArc(cx, cy, slotMidR - 3, slotMidR + 3, a0, fillEnd, 48)
-            -- End marker notch
             if sl.value < 0.995 then
                 local mc, ms = math.cos(fillEnd), math.sin(fillEnd)
                 g:setColor(PAL.white[1], PAL.white[2], PAL.white[3], 1)
@@ -1479,19 +1456,16 @@ function PW:_drawSettingsFace(g, font, atlas, cx, cy)
                 g:line(cx + mc*slotInner, cy + ms*slotInner,
                        cx + mc*slotOuter, cy + ms*slotOuter)
                 love.graphics.setLineWidth(1)
-                -- Pulsing glow dot
                 g:setColor(PAL.white[1], PAL.white[2], PAL.white[3], 0.6 + 0.3 * math.sin(t * 6))
                 g:circle('fill', cx + mc*slotMidR, cy + ms*slotMidR, 2)
             end
         end
 
-        -- Hover overlay
         if isHover then
             g:setColor(PAL.white[1], PAL.white[2], PAL.white[3], 0.08)
             drawAnnularArc(cx, cy, slotInner, slotOuter, a0, a1, 48)
         end
 
-        -- Borders
         local borderCol = isHover and PAL.gold or PAL.midGray
         g:setColor(borderCol[1], borderCol[2], borderCol[3], 1)
         love.graphics.arc('line', 'open', cx, cy, slotOuter, a0, a1, 48)
@@ -1501,8 +1475,7 @@ function PW:_drawSettingsFace(g, font, atlas, cx, cy)
         g:line(cx + dc0*slotInner, cy + ds0*slotInner, cx + dc0*slotOuter, cy + ds0*slotOuter)
         g:line(cx + dc1*slotInner, cy + ds1*slotInner, cx + dc1*slotOuter, cy + ds1*slotOuter)
 
-        -- Label + percentage
-        local mid = a0 + SETTINGS_QUAD_SPAN / 2
+        local mid = a0 + SETTINGS_SECT_SPAN / 2
         local lx = math.floor(cx + math.cos(mid) * slotMidR)
         local ly = math.floor(cy + math.sin(mid) * slotMidR)
         local textCol = isHover and PAL.white or PAL.lightGray
@@ -1510,10 +1483,10 @@ function PW:_drawSettingsFace(g, font, atlas, cx, cy)
         font:drawCentered(math.floor(sl.value * 100) .. '%', lx, ly + 3, PAL.gold, 1)
     end
 
-    -- ── Q4: Fullscreen toggle ──
+    -- ── S4: Fullscreen toggle ──
     do
-        local a0 = settingsQuadStart(4)
-        local a1 = a0 + SETTINGS_QUAD_SPAN
+        local a0 = settingsSectStart(4)
+        local a1 = a0 + SETTINGS_SECT_SPAN
         local isHover = s.hoverId == 'fullscreen'
 
         g:setColor(PAL.darkGray[1], PAL.darkGray[2], PAL.darkGray[3], 0.55)
@@ -1540,7 +1513,7 @@ function PW:_drawSettingsFace(g, font, atlas, cx, cy)
         g:line(cx + dc0*slotInner, cy + ds0*slotInner, cx + dc0*slotOuter, cy + ds0*slotOuter)
         g:line(cx + dc1*slotInner, cy + ds1*slotInner, cx + dc1*slotOuter, cy + ds1*slotOuter)
 
-        local mid = a0 + SETTINGS_QUAD_SPAN / 2
+        local mid = a0 + SETTINGS_SECT_SPAN / 2
         local lx = math.floor(cx + math.cos(mid) * slotMidR)
         local ly = math.floor(cy + math.sin(mid) * slotMidR)
         font:drawCentered('PLEIN', lx, ly - 10, isHover and PAL.white or PAL.lightGray, 1)
@@ -1548,6 +1521,46 @@ function PW:_drawSettingsFace(g, font, atlas, cx, cy)
         local stateStr = s.fullscreen and '[ON]' or '[OFF]'
         local stateCol = s.fullscreen and PAL.green or PAL.red
         font:drawCentered(stateStr, lx, ly + 7, stateCol, 1)
+    end
+
+    -- ── S5: Theme cycle ──
+    do
+        local a0 = settingsSectStart(5)
+        local a1 = a0 + SETTINGS_SECT_SPAN
+        local isHover = s.hoverId == 'theme'
+
+        g:setColor(PAL.darkGray[1], PAL.darkGray[2], PAL.darkGray[3], 0.55)
+        drawAnnularArc(cx, cy, slotInner + 1, slotOuter - 1, a0, a1, 48)
+
+        -- Color swatch arc fill
+        g:setColor(PAL.darkPurple[1], PAL.darkPurple[2], PAL.darkPurple[3], 0.7)
+        drawAnnularArc(cx, cy, slotInner + 1, slotOuter - 1, a0, a1, 48)
+        g:setColor(PAL.purple[1], PAL.purple[2], PAL.purple[3], 0.5)
+        drawAnnularArc(cx, cy, slotMidR - 3, slotMidR + 3, a0, a1, 48)
+
+        if isHover then
+            g:setColor(PAL.white[1], PAL.white[2], PAL.white[3], 0.1)
+            drawAnnularArc(cx, cy, slotInner, slotOuter, a0, a1, 48)
+        end
+
+        local borderCol = isHover and PAL.gold or PAL.purple
+        g:setColor(borderCol[1], borderCol[2], borderCol[3], 1)
+        love.graphics.arc('line', 'open', cx, cy, slotOuter, a0, a1, 48)
+        love.graphics.arc('line', 'open', cx, cy, slotInner, a0, a1, 48)
+        local dc0, ds0 = math.cos(a0), math.sin(a0)
+        local dc1, ds1 = math.cos(a1), math.sin(a1)
+        g:line(cx + dc0*slotInner, cy + ds0*slotInner, cx + dc0*slotOuter, cy + ds0*slotOuter)
+        g:line(cx + dc1*slotInner, cy + ds1*slotInner, cx + dc1*slotOuter, cy + ds1*slotOuter)
+
+        local mid = a0 + SETTINGS_SECT_SPAN / 2
+        local lx = math.floor(cx + math.cos(mid) * slotMidR)
+        local ly = math.floor(cy + math.sin(mid) * slotMidR)
+        font:drawCentered('THEME', lx, ly - 6, isHover and PAL.white or PAL.lightGray, 1)
+        local label = PAL.getThemeLabel()
+        -- Truncate label to fit
+        if #label > 10 then label = label:sub(1, 9) .. '.' end
+        font:drawCentered(label, lx, ly + 3, PAL.cyan, 1)
+    end
     end
 
     -- ── Hub center: RETOUR button ──

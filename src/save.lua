@@ -40,7 +40,8 @@ function Save.load()
     local content = love.filesystem.read(SAVE_FILE)
     local ok, data = pcall(function() return loadstring(content)() end)
     if ok and data then
-        data.settings = data.settings or { masterVol = 0.5, bgmVol = 0.6, sfxVol = 0.8, fullscreen = true }
+        data.settings = data.settings or { masterVol = 0.5, bgmVol = 0.6, sfxVol = 0.8, fullscreen = true, theme = 'original' }
+        data.settings.theme = data.settings.theme or 'original'
         return data
     end
     return nil

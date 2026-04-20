@@ -1,133 +1,139 @@
 /**
  * Symbol sprites — loaded from PNG assets in public/assets/.
- * Each sprite is pre-rendered to an offscreen canvas for fast blitting.
- *
- * Call `preloadSprites()` before game start to load all assets.
+ * 9×9 palette-quantised pixel art.
+ * Sprites are re-quantized automatically when the palette theme changes.
  */
+
+import { PAL, PAL32, onThemeChange } from './PaletteDB.js';
+import { quantize } from './PaletteQuantizer.js';
 
 const SIZE = 9;
 
-// ── Sprite manifest: id → { path, w, h } ──
 const BASE = import.meta.env.BASE_URL ?? '/';
 
 const SPRITE_MANIFEST = {
-
-  // UI
-  ball:             { path: 'assets/ui/ball.png',                  w: 9,  h: 9 },
-  anvil:            { path: 'assets/ui/anvil.png',                 w: 9,  h: 9 },
-  reroll:           { path: 'assets/ui/reroll.png',                w: 9,  h: 9 },
-  arrow_right:      { path: 'assets/ui/arrow_right.png',           w: 9,  h: 9 },
-  skull:            { path: 'assets/ui/skull.png',                 w: 9,  h: 9 },
-
-  // Relics
-  relic_common:     { path: 'assets/relics/relic_common.png',      w: 9,  h: 9 },
-  relic_uncommon:   { path: 'assets/relics/relic_uncommon.png',    w: 9,  h: 9 },
-  relic_rare:       { path: 'assets/relics/relic_rare.png',        w: 9,  h: 9 },
-  relic_legendary:  { path: 'assets/relics/relic_legendary.png',   w: 9,  h: 9 },
-
-  // Currencies
-  ticket:           { path: 'assets/currencies/ticket.png',        w: 15, h: 9 },
-
-  // Menu glyphs (from hieroglyph ring)
-  gear:             { path: 'assets/menu/gear.png',                w: 27, h: 27 },
-  exit:             { path: 'assets/menu/exit.png',                w: 54, h: 27 },
-  book:             { path: 'assets/menu/book.png',                w: 27, h: 27 },
-  retry:            { path: 'assets/menu/retry.png',               w: 27, h: 27 },
+  sym_cherry:  { path: 'symbols/cherry.png' },
+  sym_blue:    { path: 'symbols/blue.png' },
+  sym_red:     { path: 'symbols/red.png' },
+  sym_void:    { path: 'symbols/void.png' },
+  ui_reroll:   { path: 'ui/reroll.png' },
+  ui_anvil:    { path: 'ui/anvil.png' },
+  ui_arrow:    { path: 'ui/arrow_right.png' },
+  ui_ball:     { path: 'ui/ball.png' },
+  ui_skull:    { path: 'ui/skull.png' },
+  menu_gear:   { path: 'menu/gear.png' },
+  menu_book:   { path: 'menu/book.png' },
+  menu_exit:   { path: 'menu/exit.png' },
+  menu_retry:  { path: 'menu/retry.png' },
+  relic_common:    { path: 'relics/relic_common.png' },
+  relic_uncommon:  { path: 'relics/relic_uncommon.png' },
+  relic_rare:      { path: 'relics/relic_rare.png' },
+  relic_legendary: { path: 'relics/relic_legendary.png' },
 };
 
-// Animated sprite manifest: id → { frames: [path, ...], w, h }
 const ANIM_MANIFEST = {
-  coin: {
-    frames: [
-      'assets/currencies/coin_0.png',
-      'assets/currencies/coin_1.png',
-      'assets/currencies/coin_2.png',
-      'assets/currencies/coin_3.png',
-    ],
-    w: 9, h: 9,
-  },
+  coin_0: { path: 'currencies/coin_0.png', count: 4 },
+  coin_1: { path: 'currencies/coin_1.png', count: 4 },
+  coin_2: { path: 'currencies/coin_2.png', count: 4 },
+  coin_3: { path: 'currencies/coin_3.png', count: 4 },
+  ticket: { path: 'currencies/ticket.png', count: 4 },
 };
 
-// ── Internal caches ──
 const _cache = new Map();
 const _animCache = new Map();
 const _animFrameCounts = new Map();
+const _rawImages = new Map();   // id → raw Image (for re-quantizing on theme change)
+
+function _quantize(img) {
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  quantize(ctx, c.width, c.height);
+  return c;
+}
 
 function _loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = img.width;
-      c.height = img.height;
-      const ctx = c.getContext('2d');
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(img, 0, 0);
-      resolve(c);
-    };
-    img.onerror = () => reject(new Error(`Failed to load sprite: ${src}`));
+    img.onload = () => resolve(img);
+    img.onerror = reject;
     img.src = src;
   });
 }
 
-/**
- * Preload all sprite assets. Must be called (and awaited) before drawing.
- */
 export async function preloadSprites() {
   const promises = [];
+  const base = BASE + 'assets/';
 
-  // Static sprites
   for (const [id, info] of Object.entries(SPRITE_MANIFEST)) {
     promises.push(
-      _loadImage(BASE + info.path).then(canvas => {
-        _cache.set(id, canvas);
+      _loadImage(base + info.path).then(img => {
+        _rawImages.set(id, img);
+        _cache.set(id, _quantize(img));
       })
     );
   }
 
-  // Animated sprites
   for (const [id, info] of Object.entries(ANIM_MANIFEST)) {
-    _animFrameCounts.set(id, info.frames.length);
-    for (let f = 0; f < info.frames.length; f++) {
-      promises.push(
-        _loadImage(BASE + info.frames[f]).then(canvas => {
-          _animCache.set(id + '_' + f, canvas);
-        })
-      );
-    }
+    promises.push(
+      _loadImage(base + info.path).then(img => {
+        _rawImages.set(id, img);
+        _animFrameCounts.set(id, info.count);
+        const sheet = _quantize(img);
+        for (let f = 0; f < info.count; f++) {
+          const fc = document.createElement('canvas');
+          fc.width = SIZE; fc.height = SIZE;
+          fc.getContext('2d').drawImage(sheet, f * SIZE, 0, SIZE, SIZE, 0, 0, SIZE, SIZE);
+          _animCache.set(`${id}_${f}`, fc);
+        }
+      })
+    );
   }
 
   await Promise.all(promises);
 }
 
-/**
- * Draw a symbol sprite onto ctx at (dx, dy) with given pixel scale.
- */
+/** Re-run palette quantization on all cached sprites. Called on theme change. */
+export function requantizeSprites() {
+  for (const [id, raw] of _rawImages) {
+    if (_cache.has(id)) {
+      _cache.set(id, _quantize(raw));
+    }
+    const count = _animFrameCounts.get(id);
+    if (count) {
+      const sheet = _quantize(raw);
+      for (let f = 0; f < count; f++) {
+        const fc = document.createElement('canvas');
+        fc.width = SIZE; fc.height = SIZE;
+        fc.getContext('2d').drawImage(sheet, f * SIZE, 0, SIZE, SIZE, 0, 0, SIZE, SIZE);
+        _animCache.set(`${id}_${f}`, fc);
+      }
+    }
+  }
+}
+
+onThemeChange(() => requantizeSprites());
+
+// ── Draw helpers ───────────────────────────────────────────────
+
 export function drawSprite(ctx, symbolId, dx, dy, scale = 1) {
   const src = _cache.get(symbolId);
   if (!src) return;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(src, 0, 0, src.width, src.height, dx, dy, src.width * scale, src.height * scale);
+  ctx.drawImage(src, dx, dy, src.width * scale, src.height * scale);
 }
 
-/**
- * Draw sprite centered at (cx, cy).
- */
 export function drawSpriteCentered(ctx, symbolId, cx, cy, scale = 1) {
   const src = _cache.get(symbolId);
   if (!src) return;
   ctx.imageSmoothingEnabled = false;
   const hw = (src.width * scale) / 2;
   const hh = (src.height * scale) / 2;
-  ctx.drawImage(src, 0, 0, src.width, src.height, Math.round(cx - hw), Math.round(cy - hh), src.width * scale, src.height * scale);
+  ctx.drawImage(src, Math.floor(cx - hw), Math.floor(cy - hh), src.width * scale, src.height * scale);
 }
 
-/**
- * Draw an animated sprite centered at (cx, cy).
- * @param {string} id  'coin'
- * @param {number} time  game time in seconds (picks frame)
- * @param {number} fps  animation speed (default 6)
- */
+// Animated sprite: cycles frames at `fps`
 export function drawAnimSpriteCentered(ctx, id, cx, cy, scale = 1, time = 0, fps = 6) {
   const count = _animFrameCounts.get(id);
   if (!count) return;
@@ -136,22 +142,19 @@ export function drawAnimSpriteCentered(ctx, id, cx, cy, scale = 1, time = 0, fps
   if (!src) return;
   ctx.imageSmoothingEnabled = false;
   const half = (SIZE * scale) / 2;
-  ctx.drawImage(src, 0, 0, SIZE, SIZE, Math.round(cx - half), Math.round(cy - half), SIZE * scale, SIZE * scale);
+  ctx.drawImage(src, Math.floor(cx - half), Math.floor(cy - half), SIZE * scale, SIZE * scale);
 }
 
-/**
- * Draw a specific frame of an animated sprite centered at (cx, cy).
- */
 export function drawAnimFrameCentered(ctx, id, frame, cx, cy, scale = 1) {
   const src = _animCache.get(id + '_' + frame);
   if (!src) return;
   ctx.imageSmoothingEnabled = false;
   const half = (SIZE * scale) / 2;
-  ctx.drawImage(src, 0, 0, SIZE, SIZE, Math.round(cx - half), Math.round(cy - half), SIZE * scale, SIZE * scale);
+  ctx.drawImage(src, Math.floor(cx - half), Math.floor(cy - half), SIZE * scale, SIZE * scale);
 }
 
 export function getAnimFrameCount(id) {
-  return _animFrameCounts.get(id) ?? 0;
+  return _animFrameCounts.get(id) || 0;
 }
 
 export function getSpriteIds() { return Object.keys(SPRITE_MANIFEST); }

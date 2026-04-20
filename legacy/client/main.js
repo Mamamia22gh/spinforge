@@ -1,7 +1,7 @@
 import { createGame } from '../src/index.js';
 import { BALANCE, getQuota } from '../src/data/balance.js';
 import { PixelWheel } from './objects/PixelWheel.js';
-import { PAL, PAL32 } from './gfx/PaletteDB.js';
+import { PAL, PAL32, THEMES, THEME_ORDER, getCurrentTheme, getThemeLabel, setTheme, cycleTheme, onThemeChange } from './gfx/PaletteDB.js';
 import { drawText, drawTextCentered, drawTextCenteredOutlined, drawTextWrapped, measureText, CHAR_W, CHAR_H } from './gfx/BitmapFont.js';
 import { preloadSprites, drawSpriteCentered, drawAnimSpriteCentered, drawAnimFrameCentered, getAnimFrameCount, getSpriteIds, getAnimSpriteIds, SPRITE_SIZE } from './gfx/PixelSprites.js';
 import { SYMBOLS, getSymbol } from '../src/data/symbols.js';
@@ -88,6 +88,19 @@ class App {
     this.wheel.setWheel(defaultWheel);
 
     this._initBackground(defaultWheel);
+    this._wheelDataForBg = defaultWheel;
+
+    // ── Theme picker state ──
+    this._themePickerOpen = false;
+    this._themePickerHover = -1;
+
+    // Rebuild palette-dependent pre-rendered canvases on theme change
+    onThemeChange(() => {
+      this._initBackground(this._wheelDataForBg);
+      if (this.wheel) {
+        this.wheel._forgeBgCanvas = null; // forge-shop bg uses lazy init
+      }
+    });
 
     // Mouse tracking (normalized -1..1 from center)
     this._mx = 0;
@@ -136,6 +149,7 @@ class App {
     window.addEventListener('keydown', e => {
       if (e.key === 'Escape' && this._debugSpritesOpen) { this._debugSpritesOpen = false; e.preventDefault(); }
       else if (e.key === 'Escape' && this._catalogueOpen) { this._closeCatalogue(); e.preventDefault(); }
+      else if (e.key === 'Escape' && this._themePickerOpen) { this._closeThemePicker(); e.preventDefault(); }
     });
     this._display.addEventListener('wheel', e => {
       if (this._debugSpritesOpen) {
@@ -176,7 +190,12 @@ class App {
     const x = Math.floor((e.clientX - rect.left) / rect.width * W);
     const y = Math.floor((e.clientY - rect.top) / rect.height * H);
 
-
+    if (this._themePickerOpen) {
+      const hit = this._themePickerHitTest(x, y);
+      this._themePickerHover = hit;
+      this._display.style.cursor = (hit >= 0) ? _CURSOR_POINTER : _CURSOR_DEFAULT;
+      return;
+    }
     // Relic bar hover detection (top gauge area) — blocked by overlays
     const oldRelicHover = this._relicHoverRarity;
     const relicHit = (this._catalogueOpen || this._debugSpritesOpen) ? null : this.wheel.relicBarHitTest(x, y, WHEEL_CX, WHEEL_CY);
@@ -213,6 +232,11 @@ class App {
     this._initAudio();
     const { x, y } = this._mapCoords(e);
 
+    // Theme picker overlay intercepts all clicks when open
+    if (this._themePickerOpen) {
+      this._themePickerClick(x, y);
+      return;
+    }
     // Debug sprites overlay intercepts all clicks when open
     if (this._debugSpritesOpen) {
       this._debugSpritesClick(x, y);
@@ -271,7 +295,7 @@ class App {
     if (menuId === 'catalogue') {
       this._openCatalogue();
     } else if (menuId === 'settings') {
-      this._pop('SETTINGS');
+      this._openThemePicker();
     } else if (menuId === 'retry') {
       this._retryFromGameOver();
     } else if (menuId === 'exit') {
@@ -286,6 +310,106 @@ class App {
     this.game.startRun();
     this._syncWheel();
 
+  }
+
+  // ── Theme picker overlay ──
+  _openThemePicker() {
+    this._playSelect();
+    this._themePickerOpen = true;
+    this._themePickerHover = -1;
+  }
+
+  _closeThemePicker() {
+    this._themePickerOpen = false;
+    this._themePickerHover = -1;
+  }
+
+  _getThemePickerRect() {
+    const pw = 240, ph = 200;
+    const px = Math.floor((W - pw) / 2);
+    const py = Math.floor((H - ph) / 2);
+    return { px, py, pw, ph };
+  }
+
+  _getThemeRowRect(i, panel) {
+    const rowH = 22;
+    const rx = panel.px + 8;
+    const ry = panel.py + 24 + i * rowH;
+    const rw = panel.pw - 16;
+    return { rx, ry, rw, rh: rowH - 2 };
+  }
+
+  _themePickerHitTest(x, y) {
+    const panel = this._getThemePickerRect();
+    if (x < panel.px || x > panel.px + panel.pw || y < panel.py || y > panel.py + panel.ph) return -2; // outside = close
+    for (let i = 0; i < THEME_ORDER.length; i++) {
+      const r = this._getThemeRowRect(i, panel);
+      if (x >= r.rx && x <= r.rx + r.rw && y >= r.ry && y <= r.ry + r.rh) return i;
+    }
+    return -1;
+  }
+
+  _themePickerClick(x, y) {
+    const hit = this._themePickerHitTest(x, y);
+    if (hit === -2) { this._playSelect(); this._closeThemePicker(); return; }
+    if (hit >= 0) {
+      const themeId = THEME_ORDER[hit];
+      this._playSelect();
+      setTheme(themeId);
+    }
+  }
+
+  _drawThemePicker(ctx) {
+    if (!this._themePickerOpen) return;
+    // Dim backdrop
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, W, H);
+
+    const panel = this._getThemePickerRect();
+    ctx.fillStyle = PAL.black;
+    ctx.fillRect(panel.px, panel.py, panel.pw, panel.ph);
+    ctx.strokeStyle = PAL.gold; ctx.lineWidth = 1;
+    ctx.strokeRect(panel.px + 0.5, panel.py + 0.5, panel.pw - 1, panel.ph - 1);
+
+    drawTextCentered(ctx, 'COLOR THEME', panel.px + panel.pw / 2, panel.py + 6, PAL.gold, 1);
+
+    const current = getCurrentTheme();
+    const swatchKeys = ['red', 'gold', 'green', 'blue', 'purple', 'cyan', 'neonPink'];
+
+    for (let i = 0; i < THEME_ORDER.length; i++) {
+      const id = THEME_ORDER[i];
+      const theme = THEMES[id];
+      const r = this._getThemeRowRect(i, panel);
+      const isCurrent = id === current;
+      const isHover = i === this._themePickerHover;
+
+      // Row bg
+      if (isCurrent) {
+        ctx.fillStyle = PAL.darkGold;
+        ctx.fillRect(r.rx, r.ry, r.rw, r.rh);
+      } else if (isHover) {
+        ctx.fillStyle = PAL.darkGray;
+        ctx.fillRect(r.rx, r.ry, r.rw, r.rh);
+      }
+      ctx.strokeStyle = isCurrent ? PAL.gold : (isHover ? PAL.midGray : PAL.darkGray);
+      ctx.strokeRect(r.rx + 0.5, r.ry + 0.5, r.rw - 1, r.rh - 1);
+
+      // Label
+      const labelCol = isCurrent ? PAL.white : (isHover ? PAL.white : PAL.lightGray);
+      drawText(ctx, theme.label.toUpperCase(), r.rx + 5, r.ry + 4, labelCol, 1);
+
+      // Color swatch strip (right side)
+      const swW = 9, swH = 10;
+      const swY = r.ry + 5;
+      let swX = r.rx + r.rw - swatchKeys.length * swW - 4;
+      for (const key of swatchKeys) {
+        ctx.fillStyle = theme.colors[key];
+        ctx.fillRect(swX, swY, swW - 1, swH);
+        swX += swW;
+      }
+    }
+
+    drawTextCentered(ctx, '[ESC] CLOSE', panel.px + panel.pw / 2, panel.py + panel.ph - 10, PAL.darkGold, 1);
   }
 
   // ── Catalogue overlay ──
@@ -1178,6 +1302,7 @@ class App {
     uiCtx.scale(PX, PX);
     this._drawCatalogue(uiCtx);
     this._drawDebugSprites(uiCtx);
+    this._drawThemePicker(uiCtx);
     this._drawRelicTooltip(uiCtx);
     this._drawShopTooltip(uiCtx);
 

@@ -12,17 +12,9 @@
 local BG = {}
 BG.__index = BG
 
--- ── Palette (RGBA 0..255) — ISO PaletteDB ────────────────────
-local PAL = {
-    black     = {10,  10,  10 },
-    darkGray  = {26,  26,  46 },
-    midGray   = {51,  51,  70 },
-    lightGray = {106, 106, 122},
-    white     = {232, 224, 208},
-    darkRed   = {110, 17,  39 },
-    darkGold  = {122, 94,  16 },
-    gold      = {212, 165, 32 },
-}
+-- ── Palette (RGBA 0..255) — reads from central palette ────────
+local _P = require('src.palette')
+local PAL = setmetatable({}, { __index = function(_, k) return _P.rgb(k) end })
 
 -- ── Constants matching JS ────────────────────────────────────
 local W, H         = 480, 270
@@ -217,6 +209,10 @@ function BG:_build()
             }
         end
     end
+end
+
+function BG:rebuild()
+    self:_build()
 end
 
 function BG:update(dt) self._time = self._time + dt end

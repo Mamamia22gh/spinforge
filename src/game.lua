@@ -42,18 +42,7 @@ local SPRITE_SIZE   = 8
 local CH_W          = 4   -- char width (matches font.lua charWidth=4)
 local CH_H          = 7   -- char height + gap (matches legacy CHAR_H)
 
-local PAL = {
-    gold     = {0.83, 0.65, 0.13, 1},
-    darkGold = {0.48, 0.37, 0.06, 1},
-    midGray  = {0.20, 0.20, 0.27, 1},
-    lightGray= {0.42, 0.42, 0.48, 1},
-    white    = {0.91, 0.88, 0.82, 1},
-    black    = {0.04, 0.04, 0.04, 1},
-    red      = {0.80, 0.13, 0.20, 1},
-    darkRed  = {0.43, 0.07, 0.15, 1},
-    green    = {0.13, 0.67, 0.27, 1},
-    blue     = {0.17, 0.30, 0.80, 1},
-}
+local PAL = require('src.palette')
 
 local RARITY_COL = {
     common    = PAL.white,
@@ -331,6 +320,7 @@ function Game:_applySettings(saveNow)
     meta.settings.bgmVol     = b
     meta.settings.sfxVol     = sx
     meta.settings.fullscreen = fs
+    meta.settings.theme      = PAL.getTheme()
     self._kernel:emit('audio.set_volume', { master = m, bgm = b, sfx = sx })
     local curFs = love.window.getFullscreen()
     if curFs ~= fs then love.window.setFullscreen(fs, 'desktop') end
@@ -426,10 +416,11 @@ function Game:boot(kernel, cfg)
     self.ctx = make_ctx(self, kernel)
     self:_bindLoopEvents()
 
-    -- Initialize settings from saved meta (apply volume + fullscreen)
+    -- Initialize settings from saved meta (apply volume + fullscreen + theme)
     local meta = self.loop.state.meta
-    meta.settings = meta.settings or { masterVol = 0.5, bgmVol = 0.6, sfxVol = 0.8, fullscreen = true }
+    meta.settings = meta.settings or { masterVol = 0.5, bgmVol = 0.6, sfxVol = 0.8, fullscreen = true, theme = 'original' }
     local s = meta.settings
+    if s.theme then PAL.setTheme(s.theme) end
     kernel:emit('audio.set_volume', { master = s.masterVol, bgm = s.bgmVol, sfx = s.sfxVol })
     if love.window.getFullscreen() ~= (s.fullscreen ~= false) then
         love.window.setFullscreen(s.fullscreen ~= false, 'desktop')
@@ -533,16 +524,17 @@ function Game:boot(kernel, cfg)
                     local dx = self._mx - WHEEL_CX
                     local dy = (self._my - WHEEL_CY) / TILT_Y
                     local a = math.atan2(dy, dx)
-                    local qMap = { master = 1, bgm = 2, sfx = 3 }
-                    local q = qMap[self._settingsDrag]
-                    if q then
-                        local GAP = 0.12
-                        local SPAN = math.pi/2 - GAP
-                        local bases = { -math.pi/2, 0, math.pi/2, math.pi }
-                        local a0 = bases[q] + GAP/2
+                    local sMap = { master = 1, bgm = 2, sfx = 3 }
+                    local sIdx = sMap[self._settingsDrag]
+                    if sIdx then
+                        local TWO_PI = math.pi * 2
+                        local GAP = 0.10
+                        local COUNT = 5
+                        local SPAN = (TWO_PI / COUNT) - GAP
+                        local a0 = -math.pi/2 + (sIdx - 1) * (TWO_PI / COUNT) + GAP / 2
                         local rel = a - a0
-                        if rel < -math.pi then rel = rel + 2*math.pi end
-                        if rel > math.pi then rel = rel - 2*math.pi end
+                        if rel < -math.pi then rel = rel + TWO_PI end
+                        if rel > math.pi then rel = rel - TWO_PI end
                         local v = math.max(0, math.min(1, rel / SPAN))
                         self.wheel:settingsSetSlider(self._settingsDrag, v)
                         self:_applySettings(false)
@@ -732,6 +724,11 @@ function Game:boot(kernel, cfg)
                 self._kernel:emit('audio.sfx', { name = 'select' })
                 self.wheel:settingsToggleFullscreen()
                 self:_applySettings(false)
+            elseif hit.type == 'theme' then
+                self._kernel:emit('audio.sfx', { name = 'select' })
+                PAL.cycleTheme(1)
+                self.bg:rebuild()
+                self:_applySettings(true)
             elseif hit.type == 'slider' then
                 self._kernel:emit('audio.tone', { freq = 1400, duration = 0.04, wave = 'square', vol = 0.05 })
                 self._settingsDrag = hit.id
