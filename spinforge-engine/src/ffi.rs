@@ -201,7 +201,7 @@ pub struct ShopSlot {
     pub kind: u8,
     pub subtype: u8,
     pub rarity: u8,
-    pub quality: u8,
+    pub alteration: u8,
     pub price: u32,
     pub sold: u8,
 }
@@ -227,7 +227,7 @@ pub extern "C" fn engine_shop_get(ptr: *mut Engine, out: *mut ShopSlot, max_len:
         };
         buf[n] = ShopSlot {
             kind: 0, subtype, rarity,
-            quality: slot.quality as u8,
+            alteration: slot.alteration as u8,
             price: slot.price,
             sold: slot.sold as u8,
         };
@@ -242,7 +242,7 @@ pub extern "C" fn engine_shop_get(ptr: *mut Engine, out: *mut ShopSlot, max_len:
         };
         buf[n] = ShopSlot {
             kind: 1, subtype, rarity: 0,
-            quality: slot.quality as u8,
+            alteration: slot.alteration as u8,
             price: slot.price,
             sold: slot.sold as u8,
         };
@@ -256,7 +256,7 @@ pub extern "C" fn engine_shop_get(ptr: *mut Engine, out: *mut ShopSlot, max_len:
         };
         buf[n] = ShopSlot {
             kind: 2, subtype, rarity: 0,
-            quality: slot.quality as u8,
+            alteration: slot.alteration as u8,
             price: slot.price,
             sold: slot.sold as u8,
         };

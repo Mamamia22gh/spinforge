@@ -25,7 +25,7 @@ function SS:_refreshShopUI()
                 shopType = ({ [0]='ball', 'relic', 'upgrade' })[s.kind] or 'ball',
                 name = self:_slotName(s),
                 rarity = ({ [0]='common','uncommon','rare','legendary' })[s.rarity] or 'common',
-                quality = ({ [0]='normal', 'corrupted', 'purified' })[s.quality] or 'normal',
+                alteration = ({ [0]='normal', 'corrupted', 'purified' })[s.alteration] or 'normal',
                 finalCost = s.price,
                 description = '',
             }
@@ -151,7 +151,7 @@ function SS:draw(g, font, atlas)
     g:setColor(0, 0, 0, 0.88); g:rect('fill', PX0-1, PY0-1, PW+2, PH+2)
     g:setColor(0.04, 0.04, 0.04, 1); g:rect('fill', PX0, PY0, PW, PH)
 
-    local qual = hovered.quality or 'normal'
+    local qual = hovered.alteration or 'normal'
     if qual == 'corrupted' then
         g:setColor(0.55, 0.15, 0.75, 0.3); g:rect('fill', PX0, PY0, PW, PH)
         g:setColor(0.55, 0.15, 0.75, 1); g:rect('line', PX0, PY0, PW, PH)

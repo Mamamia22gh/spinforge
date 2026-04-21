@@ -7,7 +7,7 @@ ffi.cdef[[
 typedef struct { uint8_t kind; int32_t a, b, c, d; } FrontEvent;
 typedef struct { int32_t value; uint8_t kind; } SegmentFFI;
 typedef struct { uint8_t effect; uint8_t rarity; } BallFFI;
-typedef struct { uint8_t kind; uint8_t subtype; uint8_t rarity; uint8_t quality; uint32_t price; uint8_t sold; } ShopSlot;
+typedef struct { uint8_t kind; uint8_t subtype; uint8_t rarity; uint8_t alteration; uint32_t price; uint8_t sold; } ShopSlot;
 
 void* engine_new(uint32_t seed);
 void  engine_free(void* ptr);
@@ -105,7 +105,7 @@ function E:shopSlots()
     for i = 0, n - 1 do
         out[i + 1] = {
             kind = _shop[i].kind, subtype = _shop[i].subtype,
-            rarity = _shop[i].rarity, quality = _shop[i].quality,
+            rarity = _shop[i].rarity, alteration = _shop[i].alteration,
             price = tonumber(_shop[i].price),
             sold = _shop[i].sold ~= 0,
         }

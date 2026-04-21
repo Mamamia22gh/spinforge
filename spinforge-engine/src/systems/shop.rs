@@ -6,7 +6,7 @@ use crate::core::state::GameState;
 use crate::items::upgrades::Upgrade;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Quality {
+pub enum Alteration {
     Normal,
     Corrupted,
     Purified,
@@ -24,7 +24,7 @@ pub struct ShopSlot {
     pub item: ShopItem,
     pub price: u32,
     pub sold: bool,
-    pub quality: Quality,
+    pub alteration: Alteration,
 }
 
 #[derive(Clone, Debug)]
@@ -46,21 +46,21 @@ pub enum ShopAction {
 }
 
 impl Shop {
-    fn roll_quality(rng: &mut Rng) -> Quality {
+    fn roll_alteration(rng: &mut Rng) -> Alteration {
         let r = rng.random();
-        if r < 0.10 { Quality::Corrupted }
-        else if r < 0.20 { Quality::Purified }
-        else { Quality::Normal }
+        if r < 0.10 { Alteration::Corrupted }
+        else if r < 0.20 { Alteration::Purified }
+        else { Alteration::Normal }
     }
 
-    fn apply_quality(quality: Quality, state: &mut GameState) {
+    fn apply_alteration(alteration: Alteration, state: &mut GameState) {
         use crate::core::balance;
-        match quality {
-            Quality::Normal => {}
-            Quality::Corrupted => {
+        match alteration {
+            Alteration::Normal => {}
+            Alteration::Corrupted => {
                 state.corruption = (state.corruption + balance::CORRUPTION_PER_CORRUPTED_BUY).min(1.0);
             }
-            Quality::Purified => {
+            Alteration::Purified => {
                 state.corruption = (state.corruption - balance::CORRUPTION_PER_PURIFIED_BUY).max(0.0);
             }
         }
@@ -70,34 +70,34 @@ impl Shop {
         let effect_pool = [crate::items::balls::BallEffect::ScoreOnce, crate::items::balls::BallEffect::ScoreDouble, crate::items::balls::BallEffect::ScoreAdjacent, crate::items::balls::BallEffect::ScoreTickets];
         let rarity_pool = [crate::items::balls::Rarity::Common, crate::items::balls::Rarity::Common, crate::items::balls::Rarity::Uncommon, crate::items::balls::Rarity::Rare];
         let balls = std::array::from_fn(|_| {
-            let q = Self::roll_quality(rng);
+            let a = Self::roll_alteration(rng);
             ShopSlot {
                 item: ShopItem::Ball(Ball::new(*rng.pick(&effect_pool), *rng.pick(&rarity_pool))),
                 price: rng.int(5, 15) as u32,
                 sold: false,
-                quality: q,
+                alteration: a,
             }
         });
 
         let relic_pool = [RelicId::SetAllSegmentsTo20, RelicId::SetAllSegmentsTo19, RelicId::GoldenBonus, RelicId::CorruptionShield];
         let relics = std::array::from_fn(|_| {
             let id = *rng.pick(&relic_pool);
-            let q = Self::roll_quality(rng);
+            let a = Self::roll_alteration(rng);
             ShopSlot {
                 item: ShopItem::Relic(id),
                 price: rng.int(10, 25) as u32,
                 sold: false,
-                quality: q,
+                alteration: a,
             }
         });
 
         let upgrade_pool = [Upgrade::TicketPerBall, Upgrade::BuyDiscount, Upgrade::RoundEndGold];
-        let uq = Self::roll_quality(rng);
+        let ua = Self::roll_alteration(rng);
         let upgrade = ShopSlot {
             item: ShopItem::Upgrade(*rng.pick(&upgrade_pool)),
             price: rng.int(8, 20) as u32,
             sold: false,
-            quality: uq,
+            alteration: ua,
         };
 
         Self {
@@ -115,7 +115,7 @@ impl Shop {
                 if !slot.sold && state.tickets >= slot.price {
                     slot.sold = true;
                     let cost = slot.price;
-                    let quality = slot.quality;
+                    let alteration = slot.alteration;
                     state.tickets -= cost;
                     if let ShopItem::Ball(mut ball) = slot.item {
                         if state.balls.len() < crate::core::state::MAX_BALLS {
@@ -125,7 +125,7 @@ impl Shop {
                             }
                         }
                     }
-                    Self::apply_quality(quality, &mut state);
+                    Self::apply_alteration(alteration, &mut state);
                     event::trigger(Event::OnBuy, &mut state);
                 }
             }
@@ -134,12 +134,12 @@ impl Shop {
                 if !slot.sold && state.tickets >= slot.price {
                     slot.sold = true;
                     let cost = slot.price;
-                    let quality = slot.quality;
+                    let alteration = slot.alteration;
                     state.tickets -= cost;
                     if let ShopItem::Relic(id) = slot.item {
                         state.relics.push(id);
                     }
-                    Self::apply_quality(quality, &mut state);
+                    Self::apply_alteration(alteration, &mut state);
                     event::trigger(Event::OnBuy, &mut state);
                 }
             }
@@ -148,14 +148,14 @@ impl Shop {
                 if !slot.sold && state.tickets >= slot.price {
                     slot.sold = true;
                     let cost = slot.price;
-                    let quality = slot.quality;
+                    let alteration = slot.alteration;
                     state.tickets -= cost;
                     if let ShopItem::Upgrade(u) = slot.item {
                         if state.upgrades.len() < crate::core::state::MAX_UPGRADES {
                             if !state.upgrades.is_full() { state.upgrades.push((u, cost)); }
                         }
                     }
-                    Self::apply_quality(quality, &mut state);
+                    Self::apply_alteration(alteration, &mut state);
                     event::trigger(Event::OnBuy, &mut state);
                 }
             }

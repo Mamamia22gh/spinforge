@@ -104,7 +104,7 @@ function PW:_drawForgeFace(g, font, atlas, cx, cy)
         rare      = { fg = PAL.blue, bg = PAL.darkBlue, border = PAL.cyan },
         legendary = { fg = PAL.neonPink, bg = PAL.darkPurple, border = PAL.gold },
     }
-    local QUALITY_COLORS = {
+    local ALTERATION_COLORS = {
         corrupted = { 0.55, 0.15, 0.75 },
         purified  = { 0.95, 0.95, 1.0 },
     }
@@ -155,8 +155,8 @@ function PW:_drawForgeFace(g, font, atlas, cx, cy)
                 g:setColor(rc.bg[1], rc.bg[2], rc.bg[3], offering.rarity == 'common' and 0.15 or 0.3)
                 drawAnnularArc(cx, cy, slotInner + 1, slotOuter - 1, a0, a1, 32)
 
-                local qual = offering.quality or 'normal'
-                local qc = QUALITY_COLORS[qual]
+                local qual = offering.alteration or 'normal'
+                local qc = ALTERATION_COLORS[qual]
                 if qc then
                     local pulse = 0.25 + 0.15 * math.sin(self._shopParticleTimer * 4 + slotIdx)
                     g:setColor(qc[1], qc[2], qc[3], pulse)

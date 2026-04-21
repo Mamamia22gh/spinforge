@@ -223,7 +223,7 @@ mod tests {
         state.tickets = 1000;
         let corr_before = state.corruption;
         let mut shop2 = shop;
-        shop2.balls[0].quality = crate::systems::shop::Quality::Corrupted;
+        shop2.balls[0].alteration = crate::systems::shop::Alteration::Corrupted;
         let (_, state) = shop2.apply(crate::systems::shop::ShopAction::BuyBall(0), state, &mut rng);
         assert!((state.corruption - (corr_before + balance::CORRUPTION_PER_CORRUPTED_BUY)).abs() < f64::EPSILON);
     }
@@ -236,7 +236,7 @@ mod tests {
         state.tickets = 1000;
         state.corruption = 0.5;
         let mut shop2 = shop;
-        shop2.balls[0].quality = crate::systems::shop::Quality::Purified;
+        shop2.balls[0].alteration = crate::systems::shop::Alteration::Purified;
         let (_, state) = shop2.apply(crate::systems::shop::ShopAction::BuyBall(0), state, &mut rng);
         assert!((state.corruption - 0.3).abs() < f64::EPSILON);
     }
