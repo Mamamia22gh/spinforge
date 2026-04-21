@@ -37,8 +37,10 @@ pub enum ShopAction {
 
 impl Shop {
     pub fn generate(rng: &mut Rng) -> Self {
+        let effect_pool = [crate::items::balls::BallEffect::ScoreOnce, crate::items::balls::BallEffect::ScoreDouble, crate::items::balls::BallEffect::ScoreAdjacent, crate::items::balls::BallEffect::ScoreTickets];
+        let rarity_pool = [crate::items::balls::Rarity::Common, crate::items::balls::Rarity::Common, crate::items::balls::Rarity::Uncommon, crate::items::balls::Rarity::Rare];
         let balls = std::array::from_fn(|_| ShopSlot {
-            item: ShopItem::Ball(Ball::new(crate::items::balls::BallEffect::ScoreOnce, crate::items::balls::Rarity::Common)),
+            item: ShopItem::Ball(Ball::new(*rng.pick(&effect_pool), *rng.pick(&rarity_pool))),
             price: rng.int(5, 15) as u32,
             sold: false,
         });
