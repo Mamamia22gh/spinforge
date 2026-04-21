@@ -7,6 +7,8 @@ pub mod effects;
 pub enum RelicId {
     SetAllSegmentsTo20,
     SetAllSegmentsTo19,
+    GoldenBonus,
+    CorruptionShield,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -30,13 +32,28 @@ pub struct RelicDef {
 
 impl RelicId {
     pub fn on(self, event: Event, state: &mut GameState) {
-        if event != Event::OnBuy { return; }
         match self {
             RelicId::SetAllSegmentsTo20 => {
-                for seg in &mut state.segments { seg.value = 20; }
+                if event == Event::OnBuy {
+                    for seg in &mut state.segments { seg.value = 20; }
+                }
             }
             RelicId::SetAllSegmentsTo19 => {
-                for seg in &mut state.segments { seg.value = 19; }
+                if event == Event::OnBuy {
+                    for seg in &mut state.segments { seg.value = 19; }
+                }
+            }
+            RelicId::GoldenBonus => {
+                if let Event::OnScore(pos) = event {
+                    if state.segments[pos].kind == crate::items::segment::SegmentKind::Golden {
+                        state.gold_coins += 5;
+                    }
+                }
+            }
+            RelicId::CorruptionShield => {
+                if event == Event::AfterScore {
+                    state.corruption = (state.corruption - 0.1).max(0.0);
+                }
             }
         }
     }

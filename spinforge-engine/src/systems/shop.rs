@@ -43,7 +43,7 @@ impl Shop {
             sold: false,
         });
 
-        let relic_pool = [RelicId::SetAllSegmentsTo20, RelicId::SetAllSegmentsTo19];
+        let relic_pool = [RelicId::SetAllSegmentsTo20, RelicId::SetAllSegmentsTo19, RelicId::GoldenBonus, RelicId::CorruptionShield];
         let relics = std::array::from_fn(|_| {
             let id = *rng.pick(&relic_pool);
             ShopSlot {
@@ -53,8 +53,9 @@ impl Shop {
             }
         });
 
+        let upgrade_pool = [Upgrade::TicketPerBall, Upgrade::BuyDiscount, Upgrade::RoundEndGold];
         let upgrade = ShopSlot {
-            item: ShopItem::Upgrade(Upgrade::TicketPerBall),
+            item: ShopItem::Upgrade(*rng.pick(&upgrade_pool)),
             price: rng.int(8, 20) as u32,
             sold: false,
         };
