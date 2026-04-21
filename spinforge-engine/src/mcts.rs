@@ -200,24 +200,31 @@ pub fn run_mcts(seed: u32, simulations: u32) -> MctsResult {
             state.tickets += balance::TICKETS_PER_ROUND;
             let shop = Shop::generate(&mut rng);
 
-            let mut root = Node::new(0);
-            expand(&mut root, &shop, &state);
+            let mut current_shop = shop;
+            loop {
+                let mut root = Node::new(0);
+                expand(&mut root, &current_shop, &state);
 
-            for _ in 0..50 {
-                let mut sim_rng = rng.fork();
-                let (_, val) = tree_policy(&mut root, &shop, state.clone(), &mut sim_rng);
-                root.visits += 1;
-                root.total_value += val;
+                for _ in 0..50 {
+                    let mut sim_rng = rng.fork();
+                    let (_, val) = tree_policy(&mut root, &current_shop, state.clone(), &mut sim_rng);
+                    root.visits += 1;
+                    root.total_value += val;
+                }
+
+                let best = root.children.iter()
+                    .max_by(|a, b| a.avg_value().partial_cmp(&b.avg_value()).unwrap())
+                    .map(|n| n.action_idx)
+                    .unwrap_or(0);
+
+                let action = idx_to_action(best);
+                let is_continue = matches!(action, ShopAction::Continue);
+                let (s, st) = current_shop.apply(action, state, &mut rng);
+                current_shop = s;
+                state = st;
+
+                if is_continue { break; }
             }
-
-            let best = root.children.iter()
-                .max_by(|a, b| a.avg_value().partial_cmp(&b.avg_value()).unwrap())
-                .map(|n| n.action_idx)
-                .unwrap_or(0);
-
-            let action = idx_to_action(best);
-            let (_, s) = shop.apply(action, state, &mut rng);
-            state = s;
         }
 
         if let Some(r) = first_win_round {
