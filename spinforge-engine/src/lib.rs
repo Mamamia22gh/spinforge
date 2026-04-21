@@ -20,3 +20,4 @@ pub use systems::shop;
 
 pub mod mcts;
 pub mod calibrate;
+pub mod analytics;
