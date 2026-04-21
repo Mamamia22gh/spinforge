@@ -92,12 +92,15 @@ function SS:click(x, y)
         g.engine:shopAction(SA.SELL_BALL)
         self:_processShopEvents()
         self:_refreshShopUI()
+        g:_syncWheel()
         return
-    elseif sellKey == 'upgrade' then
+    elseif sellKey and sellKey:sub(1, 8) == 'upgrade_' then
+        local idx = tonumber(sellKey:sub(9)) - 1
         g:playSelect()
-        g.engine:shopAction(SA.SELL_UPGRADE_BASE + 0)
+        g.engine:shopAction(SA.SELL_UPGRADE_BASE + idx)
         self:_processShopEvents()
         self:_refreshShopUI()
+        g:_syncWheel()
         return
     end
 

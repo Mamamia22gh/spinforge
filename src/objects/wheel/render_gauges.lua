@@ -14,26 +14,20 @@ function PW:_drawGauges(g, font, atlas, cx, cy)
     end
 end
 
-function PW:_drawSellButton(g, font, cx, cy, cfg, label, key)
+function PW:_drawSellCross(g, cx, cy, px, py, key)
     if not self:isFlipped() then return end
-    local OUTER = self._rimR + 21
-    local btnR = OUTER + 8
-    local midA = (cfg.start + cfg.eend) / 2
-    local bx = math.floor(cx + math.cos(midA) * btnR)
-    local by = math.floor(cy + math.sin(midA) * btnR)
-    local tw = font:measure(label)
-    local hw, hh = math.floor(tw / 2) + 3, 5
     local isHover = self._shop.sellHover == key
-    local bgA = isHover and 0.7 or 0.4
-    g:setColor(0.15, 0.0, 0.0, bgA)
-    g:rect('fill', bx - hw, by - hh, hw * 2, hh * 2)
-    local borderCol = isHover and PAL.red or PAL.midGray
-    g:setColor(borderCol[1], borderCol[2], borderCol[3], 1)
-    g:rect('line', bx - hw, by - hh, hw * 2, hh * 2)
-    local txtCol = isHover and PAL.white or PAL.lightGray
-    font:drawCentered(label, bx, by - 3, txtCol, 1)
+    local col = isHover and {1, 0.2, 0.2} or {0.6, 0.15, 0.15}
+    local a = isHover and 1 or 0.7
+    g:setColor(col[1], col[2], col[3], a)
+    g:line(px - 2, py - 2, px + 2, py + 2)
+    g:line(px - 2, py + 2, px + 2, py - 2)
+    if isHover then
+        g:setColor(1, 0.3, 0.3, 0.25)
+        g:circle('fill', px, py, 5)
+    end
     if not self._sellBtnRects then self._sellBtnRects = {} end
-    self._sellBtnRects[key] = { x = bx - hw, y = by - hh, w = hw * 2, h = hh * 2 }
+    self._sellBtnRects[key] = { x = px - 5, y = py - 5, w = 10, h = 10 }
 end
 
 function PW:_drawOneGauge(g, font, atlas, cx, cy, gaugeIdx)
@@ -100,7 +94,11 @@ function PW:_drawOneGauge(g, font, atlas, cx, cy, gaugeIdx)
     end
 
     if gaugeIdx == 1 and #gaugeBalls > 0 then
-        self:_drawSellButton(g, font, cx, cy, cfg, 'SELL', 'ball')
+        local crossA = cfg.start - 0.08
+        local crossR = self._rimR + 18
+        local crossX = math.floor(cx + math.cos(crossA) * crossR)
+        local crossY = math.floor(cy + math.sin(crossA) * crossR)
+        self:_drawSellCross(g, cx, cy, crossX, crossY, 'ball')
     end
 end
 
@@ -249,7 +247,7 @@ function PW:_drawRimCounters(g, font, atlas, cx, cy)
         end
     end
 
-    self:_drawSellButton(g, font, cx, cy, cfg, 'SELL', 'upgrade')
+    self:_drawUpgradeSellCrosses(g, font, cx, cy, cfg)
 
     for _, fl in ipairs(self._upgradeFlash) do
         local progress = fl.t / fl.dur
@@ -264,6 +262,28 @@ function PW:_drawRimCounters(g, font, atlas, cx, cy)
             x = fx, y = fy, r = 15 + 8 * (1 - progress),
             color = PAL.cyan, a = alpha * 0.35,
         }
+    end
+end
+
+function PW:_drawUpgradeSellCrosses(g, font, cx, cy, cfg)
+    local count = self._upgradeCount or 0
+    if count == 0 then return end
+    local INNER = self._rimR + 16
+    local OUTER = self._rimR + 21
+    local MID_R = (INNER + OUTER) / 2
+    local arcLen = cfg.eend - cfg.start
+    local spacing = arcLen / (count + 1)
+    for i = 1, count do
+        local a = cfg.start + spacing * i
+        local ux = math.floor(cx + math.cos(a) * MID_R)
+        local uy = math.floor(cy + math.sin(a) * MID_R)
+        g:setColor(PAL.cyan[1], PAL.cyan[2], PAL.cyan[3], 0.7)
+        g:rect('fill', ux - 1, uy - 1, 3, 3)
+        local crossA = a - 0.06
+        local crossR = OUTER + 3
+        local crossX = math.floor(cx + math.cos(crossA) * crossR)
+        local crossY = math.floor(cy + math.sin(crossA) * crossR)
+        self:_drawSellCross(g, cx, cy, crossX, crossY, 'upgrade_' .. i)
     end
 end
 

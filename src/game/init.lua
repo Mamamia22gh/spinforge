@@ -116,6 +116,7 @@ function Game:_syncWheel()
     local ballCount = self.engine:ballCount()
     self.wheel:placeBalls(ballCount, {})
     self.wheel:setCounters(self.engine:gold(), self.engine:tickets())
+    self.wheel._upgradeCount = self.engine:upgradeCount()
     self.wheel:hubSnapScore(self.engine:gold())
 end
 
