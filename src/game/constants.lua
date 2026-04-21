@@ -34,6 +34,7 @@ C.SHOP_ACTION = {
     BUY_UPGRADE = 7,
     REROLL = 8,
     SELL_BALL = 9,
+    SELL_UPGRADE_BASE = 10,
 }
 
 return C

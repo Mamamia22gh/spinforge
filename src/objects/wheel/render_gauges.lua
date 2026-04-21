@@ -14,6 +14,28 @@ function PW:_drawGauges(g, font, atlas, cx, cy)
     end
 end
 
+function PW:_drawSellButton(g, font, cx, cy, cfg, label, key)
+    if not self:isFlipped() then return end
+    local OUTER = self._rimR + 21
+    local btnR = OUTER + 8
+    local midA = (cfg.start + cfg.eend) / 2
+    local bx = math.floor(cx + math.cos(midA) * btnR)
+    local by = math.floor(cy + math.sin(midA) * btnR)
+    local tw = font:measure(label)
+    local hw, hh = math.floor(tw / 2) + 3, 5
+    local isHover = self._shop.sellHover == key
+    local bgA = isHover and 0.7 or 0.4
+    g:setColor(0.15, 0.0, 0.0, bgA)
+    g:rect('fill', bx - hw, by - hh, hw * 2, hh * 2)
+    local borderCol = isHover and PAL.red or PAL.midGray
+    g:setColor(borderCol[1], borderCol[2], borderCol[3], 1)
+    g:rect('line', bx - hw, by - hh, hw * 2, hh * 2)
+    local txtCol = isHover and PAL.white or PAL.lightGray
+    font:drawCentered(label, bx, by - 3, txtCol, 1)
+    if not self._sellBtnRects then self._sellBtnRects = {} end
+    self._sellBtnRects[key] = { x = bx - hw, y = by - hh, w = hw * 2, h = hh * 2 }
+end
+
 function PW:_drawOneGauge(g, font, atlas, cx, cy, gaugeIdx)
     local cfg = GAUGE_CONFIGS[gaugeIdx]
     local unlocked = self._gaugeUnlocks[gaugeIdx]
@@ -75,6 +97,10 @@ function PW:_drawOneGauge(g, font, atlas, cx, cy, gaugeIdx)
         local lx = math.floor(cx + math.cos(la) * lr)
         local ly = math.floor(cy + math.sin(la) * lr)
         font:drawCentered(tostring(ballCount), lx, ly - 3, PAL.white, 1)
+    end
+
+    if gaugeIdx == 1 and #gaugeBalls > 0 then
+        self:_drawSellButton(g, font, cx, cy, cfg, 'SELL', 'ball')
     end
 end
 
@@ -222,6 +248,8 @@ function PW:_drawRimCounters(g, font, atlas, cx, cy)
             atlas:drawCentered('ticket', tsx + tickTW + gap + math.floor(TICKET_W / 2) + 4, ty - 1, 1)
         end
     end
+
+    self:_drawSellButton(g, font, cx, cy, cfg, 'SELL', 'upgrade')
 
     for _, fl in ipairs(self._upgradeFlash) do
         local progress = fl.t / fl.dur

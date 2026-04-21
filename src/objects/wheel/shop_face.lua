@@ -22,6 +22,18 @@ function PW:shopRemoveOffering(idx)
 end
 function PW:shopSetOfferings(o) self._shop.offerings = o or {} end
 
+function PW:shopSetSellHover(key) self._shop.sellHover = key end
+
+function PW:sellHitTest(x, y)
+    if not self._sellBtnRects then return nil end
+    for key, r in pairs(self._sellBtnRects) do
+        if x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h then
+            return key
+        end
+    end
+    return nil
+end
+
 function PW:shopHitTest(x, y, cx, cy)
     if not self:isFlipped() then return nil end
     local TILT_Y = math.abs(self._tilt)

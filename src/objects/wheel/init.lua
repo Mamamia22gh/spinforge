@@ -63,7 +63,9 @@ function PW.new()
     self._shop = {
         offerings = {}, currency = 0, rerollCost = 0,
         hoverIdx = -1, buyFlash = -1, buyFlashTimer = 0, nextQuota = 0,
+        sellHover = nil,
     }
+    self._sellBtnRects = {}
 
     self._settings = {
         active = false,

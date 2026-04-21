@@ -85,6 +85,22 @@ function SS:click(x, y)
     local w = g.wheel
     if w._flip then self._bufferedClick = {x=x, y=y}; return end
     if not w:isFlipped() then return end
+
+    local sellKey = w:sellHitTest(x, y)
+    if sellKey == 'ball' then
+        g:playSelect()
+        g.engine:shopAction(SA.SELL_BALL)
+        self:_processShopEvents()
+        self:_refreshShopUI()
+        return
+    elseif sellKey == 'upgrade' then
+        g:playSelect()
+        g.engine:shopAction(SA.SELL_UPGRADE_BASE + 0)
+        self:_processShopEvents()
+        self:_refreshShopUI()
+        return
+    end
+
     local hit = w:shopHitTest(x, y, C.WHEEL_CX, C.WHEEL_CY)
     if not hit then return end
     if hit.type == 'offering' then
@@ -119,13 +135,21 @@ end
 function SS:mouse(x, y)
     local w = self.game.wheel
     if w:isFlipped() then
+        local sellKey = w:sellHitTest(x, y)
+        w:shopSetSellHover(sellKey)
+
         local oldHover = w._shop.hoverIdx
         w:shopSetHover(w:shopHitTest(x, y, C.WHEEL_CX, C.WHEEL_CY))
         if w._shop.hoverIdx ~= -1 and w._shop.hoverIdx ~= oldHover then
             self.game:playHover()
         end
+        if sellKey and not self._lastSellHover then
+            self.game:playHover()
+        end
+        self._lastSellHover = sellKey
     else
         w:shopSetHover(nil)
+        w:shopSetSellHover(nil)
     end
 end
 
