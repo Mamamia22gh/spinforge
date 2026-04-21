@@ -75,7 +75,7 @@ fn run_logged_game(seed: u32) -> GameLog {
     log.won = log.winning_round.is_some();
     log.final_balls = state.balls.iter().map(|b| b.effects[0].unwrap_or(BallEffect::ScoreOnce)).collect();
     log.final_relics = state.relics.clone();
-    log.final_upgrades = state.upgrades.iter().copied().collect();
+    log.final_upgrades = state.upgrades.iter().map(|&(u, _)| u).collect();
     log
 }
 

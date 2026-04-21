@@ -17,7 +17,7 @@ pub struct GameState {
     pub segments: [Segment; MAX_SEGMENTS],
     pub balls: ArrayVec<Ball, MAX_BALLS>,
     pub relics: Vec<RelicId>,
-    pub upgrades: ArrayVec<Upgrade, MAX_UPGRADES>,
+    pub upgrades: ArrayVec<(Upgrade, u32), MAX_UPGRADES>,
     pub gold_coins: u32,
     pub quota: u32,
     pub corruption: f64,
@@ -132,9 +132,9 @@ mod tests {
     #[test]
     fn upgrades_stack() {
         let mut run = GameState::new();
-        run.upgrades.push(Upgrade::TicketPerBall);
-        run.upgrades.push(Upgrade::TicketPerBall);
-        let count = run.upgrades.iter().filter(|u| **u == Upgrade::TicketPerBall).count();
+        run.upgrades.push((Upgrade::TicketPerBall, 10));
+        run.upgrades.push((Upgrade::TicketPerBall, 10));
+        let count = run.upgrades.iter().filter(|&&(u, _)| u == Upgrade::TicketPerBall).count();
         assert_eq!(count, 2);
     }
 }

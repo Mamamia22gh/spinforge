@@ -94,8 +94,8 @@ mod tests {
     fn mcts_with_upgrades() {
         let mut rng = Rng::new(99);
         let mut state = GameState::new();
-        state.upgrades.push(crate::items::upgrades::Upgrade::RoundEndGold);
-        state.upgrades.push(crate::items::upgrades::Upgrade::TicketPerBall);
+        state.upgrades.push((crate::items::upgrades::Upgrade::RoundEndGold, 0));
+        state.upgrades.push((crate::items::upgrades::Upgrade::TicketPerBall, 0));
 
         for _ in 0..5 {
             state = sim::simulate_round(state, &mut rng);

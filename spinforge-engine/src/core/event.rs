@@ -13,7 +13,7 @@ pub fn trigger(event: Event, state: &mut GameState) {
         relic.on(event, state);
     }
 
-    let upgrades: Vec<_> = state.upgrades.iter().copied().collect();
+    let upgrades: Vec<_> = state.upgrades.iter().map(|&(u, _)| u).collect();
     for upgrade in upgrades {
         upgrade.on(event, state);
     }

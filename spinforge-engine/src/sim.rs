@@ -52,6 +52,12 @@ pub fn legal_actions(shop: &Shop, state: &GameState) -> Vec<ShopAction> {
     if state.tickets >= shop.reroll_cost {
         actions.push(ShopAction::Reroll);
     }
+    if !state.balls.is_empty() {
+        actions.push(ShopAction::SellBall);
+    }
+    for i in 0..state.upgrades.len() {
+        actions.push(ShopAction::SellUpgrade(i));
+    }
     actions
 }
 
@@ -62,6 +68,8 @@ pub fn action_index(a: &ShopAction) -> usize {
         ShopAction::BuyRelic(i) => 4 + i,
         ShopAction::BuyUpgrade => 7,
         ShopAction::Reroll => 8,
+        ShopAction::SellBall => 9,
+        ShopAction::SellUpgrade(i) => 10 + i,
     }
 }
 
@@ -72,6 +80,8 @@ pub fn idx_to_action(idx: usize) -> ShopAction {
         4..=6 => ShopAction::BuyRelic(idx - 4),
         7 => ShopAction::BuyUpgrade,
         8 => ShopAction::Reroll,
+        9 => ShopAction::SellBall,
+        10..=17 => ShopAction::SellUpgrade(idx - 10),
         _ => ShopAction::Continue,
     }
 }
@@ -220,8 +230,8 @@ mod tests {
         let shop = Shop::generate(&mut rng);
         let state = GameState::new();
         let actions = legal_actions(&shop, &state);
-        assert_eq!(actions.len(), 1);
-        assert_eq!(action_index(&actions[0]), 0);
+        assert_eq!(actions.len(), 2); // Continue + SellBall (5 starting balls)
+        assert_eq!(action_index(&actions[0]), 0); // Continue
     }
 
     #[test]

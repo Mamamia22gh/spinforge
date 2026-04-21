@@ -31,6 +31,8 @@ pub enum ShopAction {
     BuyBall(usize),
     BuyRelic(usize),
     BuyUpgrade,
+    SellBall,
+    SellUpgrade(usize),
     Reroll,
     Continue,
 }
@@ -78,9 +80,12 @@ impl Shop {
                     slot.sold = true;
                     let cost = slot.price;
                     state.tickets -= cost;
-                    if let ShopItem::Ball(ball) = slot.item {
+                    if let ShopItem::Ball(mut ball) = slot.item {
                         if state.balls.len() < crate::core::state::MAX_BALLS {
-                            if !state.balls.is_full() { state.balls.push(ball); }
+                            if !state.balls.is_full() {
+                                ball.cost = cost;
+                                state.balls.push(ball);
+                            }
                         }
                     }
                     event::trigger(Event::OnBuy, &mut state);
@@ -106,10 +111,22 @@ impl Shop {
                     state.tickets -= cost;
                     if let ShopItem::Upgrade(u) = slot.item {
                         if state.upgrades.len() < crate::core::state::MAX_UPGRADES {
-                            if !state.upgrades.is_full() { state.upgrades.push(u); }
+                            if !state.upgrades.is_full() { state.upgrades.push((u, cost)); }
                         }
                     }
                     event::trigger(Event::OnBuy, &mut state);
+                }
+            }
+            ShopAction::SellBall => {
+                if !state.balls.is_empty() {
+                    let ball = state.balls.remove(0);
+                    state.tickets += ball.cost / 2;
+                }
+            }
+            ShopAction::SellUpgrade(i) => {
+                if i < state.upgrades.len() {
+                    let (_, cost) = state.upgrades.remove(i);
+                    state.tickets += cost / 2;
                 }
             }
             ShopAction::Reroll => {

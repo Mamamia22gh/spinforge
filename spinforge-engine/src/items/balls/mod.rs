@@ -21,11 +21,12 @@ pub enum Rarity {
 pub struct Ball {
     pub effects: [Option<BallEffect>; 3],
     pub rarity: Rarity,
+    pub cost: u32,
 }
 
 impl Ball {
     pub fn new(effect: BallEffect, rarity: Rarity) -> Self {
-        Self { effects: [Some(effect), None, None], rarity }
+        Self { effects: [Some(effect), None, None], rarity, cost: 0 }
     }
 }
 
