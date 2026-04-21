@@ -73,7 +73,7 @@ fn rollout(mut state: GameState, rng: &mut Rng, rounds_left: u8) -> f64 {
         state.round = round;
         state.quota = balance::quota(round as u32);
         state = simulate_round(state, rng);
-        if state.gold_coins >= state.quota { return 2.0; }
+
         state.tickets += balance::TICKETS_PER_ROUND;
         let shop = Shop::generate(rng);
         let (_, s) = shop.apply(ShopAction::Continue, state, rng);
@@ -192,10 +192,9 @@ pub fn run_mcts(seed: u32, simulations: u32) -> MctsResult {
             state.quota = balance::quota(round as u32);
             state = simulate_round(state, &mut rng);
 
-            if state.gold_coins >= state.quota {
+            if !won && state.gold_coins >= state.quota {
                 won = true;
                 final_round = round;
-                break;
             }
 
             state.tickets += balance::TICKETS_PER_ROUND;
