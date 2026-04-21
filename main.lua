@@ -27,7 +27,8 @@ function love.errorhandler(msg)
             love.graphics.origin()
             love.graphics.clear(0.06, 0.06, 0.06, 1)
             love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.printf(trace, 10, 10, love.graphics.getWidth() - 20)
+            local safe = trace:gsub('[\x80-\xff]+', '?')
+            love.graphics.printf(safe, 10, 10, love.graphics.getWidth() - 20)
             love.graphics.present()
         end
         if love.timer then love.timer.sleep(0.1) end
