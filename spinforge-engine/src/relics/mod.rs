@@ -1,5 +1,4 @@
 use crate::balls::Rarity;
-use crate::state::GameState;
 pub mod effects;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -27,14 +26,7 @@ pub struct RelicDef {
     pub effects: &'static [RelicEffect],
 }
 
-impl RelicId {
-    pub fn process(self, state: GameState) -> GameState {
-        match self {
-            RelicId::TabletTwenty => effects::tablet_twenty::process(state),
-            RelicId::TabletNineteen => effects::tablet_nineteen::process(state),
-        }
-    }
-}
+
 
 #[cfg(test)]
 mod tests {

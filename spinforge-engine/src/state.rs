@@ -71,7 +71,7 @@ mod tests {
     fn new_run_has_5_normal_balls() {
         let run = GameState::new();
         assert_eq!(run.balls.len(), 5);
-        assert!(run.balls.iter().all(|b| b.effect.is_none()));
+        assert!(run.balls.iter().all(|b| b.effects.iter().all(|e| e.is_none())));
     }
 
     #[test]
@@ -118,7 +118,7 @@ mod tests {
         let mut run = GameState::new();
         run.balls.push(Ball::special(BallEffect::Double, Rarity::Rare));
         assert_eq!(run.balls.len(), 6);
-        assert_eq!(run.balls[5].effect, Some(BallEffect::Double));
+        assert_eq!(run.balls[5].effects[0], Some(BallEffect::Double));
     }
 
     #[test]
