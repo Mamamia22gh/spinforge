@@ -50,6 +50,10 @@ function Spin:_resolveAll(results)
                     gained = gained + ev.c
                 elseif ev.kind == EV.GOLD_CHANGED then
                     gold = ev.b
+                elseif ev.kind == EV.RELIC_TRIGGERED then
+                    game.wheel:flashRelic(ev.a)
+                elseif ev.kind == EV.UPGRADE_TRIGGERED then
+                    game.wheel:flashUpgrade(ev.a)
                 elseif ev.kind == EV.TICKETS_CHANGED then
                     game.wheel:setCounters(gold, ev.b)
                 end

@@ -126,7 +126,7 @@ impl Shop {
                         }
                     }
                     Self::apply_alteration(alteration, &mut state);
-                    event::trigger(Event::OnBuy, &mut state);
+                    let _ = event::trigger(Event::OnBuy, &mut state);
                 }
             }
             ShopAction::BuyRelic(i) => {
@@ -140,7 +140,7 @@ impl Shop {
                         state.relics.push(id);
                     }
                     Self::apply_alteration(alteration, &mut state);
-                    event::trigger(Event::OnBuy, &mut state);
+                    let _ = event::trigger(Event::OnBuy, &mut state);
                 }
             }
             ShopAction::BuyUpgrade => {
@@ -156,7 +156,7 @@ impl Shop {
                         }
                     }
                     Self::apply_alteration(alteration, &mut state);
-                    event::trigger(Event::OnBuy, &mut state);
+                    let _ = event::trigger(Event::OnBuy, &mut state);
                 }
             }
             ShopAction::SellBall => {

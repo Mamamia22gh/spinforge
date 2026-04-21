@@ -50,6 +50,9 @@ function PW.new()
     self.onFlipMid = nil
     self.onFlipDone = nil
 
+    self._relicFlash = {}
+    self._upgradeFlash = {}
+
     self._hub = {
         lastSymbolId = '', lastValue = 0, valueFade = 0,
         multi = 1, history = {},
@@ -120,6 +123,13 @@ require('src.objects.wheel.render_gauges')(PW)
 require('src.objects.wheel.render_anims')(PW)
 require('src.objects.wheel.render_orbit')(PW)
 
+function PW:flashRelic(idx)
+    self._relicFlash[#self._relicFlash+1] = { idx = idx, t = 0, dur = 0.8 }
+end
+function PW:flashUpgrade(idx)
+    self._upgradeFlash[#self._upgradeFlash+1] = { idx = idx, t = 0, dur = 0.8 }
+end
+
 function PW:update(dt)
     self._time = self._time + dt
 
@@ -148,6 +158,15 @@ function PW:update(dt)
     self:_updateCounters(dt)
     self:_updateFlip(dt)
     self:_updateEject(dt)
+
+    for i = #self._relicFlash, 1, -1 do
+        self._relicFlash[i].t = self._relicFlash[i].t + dt
+        if self._relicFlash[i].t >= self._relicFlash[i].dur then table.remove(self._relicFlash, i) end
+    end
+    for i = #self._upgradeFlash, 1, -1 do
+        self._upgradeFlash[i].t = self._upgradeFlash[i].t + dt
+        if self._upgradeFlash[i].t >= self._upgradeFlash[i].dur then table.remove(self._upgradeFlash, i) end
+    end
 
     self._acc = self._acc + dt
     while self._acc >= C.PHYSICS_DT do

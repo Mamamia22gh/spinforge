@@ -153,6 +153,21 @@ function PW:_drawRelicBar(g, font, atlas, cx, cy)
         local col = count > 0 and RARITY_COL[rarity] or PAL.midGray
         font:draw(tostring(count), sx + 3, sy + 1, col, 1)
     end
+
+    for _, fl in ipairs(self._relicFlash) do
+        local progress = fl.t / fl.dur
+        local alpha = (1 - progress) * 0.6
+        local pulse = 1 + 0.5 * math.sin(fl.t * 20)
+        local fAngle = cfg.start + arcLen * 0.5
+        local fx = math.floor(cx + math.cos(fAngle) * MID_R)
+        local fy = math.floor(cy + math.sin(fAngle) * MID_R)
+        g:setColor(PAL.gold[1], PAL.gold[2], PAL.gold[3], alpha * pulse)
+        g:circle('fill', fx, fy, 8 + 6 * (1 - progress))
+        self._frameLights[#self._frameLights+1] = {
+            x = fx, y = fy, r = 20 + 10 * (1 - progress),
+            color = PAL.gold, a = alpha * 0.4,
+        }
+    end
 end
 
 function PW:_drawRimCounters(g, font, atlas, cx, cy)
@@ -206,6 +221,21 @@ function PW:_drawRimCounters(g, font, atlas, cx, cy)
             g:setColor(1, 1, 1, 1)
             atlas:drawCentered('ticket', tsx + tickTW + gap + math.floor(TICKET_W / 2) + 4, ty - 1, 1)
         end
+    end
+
+    for _, fl in ipairs(self._upgradeFlash) do
+        local progress = fl.t / fl.dur
+        local alpha = (1 - progress) * 0.5
+        local pulse = 1 + 0.3 * math.sin(fl.t * 18)
+        local fAngle = cfg.start + arcLen * 0.5
+        local fx = math.floor(cx + math.cos(fAngle) * MID_R)
+        local fy = math.floor(cy + math.sin(fAngle) * MID_R)
+        g:setColor(PAL.cyan[1], PAL.cyan[2], PAL.cyan[3], alpha * pulse)
+        g:circle('fill', fx, fy, 6 + 4 * (1 - progress))
+        self._frameLights[#self._frameLights+1] = {
+            x = fx, y = fy, r = 15 + 8 * (1 - progress),
+            color = PAL.cyan, a = alpha * 0.35,
+        }
     end
 end
 

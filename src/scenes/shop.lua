@@ -58,6 +58,10 @@ function SS:_processShopEvents()
         if ev.kind == EV.ITEM_BOUGHT then
             g._kernel:emit('audio.sfx', { name = 'purchase' })
             g:_pop('BOUGHT!', nil, nil, { color = C.PAL.gold, noCoin = true })
+        elseif ev.kind == EV.RELIC_TRIGGERED then
+            g.wheel:flashRelic(ev.a)
+        elseif ev.kind == EV.UPGRADE_TRIGGERED then
+            g.wheel:flashUpgrade(ev.a)
         elseif ev.kind == EV.TICKETS_CHANGED then
             g.wheel:shopUpdateCurrency(ev.b)
         elseif ev.kind == EV.CORRUPTION_CHANGED then

@@ -18,9 +18,9 @@ pub fn simulate_round(mut state: GameState, rng: &mut Rng) -> GameState {
                 state = effect.process(pos, state);
             }
         }
-        event::trigger(Event::OnScore(pos), &mut state);
+        let _ = event::trigger(Event::OnScore(pos), &mut state);
     }
-    event::trigger(Event::AfterScore, &mut state);
+    let _ = event::trigger(Event::AfterScore, &mut state);
     state
 }
 

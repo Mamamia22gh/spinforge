@@ -89,7 +89,7 @@ mod tests {
         let mut rng = Rng::new(77);
         let mut state = GameState::new();
         state.relics.push(crate::items::relics::RelicId::SetAllSegmentsTo20);
-        event::trigger(Event::OnBuy, &mut state);
+        let _ = event::trigger(Event::OnBuy, &mut state);
 
         assert!(state.segments.iter().all(|s| s.value == 20));
 
@@ -116,7 +116,7 @@ mod tests {
         let mut state = GameState::new();
         state.relics.push(crate::items::relics::RelicId::CorruptionShield);
         let before = state.corruption;
-        event::trigger(Event::AfterScore, &mut state);
+        let _ = event::trigger(Event::AfterScore, &mut state);
         assert!(state.corruption < before);
     }
 

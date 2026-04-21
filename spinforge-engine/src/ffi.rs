@@ -45,6 +45,15 @@ fn push_ev(eng: &mut Engine, kind: FrontEventKind, a: i32, b: i32, c: i32, d: i3
     eng.events.push(FrontEvent { kind: kind as u8, a, b, c, d });
 }
 
+fn push_fired(eng: &mut Engine, fired: &event::Fired) {
+    for &ri in &fired.relics {
+        push_ev(eng, FrontEventKind::RelicTriggered, ri as i32, 0, 0, 0);
+    }
+    for &ui in &fired.upgrades {
+        push_ev(eng, FrontEventKind::UpgradeTriggered, ui as i32, 0, 0, 0);
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn engine_new(seed: u32) -> *mut Engine {
     let eng = Box::new(Engine {
@@ -94,9 +103,11 @@ pub extern "C" fn engine_spin(ptr: *mut Engine) {
         push_ev(eng, FrontEventKind::SegmentScored, pos as i32,
             eng.state.segments[pos].value, (gold_after - gold_before) as i32, 0);
 
-        event::trigger(Event::OnScore(pos), &mut eng.state);
+        let f = event::trigger(Event::OnScore(pos), &mut eng.state);
+        push_fired(eng, &f);
     }
-    event::trigger(Event::AfterScore, &mut eng.state);
+    let f = event::trigger(Event::AfterScore, &mut eng.state);
+    push_fired(eng, &f);
 
     if eng.state.gold_coins != old_gold {
         push_ev(eng, FrontEventKind::GoldChanged, old_gold as i32,
@@ -123,7 +134,8 @@ pub extern "C" fn engine_resolve_ball(ptr: *mut Engine, ball_idx: i32, segment_i
             eng.state = effect.process(pos, eng.state.clone());
         }
     }
-    event::trigger(Event::OnScore(pos), &mut eng.state);
+    let f = event::trigger(Event::OnScore(pos), &mut eng.state);
+    push_fired(eng, &f);
 
     let gained = eng.state.gold_coins - gold_before;
     push_ev(eng, FrontEventKind::BallLanded, ball_idx, segment_idx, 0, 0);
@@ -135,7 +147,8 @@ pub extern "C" fn engine_resolve_ball(ptr: *mut Engine, ball_idx: i32, segment_i
 #[no_mangle]
 pub extern "C" fn engine_finish_round(ptr: *mut Engine) {
     let eng = unsafe { &mut *ptr };
-    event::trigger(Event::AfterScore, &mut eng.state);
+    let f = event::trigger(Event::AfterScore, &mut eng.state);
+    push_fired(eng, &f);
     let won = eng.state.gold_coins >= eng.state.quota;
     push_ev(eng, FrontEventKind::RoundEnded,
         eng.state.gold_coins as i32, eng.state.quota as i32, won as i32, 0);
