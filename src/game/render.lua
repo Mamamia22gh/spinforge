@@ -1,3 +1,5 @@
+-- game/render.lua — main draw pipeline.
+
 local C = require('src.game.constants')
 local PAL = C.PAL
 
@@ -42,7 +44,7 @@ function Game:_bindRender(kernel)
         self:_drawPops(g)
 
         if drawWheel and not self.wheel:isFlipped() then
-            if self.loop.state.phase == 'GAME_OVER' then self:_drawGameOverHub(g, hubBtnOx, hubBtnOy)
+            if self._phase == 'GAME_OVER' then self:_drawGameOverHub(g, hubBtnOx, hubBtnOy)
             else self:_drawHubPrompt(g, hubBtnOx, hubBtnOy) end
         end
 
@@ -103,16 +105,14 @@ function Game:_bindRender(kernel)
             self.wheel:drawLabels(g, self._font, C.WHEEL_CX + wheelOx, C.WHEEL_CY + wheelOy)
             g:pop()
         end
-        self:_drawRelicTooltip(g)
         self:_drawCatalogue(g)
         self:_drawThemeMenu(g)
-        self:_drawDebugSprites(g)
         self:_drawCursor(g)
     end, 0)
 
     kernel:on('display.draw.lights', function(d)
         local L = d.g
-        if not self._spinning and not self._inShop and self.loop.state.phase ~= 'GAME_OVER' then
+        if self._phase == 'IDLE' then
             local raw = math.sin(self._time * 3)
             local stepped = math.floor(raw * 4) / 4
             local pulse = 0.12 + 0.08 * stepped

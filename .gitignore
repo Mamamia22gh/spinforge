@@ -9,3 +9,5 @@ err.log
 out.log
 
 target/
+
+spinforge_engine.dll

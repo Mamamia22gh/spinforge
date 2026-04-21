@@ -1,4 +1,5 @@
-local GameLoop = require('src.game_loop')
+-- game/lifecycle.lua — scene switching, restart, helpers.
+
 local Save = require('src.save')
 local C = require('src.game.constants')
 
@@ -24,22 +25,18 @@ function Game:register(kernel)
 end
 
 function Game:_switchScene(phase)
+    self._phase = phase
     local S = SCENES[phase] or SCENES.IDLE
     if self.scene and self.scene.leave then self.scene:leave() end
     self.scene = S.new()
-    self.scene:enter(self.ctx)
+    self.scene:enter(self)
 end
 
 function Game:restart()
-    self.em:clear()
-    Save.save(self.loop.state.meta)
-    local meta = self.loop.state.meta
-    self.loop = GameLoop.new({ meta = meta })
-    self.ctx.loop = self.loop
-    self:_bindLoopEvents()
-    self.loop:startRun()
+    Save.save(self:_metaTable())
+    self.engine:restart()
     self:_syncWheel()
-    self:_switchScene(self.loop.state.phase)
+    self:_switchScene('IDLE')
 end
 
 function Game:_pop(text, x, y, opts)
@@ -58,20 +55,21 @@ function Game:_shakeStart(intensity, decay)
     self._shake.time = 0
 end
 
+function Game:_metaTable()
+    return {
+        tickets = self.engine:tickets(),
+        totalTickets = 0,
+        runsCompleted = 0,
+        bestRound = 0,
+        settings = self._settings_cache,
+    }
+end
+
 function Game:_relicBarHitTest(mx, my)
-    local dx = mx - C.WHEEL_CX
-    local dy = my - C.WHEEL_CY
-    local d2 = dx * dx + dy * dy
-    if d2 < 80 * 80 or d2 > 100 * 100 then return nil end
-    local a = math.atan2(dy, dx)
-    local ARC = 0.30
-    if a > -math.pi / 2 - ARC and a < -math.pi / 2 + ARC then
-        local rarities = { 'common', 'uncommon', 'rare', 'legendary' }
-        local t = (a - (-math.pi / 2 - ARC)) / (ARC * 2)
-        local idx = math.max(1, math.min(4, math.floor(t * 4) + 1))
-        return rarities[idx]
-    end
     return nil
 end
+
+function Game:playSelect() self._kernel:emit('audio.sfx', { name = 'select' }) end
+function Game:playHover() self._kernel:emit('audio.tone', { freq = 1100, duration = 0.03, wave = 'sine', vol = 0.03 }) end
 
 end

@@ -15,4 +15,25 @@ C.RARITY_COL = {
     legendary = PAL.gold,
 }
 
+C.EVENT = {
+    BALL_LANDED = 1,
+    SEGMENT_SCORED = 2,
+    GOLD_CHANGED = 3,
+    TICKETS_CHANGED = 4,
+    CORRUPTION_CHANGED = 5,
+    RELIC_TRIGGERED = 6,
+    UPGRADE_TRIGGERED = 7,
+    ROUND_ENDED = 8,
+    ITEM_BOUGHT = 9,
+}
+
+C.SHOP_ACTION = {
+    CONTINUE = 0,
+    BUY_BALL_1 = 1, BUY_BALL_2 = 2, BUY_BALL_3 = 3,
+    BUY_RELIC_1 = 4, BUY_RELIC_2 = 5, BUY_RELIC_3 = 6,
+    BUY_UPGRADE = 7,
+    REROLL = 8,
+    SELL_BALL = 9,
+}
+
 return C

@@ -1,12 +1,11 @@
-local GameLoop = require('src.game_loop')
-local EventManager = require('src.event_manager')
+-- game/init.lua — Game bundle: wires engine, wheel, background, scenes.
+
+local Engine = require('src.engine')
 local Save = require('src.save')
 local PixelWheel = require('src.objects.pixel_wheel')
 local Background = require('src.objects.background')
 local PAL = require('src.palette')
-
 local C = require('src.game.constants')
-local make_ctx = require('src.game.context')
 
 local Game = {}
 Game.__index = Game
@@ -24,21 +23,18 @@ function Game.new()
         _time = 0, _pops = {},
         _shake = { x=0, y=0, intensity=0, decay=0.3, time=0 },
         _flash = 0,
-        _spinning = false, _postSpinShow = false, _inShop = false,
+        _phase = 'IDLE',
         _hubHover = false, _sweepTrigger = -10,
         _catalogueOpen = false, _catalogueTab = 0, _catalogueScroll = 0,
         _themeMenuOpen = false, _themeMenuHover = nil,
-        _debugSpritesOpen = false, _debugScroll = 0,
-        _relicHoverRarity = nil,
         _inSettings = false, _settingsHover = nil, _settingsDrag = nil,
-        _spriteIdsCache = nil, _cursorHover = false,
-        loop = nil, em = nil, scene = nil, ctx = nil,
-        wheel = nil, bg = nil,
+        _cursorHover = false,
+        _eventQueue = {},
+        engine = nil, wheel = nil, bg = nil, scene = nil,
     }, Game)
 end
 
 require('src.game.lifecycle')(Game)
-require('src.game.sync')(Game)
 require('src.game.settings')(Game)
 require('src.game.events')(Game)
 require('src.game.hud')(Game)
@@ -46,12 +42,14 @@ require('src.game.render')(Game)
 require('src.game.input')(Game)
 require('src.game.overlays.theme')(Game)
 require('src.game.overlays.catalogue')(Game)
-require('src.game.overlays.relic_tooltip')(Game)
 
 function Game:boot(kernel, cfg)
     local savedMeta = Save.load()
-    self.loop = GameLoop.new({ meta = savedMeta })
-    self.em = EventManager.new()
+    self.engine = Engine.new()
+    if savedMeta and savedMeta.tickets then
+        self.engine:setTickets(savedMeta.tickets or 0)
+    end
+
     self.bg = Background.new()
     self.wheel = PixelWheel.new()
     self.wheel:setRadius(C.WHEEL_R)
@@ -70,27 +68,23 @@ function Game:boot(kernel, cfg)
         self:_shakeStart(8, 0.3)
     end
 
-    self.ctx = make_ctx(self, kernel)
-    self:_bindLoopEvents()
-
-    local meta = self.loop.state.meta
-    meta.settings = meta.settings or { masterVol = 0.5, bgmVol = 0.6, sfxVol = 0.8, fullscreen = true, theme = 'original' }
-    local s = meta.settings
+    local s = savedMeta and savedMeta.settings or
+        { masterVol = 0.5, bgmVol = 0.6, sfxVol = 0.8, fullscreen = true, theme = 'original' }
+    self._settings_cache = s
     if s.theme then PAL.setTheme(s.theme) end
     kernel:emit('audio.set_volume', { master = s.masterVol, bgm = s.bgmVol, sfx = s.sfxVol })
     if love.window.getFullscreen() ~= (s.fullscreen ~= false) then
         love.window.setFullscreen(s.fullscreen ~= false, 'desktop')
     end
 
-    self.loop:startRun()
     self:_syncWheel()
-    self:_switchScene(self.loop.state.phase)
+    self:_switchScene('IDLE')
 
     kernel:on('kernel.update', function(d)
         self._time = self._time + d.dt
-        self.em:update(d.dt)
         self.bg:update(d.dt)
         self.wheel:update(d.dt)
+        self:_processEventQueue(d.dt)
         self:_updateHoverState(d.dt)
         if self.scene and self.scene.update then self.scene:update(d.dt) end
         if self.scene and self.scene.mouse then self.scene:mouse(self._mx, self._my) end
@@ -98,6 +92,31 @@ function Game:boot(kernel, cfg)
 
     self:_bindRender(kernel)
     self:_bindInput(kernel)
+end
+
+function Game:_syncWheel()
+    local segs = self.engine:segments()
+    local wheel = {}
+    local goldPockets = {}
+    for i, s in ipairs(segs) do
+        wheel[i] = { id = 'seg_' .. i, symbolId = nil, weight = 1, modifiers = {} }
+        if s.kind == 1 then goldPockets[#goldPockets + 1] = i - 1 end
+    end
+    self.wheel:setWheel(wheel)
+    self.wheel:setGoldPockets(goldPockets)
+    self.wheel:setCorruption(self.engine:corruption())
+    self.wheel:setBonusMode(false)
+    self.wheel:setGaugeUnlocks({ true, false, false, true })
+    self.wheel:setRelics({})
+
+    local values = {}
+    for i, s in ipairs(segs) do values[i] = s.value end
+    self.wheel:setSegmentValues(values)
+
+    local ballCount = self.engine:ballCount()
+    self.wheel:placeBalls(ballCount, {})
+    self.wheel:setCounters(self.engine:gold(), self.engine:tickets())
+    self.wheel:hubSnapScore(self.engine:gold())
 end
 
 return Game

@@ -1,3 +1,5 @@
+-- game/overlays/theme.lua — theme picker overlay.
+
 local C = require('src.game.constants')
 local PAL = C.PAL
 

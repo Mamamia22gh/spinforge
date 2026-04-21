@@ -1,6 +1,7 @@
+-- game/hud.lua — HUD: title, pops, hub prompt, cursor.
+
 local C = require('src.game.constants')
 local PAL = C.PAL
-local getQuota = require('src.data.balance').getQuota
 
 return function(Game)
 
@@ -46,8 +47,7 @@ function Game:_drawPops(g)
                 math.floor(p.x - totalW / 2 + textW / 2), p.y, c, 1, oc)
             if atlas then
                 g:setColor(1, 1, 1, a)
-                atlas:drawAnim('coin',
-                    math.floor(p.x - totalW / 2 + textW + 2 + C.SPRITE_SIZE / 2),
+                atlas:drawAnim('coin', math.floor(p.x - totalW / 2 + textW + 2 + C.SPRITE_SIZE / 2),
                     p.y + math.floor(C.CH_H / 2), 1, self._time, 6)
             end
         end
@@ -55,18 +55,16 @@ function Game:_drawPops(g)
 end
 
 function Game:_drawHubPrompt(g, wox, woy)
-    local run = self.loop.state.run
-    if not run then return end
-    local quota = getQuota(run.round)
-    local score = run.score
-    local pressed = self._spinning or self._postSpinShow
+    local gold = self.engine:gold()
+    local quota = self.engine:quota()
+    local pressed = self._phase == 'SPINNING' or self._phase == 'RESULTS'
     local hover = self._hubHover and not pressed
     local t = self._time
     local tilt = self.wheel:getTilt()
     local r = self.wheel:getHubRadius()
     local cx = C.WHEEL_CX + wox
     local cy = C.WHEEL_CY + woy
-    local quotaReached = pressed and score >= quota
+    local quotaReached = pressed and gold >= quota
     local font = self._font
     local atlas = self._atlas
 
@@ -111,9 +109,9 @@ function Game:_drawHubPrompt(g, wox, woy)
 
     if pressed then
         if quotaReached then
-            font:drawCentered(score .. '/' .. quota, 0, -math.floor(C.CH_H * 3), PAL.gold, 1, false)
+            font:drawCentered(gold .. '/' .. quota, 0, -math.floor(C.CH_H * 3), PAL.gold, 1, false)
             font:drawCentered('BONUS', 0, -math.floor(C.CH_H * 1), PAL.black, 1, false)
-            local surplus = score - quota
+            local surplus = gold - quota
             local bStr = '+' .. surplus
             local bW = #bStr * C.CH_W * 2
             local bY = math.floor(C.CH_H * 1.5)
@@ -125,7 +123,7 @@ function Game:_drawHubPrompt(g, wox, woy)
                 atlas:drawAnim('coin', math.floor(bOx + bW / 2 + 2 + C.SPRITE_SIZE), bY + C.CH_H, 2, t, 8)
             end
         else
-            local sStr = tostring(score)
+            local sStr = tostring(gold)
             local sW = #sStr * C.CH_W * 2
             local sY = -math.floor(C.CH_H * 1.5)
             font:drawCentered(sStr, 0, sY, PAL.gold, 2)
@@ -136,7 +134,7 @@ function Game:_drawHubPrompt(g, wox, woy)
             font:drawCentered('/' .. quota, 0, math.floor(C.CH_H * 1.5), PAL.midGray, 2, false)
         end
     else
-        if self.loop.state.phase ~= 'IDLE' then g:pop(); return end
+        if self._phase ~= 'IDLE' then g:pop(); return end
         font:drawCentered('SPIN', 0, -math.floor(C.CH_H * 1.5), PAL.black, 2, false)
         local qStr = 'QUOTA ' .. quota
         local qW = #qStr * C.CH_W
@@ -153,7 +151,6 @@ function Game:_drawHubPrompt(g, wox, woy)
 end
 
 function Game:_drawGameOverHub(g, wox, woy)
-    local run = self.loop.state.run
     local tilt = self.wheel:getTilt()
     local r = self.wheel:getHubRadius()
     local cx = C.WHEEL_CX + wox
@@ -161,6 +158,9 @@ function Game:_drawGameOverHub(g, wox, woy)
     local hover = self._hubHover
     local font = self._font
     local atlas = self._atlas
+    local round = self.engine:round()
+    local gold = self.engine:gold()
+    local quota = self.engine:quota()
 
     g:push()
     g:translate(cx, cy)
@@ -176,10 +176,8 @@ function Game:_drawGameOverHub(g, wox, woy)
         g:setColor(1, 1, 1, 1)
         atlas:drawCentered('skull', 0, -math.floor(r * 0.42), 1)
     end
-    if run then
-        font:drawCentered('ROUND ' .. run.round, 0, -math.floor(C.CH_H * 0.4), PAL.lightGray, 1)
-        font:drawCentered(run.score .. '/' .. getQuota(run.round), 0, math.floor(C.CH_H * 0.8), PAL.red, 1, false)
-    end
+    font:drawCentered('ROUND ' .. round, 0, -math.floor(C.CH_H * 0.4), PAL.lightGray, 1)
+    font:drawCentered(gold .. '/' .. quota, 0, math.floor(C.CH_H * 0.8), PAL.red, 1, false)
     if atlas then
         g:setColor(1, 1, 1, 1)
         atlas:drawCentered('arrow_right', 0, math.floor(r * 0.35), 2)

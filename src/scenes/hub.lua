@@ -1,44 +1,37 @@
---[[
-    HUB scene — IDLE phase. Click the wheel center to SPIN.
-    Hieroglyph ring menu: retry/settings/exit/catalogue handled here.
-]]
+-- scenes/hub.lua — IDLE phase. Click wheel center to SPIN.
+
+local C = require('src.game.constants')
 
 local Hub = {}
 Hub.__index = Hub
 
 function Hub.new() return setmetatable({}, Hub) end
-function Hub:enter(ctx) self.ctx = ctx end
+function Hub:enter(game) self.game = game end
 function Hub:leave() end
 function Hub:update(dt) end
 function Hub:mouse(x, y) end
 
-function Hub:_clickHub(x, y)
-    local g = self.ctx.game
-    local dx = x - g.WHEEL_CX
-    local dy = (y - g.WHEEL_CY) / math.max(0.05, self.ctx.wheel:getTilt())
-    local r = self.ctx.wheel:getHubRadius()
-    return dx*dx + dy*dy <= r*r
+function Hub:click(x, y)
+    if self:_clickHub(x, y) then
+        if self.game._phase == 'IDLE' then
+            self.game:playSelect()
+            self.game:_startSpin()
+        end
+    end
 end
 
-function Hub:click(x, y)
-    -- Hub click → spin
-    if self:_clickHub(x, y) then
-        if self.ctx.loop.state.phase == 'IDLE' and self.ctx.loop.state.run then
-            self.ctx:playSelect()
-            self.ctx._startSpin()
-        end
-        return
-    end
-    -- Menu buttons now handled globally in game.lua
+function Hub:_clickHub(x, y)
+    local dx = x - C.WHEEL_CX
+    local dy = (y - C.WHEEL_CY) / math.max(0.05, self.game.wheel:getTilt())
+    local r = self.game.wheel:getHubRadius()
+    return dx*dx + dy*dy <= r*r
 end
 
 function Hub:key(key)
     if key == 'space' or key == 'return' then
-        if self.ctx.loop.state.phase == 'IDLE' and self.ctx.loop.state.run then
-            self.ctx._startSpin()
-        end
+        if self.game._phase == 'IDLE' then self.game:_startSpin() end
     elseif key == 'r' then
-        self.ctx:restart()
+        self.game:restart()
     end
 end
 

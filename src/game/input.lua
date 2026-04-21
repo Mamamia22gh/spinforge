@@ -1,12 +1,21 @@
+-- game/input.lua — input dispatch.
+
 local C = require('src.game.constants')
 
 return function(Game)
+
+function Game:_startSpin()
+    if self._phase ~= 'IDLE' then return end
+    self.engine:spin()
+    self:_playSongForPhase('SPINNING')
+    self._phase = 'SPINNING'
+    self:_switchScene('SPINNING')
+end
 
 function Game:_bindInput(kernel)
     kernel:on('display.click', function(d)
         if d._handled then return end
         if self._themeMenuOpen and self:_themeMenuClick(d.x, d.y) then return end
-        if self._debugSpritesOpen then self._debugSpritesOpen = false; return end
         if self._catalogueOpen then self:_catalogueClick(d.x, d.y); return end
 
         if self._inSettings then
@@ -62,21 +71,19 @@ function Game:_bindInput(kernel)
 
     kernel:on('input.keypressed', function(d)
         if d.key == 'escape' then
-            if self._debugSpritesOpen then self._debugSpritesOpen = false; return end
             if self._themeMenuOpen then self:_closeThemeMenu(); return end
             if self._catalogueOpen then self:_closeCatalogue(); return end
             if self._inSettings then self:_closeSettings(); return end
             love.event.quit()
             return
         end
-        if self._catalogueOpen or self._themeMenuOpen or self._debugSpritesOpen or self._inSettings then return end
+        if self._catalogueOpen or self._themeMenuOpen or self._inSettings then return end
         if self.scene and self.scene.key then self.scene:key(d.key) end
     end)
 
     kernel:on('input.wheelmoved', function(d)
         local dir = (d.y and d.y < 0) and 1 or ((d.y and d.y > 0) and -1 or 0)
-        if self._debugSpritesOpen then self._debugScroll = math.max(0, self._debugScroll + dir); return end
-        if self._catalogueOpen then self._catalogueScroll = math.max(0, self._catalogueScroll + dir); return end
+        if self._catalogueOpen then self._catalogueScroll = math.max(0, self._catalogueScroll + dir) end
     end)
 end
 
@@ -101,7 +108,7 @@ function Game:_updateHoverState(dt)
         if self._pops[i].age > 1.5 then table.remove(self._pops, i) end
     end
 
-    local busy = (self.loop.state.phase ~= 'IDLE') or (self.wheel._flip ~= nil) or self._inSettings
+    local busy = (self._phase ~= 'IDLE') or (self.wheel._flip ~= nil) or self._inSettings
     local tilt = self.wheel:getTilt()
     local dx = self._mx - C.WHEEL_CX
     local dy = (self._my - C.WHEEL_CY) / math.max(0.05, tilt)
@@ -114,17 +121,9 @@ function Game:_updateHoverState(dt)
     end
 
     local oldBgHover = self.bg._hover
-    if self._catalogueOpen or self._debugSpritesOpen then self.bg:setHover(nil)
+    if self._catalogueOpen then self.bg:setHover(nil)
     else self.bg:setHover(self.bg:hitTest(self._mx, self._my)) end
     if self.bg._hover and self.bg._hover ~= oldBgHover then
-        self._kernel:emit('audio.tone', { freq = 1100, duration = 0.03, wave = 'sine', vol = 0.03 })
-    end
-
-    local oldRelicHover = self._relicHoverRarity
-    if busy or self._catalogueOpen or self._debugSpritesOpen or self._inShop then
-        self._relicHoverRarity = nil
-    else self._relicHoverRarity = self:_relicBarHitTest(self._mx, self._my) end
-    if self._relicHoverRarity and self._relicHoverRarity ~= oldRelicHover then
         self._kernel:emit('audio.tone', { freq = 1100, duration = 0.03, wave = 'sine', vol = 0.03 })
     end
 
@@ -132,9 +131,7 @@ function Game:_updateHoverState(dt)
         local hit = self.wheel:settingsHitTest(self._mx, self._my, C.WHEEL_CX, C.WHEEL_CY)
         local hoverId = hit and (hit.id or hit.type) or nil
         if hoverId ~= self._settingsHover then
-            if hoverId then
-                self._kernel:emit('audio.tone', { freq = 1100, duration = 0.03, wave = 'sine', vol = 0.03 })
-            end
+            if hoverId then self._kernel:emit('audio.tone', { freq = 1100, duration = 0.03, wave = 'sine', vol = 0.03 }) end
             self._settingsHover = hoverId
             self.wheel:settingsSetHover(hoverId)
         end
@@ -168,10 +165,9 @@ function Game:_updateHoverState(dt)
     self._cursorHover = false
     if self._hubHover then self._cursorHover = true
     elseif self.bg._hover then self._cursorHover = true
-    elseif self._relicHoverRarity then self._cursorHover = true
     elseif self._inSettings and self._settingsHover then self._cursorHover = true
-    elseif self._inShop and self.wheel._shop and self.wheel._shop.hoverIdx ~= -1 then self._cursorHover = true
-    elseif self.loop.state.phase == 'RESULTS' then self._cursorHover = true end
+    elseif self._phase == 'SHOP' and self.wheel._shop and self.wheel._shop.hoverIdx ~= -1 then self._cursorHover = true
+    elseif self._phase == 'RESULTS' then self._cursorHover = true end
 end
 
 end

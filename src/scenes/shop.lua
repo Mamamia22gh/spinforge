@@ -1,36 +1,57 @@
---[[
-    SHOP scene — flipped wheel shows forge face. Scene routes clicks & draws
-    tooltip for hovered offering at the bottom (uioverlay).
-]]
+-- scenes/shop.lua — SHOP phase: flipped wheel, buy/reroll/leave.
 
-local BALANCE = require('src.data.balance').BALANCE
+local C = require('src.game.constants')
+local SA = C.SHOP_ACTION
 
 local SS = {}
 SS.__index = SS
 function SS.new() return setmetatable({}, SS) end
 
-function SS:enter(ctx)
-    self.ctx = ctx
-    local run  = ctx.loop.state.run
-    local meta = ctx.loop.state.meta
-    local rerollCost = ctx.loop.shop:rerollCost(run)
-    local nextQuota  = 0
-    if run then
-        nextQuota = require('src.data.balance').getQuota(run.round + 1)
-    end
-    ctx.wheel:setShop(run.shopOfferings, meta.tickets, rerollCost, nextQuota)
+function SS:enter(game)
+    self.game = game
+    self:_refreshShopUI()
+    if game.wheel and not game.wheel:isFlipped() then game.wheel:startFlip(0.5) end
 end
 
-function SS:leave() self.ctx.wheel:shopSetHover(nil) end
+function SS:_refreshShopUI()
+    local g = self.game
+    local slots = g.engine:shopSlots()
+    local offerings = {}
+    for i, s in ipairs(slots) do
+        if not s.sold then
+            offerings[i] = {
+                shopType = ({ [0]='ball', 'relic', 'upgrade' })[s.kind] or 'ball',
+                name = self:_slotName(s),
+                rarity = ({ [0]='common','uncommon','rare','legendary' })[s.rarity] or 'common',
+                finalCost = s.price,
+                description = '',
+            }
+        end
+    end
+    local tickets = g.engine:tickets()
+    local rerollCost = g.engine:shopRerollCost()
+    local nextQuota = g.engine:quota()
+    g.wheel:setShop(offerings, tickets, rerollCost, nextQuota)
+end
+
+function SS:_slotName(s)
+    local BALL_NAMES = { [0]='Score Once', 'Score Double', 'Score Adjacent', 'Score Tickets' }
+    local RELIC_NAMES = { [0]='Set All 20', 'Set All 19', 'Golden Bonus', 'Corruption Shield' }
+    local UPG_NAMES = { [0]='Ticket/Ball', 'Buy Discount', 'Round End Gold' }
+    if s.kind == 0 then return BALL_NAMES[s.subtype] or 'Ball'
+    elseif s.kind == 1 then return RELIC_NAMES[s.subtype] or 'Relic'
+    else return UPG_NAMES[s.subtype] or 'Upgrade' end
+end
+
+function SS:leave()
+    self.game.wheel:shopSetHover(nil)
+    if self.game.wheel:isFlipped() then self.game.wheel:startFlip(0.5) end
+end
 
 function SS:update(dt)
-    local run = self.ctx.loop.state.run
-    local meta = self.ctx.loop.state.meta
-    local w = self.ctx.wheel
-    w:shopUpdateCurrency(meta.tickets)
-    w:shopSetOfferings(run.shopOfferings)
-
-    if self._bufferedClick and not w._flip then
+    local g = self.game
+    g.wheel:shopUpdateCurrency(g.engine:tickets())
+    if self._bufferedClick and not g.wheel._flip then
         local c = self._bufferedClick
         self._bufferedClick = nil
         self:click(c.x, c.y)
@@ -38,32 +59,47 @@ function SS:update(dt)
 end
 
 function SS:click(x, y)
-    local w = self.ctx.wheel
-    if w._flip then
-        self._bufferedClick = {x = x, y = y}
-        return
-    end
+    local g = self.game
+    local w = g.wheel
+    if w._flip then self._bufferedClick = {x=x, y=y}; return end
     if not w:isFlipped() then return end
-    local hit = w:shopHitTest(x, y, self.ctx.game.WHEEL_CX, self.ctx.game.WHEEL_CY)
+    local hit = w:shopHitTest(x, y, C.WHEEL_CX, C.WHEEL_CY)
     if not hit then return end
     if hit.type == 'offering' then
-        self.ctx.loop:shopBuy(hit.index + 1)
+        local actionId = hit.index
+        local slots = g.engine:shopSlots()
+        local slot = slots[actionId + 1]
+        if slot then
+            local rustAction
+            if slot.kind == 0 then rustAction = SA.BUY_BALL_1 + (actionId % 3)
+            elseif slot.kind == 1 then rustAction = SA.BUY_RELIC_1 + ((actionId - 3) % 3)
+            else rustAction = SA.BUY_UPGRADE end
+            g.engine:shopAction(rustAction)
+            g._kernel:emit('audio.sfx', { name = 'purchase' })
+            g:_pop('BOUGHT!', nil, nil, { color = C.PAL.gold, noCoin = true })
+            self:_refreshShopUI()
+        end
     elseif hit.type == 'reroll' then
-        self.ctx:playSelect()
-        self.ctx.loop:shopReroll()
+        g:playSelect()
+        g.engine:shopAction(SA.REROLL)
+        self:_refreshShopUI()
     elseif hit.type == 'leave' then
-        self.ctx:playSelect()
-        self.ctx.loop:endShop()
+        g:playSelect()
+        g.engine:shopAction(SA.CONTINUE)
+        g.engine:dealApply()
+        g:_syncWheel()
+        g:_playSongForPhase('IDLE')
+        g:_switchScene('IDLE')
     end
 end
 
 function SS:mouse(x, y)
-    local w = self.ctx.wheel
+    local w = self.game.wheel
     if w:isFlipped() then
         local oldHover = w._shop.hoverIdx
-        w:shopSetHover(w:shopHitTest(x, y, self.ctx.game.WHEEL_CX, self.ctx.game.WHEEL_CY))
+        w:shopSetHover(w:shopHitTest(x, y, C.WHEEL_CX, C.WHEEL_CY))
         if w._shop.hoverIdx ~= -1 and w._shop.hoverIdx ~= oldHover then
-            self.ctx:playHover()
+            self.game:playHover()
         end
     else
         w:shopSetHover(nil)
@@ -71,79 +107,31 @@ function SS:mouse(x, y)
 end
 
 function SS:key(k)
-    if k == 'r' then self.ctx.loop:shopReroll()
-    elseif k == 'space' or k == 'return' or k == 'escape' then self.ctx.loop:endShop()
-    elseif tonumber(k) and tonumber(k) >= 1 and tonumber(k) <= 8 then
-        self.ctx.loop:shopBuy(tonumber(k))
+    if k == 'r' then
+        self.game.engine:shopAction(SA.REROLL)
+        self:_refreshShopUI()
+    elseif k == 'space' or k == 'return' or k == 'escape' then
+        self.game.engine:shopAction(SA.CONTINUE)
+        self.game.engine:dealApply()
+        self.game:_syncWheel()
+        self.game:_playSongForPhase('IDLE')
+        self.game:_switchScene('IDLE')
     end
 end
-
-local function rarityColor(r)
-    if r == 'legendary' then return {0.95, 0.55, 0.20, 1}
-    elseif r == 'rare' then return {0.40, 0.55, 0.95, 1}
-    elseif r == 'uncommon' then return {0.40, 0.80, 0.45, 1}
-    else return {0.91, 0.88, 0.82, 1} end
-end
-
-local TYPE_LABELS = {
-    symbol       = 'SYMBOLE',
-    special_ball = 'BILLE SPECIALE',
-    relic        = 'RELIQUE',
-}
 
 function SS:draw(g, font, atlas)
-    local hovered = self.ctx.wheel:getShopHoveredOffering()
+    local hovered = self.game.wheel:getShopHoveredOffering()
     if not hovered then return end
-
-    local col = rarityColor(hovered.rarity)
-    local PAD = 4
-    local LINE_H = 8
-    local PW = 160
-    local descMaxW = PW - PAD * 2
-
-    -- Pre-calc wrap height (word-by-word, ISO legacy)
-    local desc = (hovered.description or hovered.desc or ''):upper()
-    local descLines = 0
-    local words = {}
-    for w in desc:gmatch('%S+') do words[#words+1] = w end
-    local line = ''
-    for _, word in ipairs(words) do
-        local test = line ~= '' and (line .. ' ' .. word) or word
-        if font:measure(test) > descMaxW and line ~= '' then
-            descLines = descLines + 1
-            line = word
-        else
-            line = test
-        end
-    end
-    if line ~= '' then descLines = descLines + 1 end
-    descLines = math.max(1, descLines)
-
-    local HEADER_H = 10
-    local TYPE_H = 8
-    local PH = PAD * 3 + HEADER_H + TYPE_H + descLines * LINE_H
-
+    local col = { 0.91, 0.88, 0.82, 1 }
+    local PAD, PW = 4, 160
+    local PH = PAD * 3 + 10 + 8 + 8
     local PX0 = math.floor((480 - PW) / 2)
     local PY0 = 270 - PH - 8
-
-    -- Backdrop (ISO legacy _drawShopTooltip lines 1413-1420)
-    g:setColor(0, 0, 0, 0.88); g:rect('fill', PX0 - 1, PY0 - 1, PW + 2, PH + 2)
+    g:setColor(0, 0, 0, 0.88); g:rect('fill', PX0-1, PY0-1, PW+2, PH+2)
     g:setColor(0.04, 0.04, 0.04, 1); g:rect('fill', PX0, PY0, PW, PH)
     g:setColor(col[1], col[2], col[3], 1); g:rect('line', PX0, PY0, PW, PH)
-
-    -- Header: name centered (ISO legacy line 1424)
-    local title = ((hovered.name or hovered.id or '???')):upper()
-    font:drawCentered(title, PX0 + math.floor(PW / 2), PY0 + PAD, col, 1)
-
-    -- Type label (ISO legacy line 1428 — was missing in Lua)
-    local typeLabel = TYPE_LABELS[hovered.shopType] or ''
-    font:drawCentered(typeLabel, PX0 + math.floor(PW / 2),
-        PY0 + PAD + HEADER_H, { 0.42, 0.42, 0.48, 1 }, 1)
-
-    -- Description (word-wrapped)
-    font:drawWrapped(hovered.description or hovered.desc or '',
-        PX0 + PAD, PY0 + PAD * 2 + HEADER_H + TYPE_H,
-        descMaxW, { 0.42, 0.42, 0.48, 1 }, 1)
+    local title = ((hovered.name or '???')):upper()
+    font:drawCentered(title, PX0 + math.floor(PW/2), PY0 + PAD, col, 1)
 end
 
 return SS
