@@ -4,13 +4,13 @@ pub mod effects;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Upgrade {
-    TicketPerSegment,
+    TicketPerBall,
 }
 
 impl Upgrade {
     pub fn on(self, event: Event, state: &mut GameState) {
         match self {
-            Upgrade::TicketPerSegment => {
+            Upgrade::TicketPerBall => {
                 if matches!(event, Event::OnScore(_)) {
                     state.tickets += 1;
                 }

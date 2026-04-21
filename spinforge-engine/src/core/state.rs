@@ -124,9 +124,9 @@ mod tests {
     #[test]
     fn upgrades_stack() {
         let mut run = GameState::new();
-        run.upgrades.push(Upgrade::TicketPerSegment);
-        run.upgrades.push(Upgrade::TicketPerSegment);
-        let count = run.upgrades.iter().filter(|u| **u == Upgrade::TicketPerSegment).count();
+        run.upgrades.push(Upgrade::TicketPerBall);
+        run.upgrades.push(Upgrade::TicketPerBall);
+        let count = run.upgrades.iter().filter(|u| **u == Upgrade::TicketPerBall).count();
         assert_eq!(count, 2);
     }
 }

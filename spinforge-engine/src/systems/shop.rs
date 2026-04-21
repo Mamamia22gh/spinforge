@@ -54,7 +54,7 @@ impl Shop {
         });
 
         let upgrade = ShopSlot {
-            item: ShopItem::Upgrade(Upgrade::TicketPerSegment),
+            item: ShopItem::Upgrade(Upgrade::TicketPerBall),
             price: rng.int(8, 20) as u32,
             sold: false,
         };
