@@ -266,7 +266,8 @@ function PW:_drawRimCounters(g, font, atlas, cx, cy)
 end
 
 function PW:_drawUpgradeSellCrosses(g, font, cx, cy, cfg)
-    local count = self._upgradeCount or 0
+    local ups = self._upgrades or {}
+    local count = #ups
     if count == 0 then return end
     local INNER = self._rimR + 16
     local OUTER = self._rimR + 21

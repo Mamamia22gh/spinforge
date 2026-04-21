@@ -7,6 +7,7 @@ ffi.cdef[[
 typedef struct { uint8_t kind; int32_t a, b, c, d; } FrontEvent;
 typedef struct { int32_t value; uint8_t kind; } SegmentFFI;
 typedef struct { uint8_t effect; uint8_t rarity; } BallFFI;
+typedef struct { uint8_t kind; } UpgradeFFI;
 typedef struct { uint8_t kind; uint8_t subtype; uint8_t rarity; uint8_t alteration; uint32_t price; uint8_t sold; } ShopSlot;
 
 void* engine_new(uint32_t seed);
@@ -30,7 +31,7 @@ uint32_t engine_get_tickets(void* ptr);
 double engine_get_corruption(void* ptr);
 int32_t engine_get_ball_count(void* ptr);
 int32_t engine_get_relic_count(void* ptr);
-int32_t engine_get_upgrade_count(void* ptr);
+int32_t engine_get_upgrades(void* ptr, UpgradeFFI* out, int32_t max);
 uint32_t engine_rounds_per_run();
 int32_t engine_get_segments(void* ptr, SegmentFFI* out, int32_t max);
 int32_t engine_get_balls(void* ptr, BallFFI* out, int32_t max);
@@ -47,6 +48,7 @@ local _ev = ffi.new('FrontEvent[1]')
 local _seg = ffi.new('SegmentFFI[40]')
 local _ball = ffi.new('BallFFI[32]')
 local _shop = ffi.new('ShopSlot[8]')
+local _upg = ffi.new('UpgradeFFI[8]')
 
 local E = {}
 E.__index = E
@@ -78,7 +80,14 @@ function E:tickets() return tonumber(lib.engine_get_tickets(self._ptr)) end
 function E:corruption() return tonumber(lib.engine_get_corruption(self._ptr)) end
 function E:ballCount() return lib.engine_get_ball_count(self._ptr) end
 function E:relicCount() return lib.engine_get_relic_count(self._ptr) end
-function E:upgradeCount() return lib.engine_get_upgrade_count(self._ptr) end
+function E:upgrades()
+    local n = lib.engine_get_upgrades(self._ptr, _upg, 8)
+    local out = {}
+    for i = 0, n - 1 do
+        out[i + 1] = { kind = _upg[i].kind }
+    end
+    return out
+end
 function E:roundsPerRun() return tonumber(lib.engine_rounds_per_run()) end
 
 function E:segments()

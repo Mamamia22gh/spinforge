@@ -326,9 +326,21 @@ pub extern "C" fn engine_get_ball_count(ptr: *const Engine) -> i32 {
 pub extern "C" fn engine_get_relic_count(ptr: *const Engine) -> i32 {
     unsafe { (*ptr).state.relics.len() as i32 }
 }
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct UpgradeFFI {
+    pub kind: u8,
+}
+
 #[no_mangle]
-pub extern "C" fn engine_get_upgrade_count(ptr: *const Engine) -> i32 {
-    unsafe { (*ptr).state.upgrades.len() as i32 }
+pub extern "C" fn engine_get_upgrades(ptr: *const Engine, out: *mut UpgradeFFI, max: i32) -> i32 {
+    let eng = unsafe { &*ptr };
+    let n = eng.state.upgrades.len().min(max as usize);
+    let buf = unsafe { slice::from_raw_parts_mut(out, n) };
+    for (i, (upg, _cost)) in eng.state.upgrades[..n].iter().enumerate() {
+        buf[i] = UpgradeFFI { kind: *upg as u8 };
+    }
+    n as i32
 }
 #[no_mangle]
 pub extern "C" fn engine_rounds_per_run() -> u32 {
