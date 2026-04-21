@@ -8,9 +8,13 @@ pub enum Upgrade {
 }
 
 impl Upgrade {
-    pub fn on(self, _event: Event, _state: &mut GameState) {
+    pub fn on(self, event: Event, state: &mut GameState) {
         match self {
-            Upgrade::TicketPerSegment => {}
+            Upgrade::TicketPerSegment => {
+                if event == Event::AfterScore {
+                    state.tickets += state.segments.len() as u32;
+                }
+            }
         }
     }
 }
