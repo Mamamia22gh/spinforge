@@ -1,4 +1,6 @@
 use crate::balls::Rarity;
+use crate::event::Event;
+use crate::state::GameState;
 pub mod effects;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -26,7 +28,14 @@ pub struct RelicDef {
     pub effects: &'static [RelicEffect],
 }
 
-
+impl RelicId {
+    pub fn on(self, _event: Event, _state: &mut GameState) {
+        match self {
+            RelicId::TabletTwenty => {}
+            RelicId::TabletNineteen => {}
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

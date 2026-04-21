@@ -1,5 +1,5 @@
 use crate::balls::Ball;
-use crate::event::{Event, EventRouter};
+use crate::event::{self, Event};
 use crate::relics::RelicId;
 use crate::rng::Rng;
 use crate::state::GameState;
@@ -78,7 +78,7 @@ impl Shop {
                     if let ShopItem::Ball(ball) = slot.item {
                         state.balls.push(ball);
                     }
-                    state = EventRouter::dispatch(&Event::ItemBought { item: slot.item.clone(), cost }, state);
+                    event::trigger(Event::OnBuy, &mut state);
                 }
             }
             ShopAction::BuyRelic(i) => {
@@ -90,7 +90,7 @@ impl Shop {
                     if let ShopItem::Relic(id) = slot.item {
                         state.relics.push_back(id);
                     }
-                    state = EventRouter::dispatch(&Event::ItemBought { item: slot.item.clone(), cost }, state);
+                    event::trigger(Event::OnBuy, &mut state);
                 }
             }
             ShopAction::BuyUpgrade => {
@@ -102,7 +102,7 @@ impl Shop {
                     if let ShopItem::Upgrade(u) = slot.item {
                         state.upgrades.push(u);
                     }
-                    state = EventRouter::dispatch(&Event::ItemBought { item: slot.item.clone(), cost }, state);
+                    event::trigger(Event::OnBuy, &mut state);
                 }
             }
             ShopAction::Reroll => {
