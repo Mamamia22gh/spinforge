@@ -1,7 +1,8 @@
--- scenes/shop.lua — SHOP phase: flipped wheel, buy/reroll/leave.
+-- scenes/shop.lua — SHOP phase: flipped wheel, buy/reroll/leave. Event-driven.
 
 local C = require('src.game.constants')
 local SA = C.SHOP_ACTION
+local EV = C.EVENT
 
 local SS = {}
 SS.__index = SS
@@ -9,6 +10,7 @@ function SS.new() return setmetatable({}, SS) end
 
 function SS:enter(game)
     self.game = game
+    game.engine:clearEvents()
     self:_refreshShopUI()
     if game.wheel and not game.wheel:isFlipped() then game.wheel:startFlip(0.5) end
 end
@@ -23,6 +25,7 @@ function SS:_refreshShopUI()
                 shopType = ({ [0]='ball', 'relic', 'upgrade' })[s.kind] or 'ball',
                 name = self:_slotName(s),
                 rarity = ({ [0]='common','uncommon','rare','legendary' })[s.rarity] or 'common',
+                quality = ({ [0]='normal', 'corrupted', 'purified' })[s.quality] or 'normal',
                 finalCost = s.price,
                 description = '',
             }
@@ -48,9 +51,24 @@ function SS:leave()
     if self.game.wheel:isFlipped() then self.game.wheel:startFlip(0.5) end
 end
 
+function SS:_processShopEvents()
+    local g = self.game
+    local events = g.engine:pollEvents()
+    for _, ev in ipairs(events) do
+        if ev.kind == EV.ITEM_BOUGHT then
+            g._kernel:emit('audio.sfx', { name = 'purchase' })
+            g:_pop('BOUGHT!', nil, nil, { color = C.PAL.gold, noCoin = true })
+        elseif ev.kind == EV.TICKETS_CHANGED then
+            g.wheel:shopUpdateCurrency(ev.b)
+        elseif ev.kind == EV.CORRUPTION_CHANGED then
+            local newCorr = ev.b / 1000.0
+            g.wheel:setCorruption(newCorr)
+        end
+    end
+end
+
 function SS:update(dt)
     local g = self.game
-    g.wheel:shopUpdateCurrency(g.engine:tickets())
     if self._bufferedClick and not g.wheel._flip then
         local c = self._bufferedClick
         self._bufferedClick = nil
@@ -75,18 +93,19 @@ function SS:click(x, y)
             elseif slot.kind == 1 then rustAction = SA.BUY_RELIC_1 + ((actionId - 3) % 3)
             else rustAction = SA.BUY_UPGRADE end
             g.engine:shopAction(rustAction)
-            g._kernel:emit('audio.sfx', { name = 'purchase' })
-            g:_pop('BOUGHT!', nil, nil, { color = C.PAL.gold, noCoin = true })
+            self:_processShopEvents()
             self:_refreshShopUI()
         end
     elseif hit.type == 'reroll' then
         g:playSelect()
         g.engine:shopAction(SA.REROLL)
+        self:_processShopEvents()
         self:_refreshShopUI()
     elseif hit.type == 'leave' then
         g:playSelect()
         g.engine:shopAction(SA.CONTINUE)
         g.engine:dealApply()
+        g.engine:clearEvents()
         g:_syncWheel()
         g:_playSongForPhase('IDLE')
         g:_switchScene('IDLE')
@@ -109,10 +128,12 @@ end
 function SS:key(k)
     if k == 'r' then
         self.game.engine:shopAction(SA.REROLL)
+        self:_processShopEvents()
         self:_refreshShopUI()
     elseif k == 'space' or k == 'return' or k == 'escape' then
         self.game.engine:shopAction(SA.CONTINUE)
         self.game.engine:dealApply()
+        self.game.engine:clearEvents()
         self.game:_syncWheel()
         self.game:_playSongForPhase('IDLE')
         self.game:_switchScene('IDLE')
@@ -129,9 +150,26 @@ function SS:draw(g, font, atlas)
     local PY0 = 270 - PH - 8
     g:setColor(0, 0, 0, 0.88); g:rect('fill', PX0-1, PY0-1, PW+2, PH+2)
     g:setColor(0.04, 0.04, 0.04, 1); g:rect('fill', PX0, PY0, PW, PH)
-    g:setColor(col[1], col[2], col[3], 1); g:rect('line', PX0, PY0, PW, PH)
+
+    local qual = hovered.quality or 'normal'
+    if qual == 'corrupted' then
+        g:setColor(0.55, 0.15, 0.75, 0.3); g:rect('fill', PX0, PY0, PW, PH)
+        g:setColor(0.55, 0.15, 0.75, 1); g:rect('line', PX0, PY0, PW, PH)
+    elseif qual == 'purified' then
+        g:setColor(0.95, 0.95, 1.0, 0.2); g:rect('fill', PX0, PY0, PW, PH)
+        g:setColor(0.95, 0.95, 1.0, 1); g:rect('line', PX0, PY0, PW, PH)
+    else
+        g:setColor(col[1], col[2], col[3], 1); g:rect('line', PX0, PY0, PW, PH)
+    end
+
     local title = ((hovered.name or '???')):upper()
     font:drawCentered(title, PX0 + math.floor(PW/2), PY0 + PAD, col, 1)
+
+    if qual ~= 'normal' then
+        local qualLabel = qual == 'corrupted' and 'CORRUPTED' or 'PURIFIED'
+        local qualCol = qual == 'corrupted' and { 0.55, 0.15, 0.75, 1 } or { 0.95, 0.95, 1.0, 1 }
+        font:drawCentered(qualLabel, PX0 + math.floor(PW/2), PY0 + PAD + 12, qualCol, 1)
+    end
 end
 
 return SS

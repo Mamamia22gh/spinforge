@@ -104,9 +104,15 @@ function PW:_drawForgeFace(g, font, atlas, cx, cy)
         rare      = { fg = PAL.blue, bg = PAL.darkBlue, border = PAL.cyan },
         legendary = { fg = PAL.neonPink, bg = PAL.darkPurple, border = PAL.gold },
     }
+    local QUALITY_COLORS = {
+        corrupted = { 0.55, 0.15, 0.75 },
+        purified  = { 0.95, 0.95, 1.0 },
+    }
     local SPRITE_SIZE = 8
     local CH_H = 6
     local TICKET_W = 7
+    if not self._shopParticles then self._shopParticles = {} end
+    self._shopParticleTimer = (self._shopParticleTimer or 0) + 1/60
 
     for q = 1, 4 do
         for s = 0, 1 do
@@ -148,6 +154,27 @@ function PW:_drawForgeFace(g, font, atlas, cx, cy)
                 local tooExpensive = shop.currency < (offering.finalCost or 0)
                 g:setColor(rc.bg[1], rc.bg[2], rc.bg[3], offering.rarity == 'common' and 0.15 or 0.3)
                 drawAnnularArc(cx, cy, slotInner + 1, slotOuter - 1, a0, a1, 32)
+
+                local qual = offering.quality or 'normal'
+                local qc = QUALITY_COLORS[qual]
+                if qc then
+                    local pulse = 0.25 + 0.15 * math.sin(self._shopParticleTimer * 4 + slotIdx)
+                    g:setColor(qc[1], qc[2], qc[3], pulse)
+                    drawAnnularArc(cx, cy, slotInner + 2, slotOuter - 2, a0 + 0.02, a1 - 0.02, 32)
+                    local pCount = 3
+                    for p = 1, pCount do
+                        local seed = slotIdx * 7 + p * 13
+                        local t = (self._shopParticleTimer * (0.4 + (seed % 5) * 0.1) + seed) % 1.0
+                        local pAngle = a0 + t * (a1 - a0)
+                        local pR = slotInner + 4 + ((seed * 3 + math.floor(self._shopParticleTimer * 2 + p)) % math.floor(slotOuter - slotInner - 8))
+                        local px2 = cx + math.cos(pAngle) * pR
+                        local py2 = cy + math.sin(pAngle) * pR
+                        local pAlpha = 0.4 + 0.4 * math.sin(self._shopParticleTimer * 6 + seed)
+                        g:setColor(qc[1], qc[2], qc[3], pAlpha)
+                        g:rect('fill', math.floor(px2), math.floor(py2), 2, 2)
+                    end
+                end
+
                 g:setColor(rc.border[1], rc.border[2], rc.border[3], 1)
                 love.graphics.arc('line', 'open', cx, cy, slotOuter, a0, a1, 32)
                 love.graphics.arc('line', 'open', cx, cy, slotInner, a0, a1, 32)

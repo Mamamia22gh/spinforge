@@ -178,9 +178,17 @@ pub extern "C" fn engine_shop_action(ptr: *mut Engine, action_id: i32) -> i32 {
     let action = sim::idx_to_action(action_id as usize);
     let old_tickets = eng.state.tickets;
     let old_balls = eng.state.balls.len();
+    let old_corruption = eng.state.corruption;
     let (new_shop, new_state) = shop.apply(action, eng.state.clone(), &mut eng.rng);
     if new_state.tickets != old_tickets || old_balls != new_state.balls.len() {
         push_ev(eng, FrontEventKind::ItemBought, action_id, 0, 0, 0);
+    }
+    if (new_state.corruption - old_corruption).abs() > f64::EPSILON {
+        push_ev(eng, FrontEventKind::CorruptionChanged,
+            (old_corruption * 1000.0) as i32, (new_state.corruption * 1000.0) as i32, 0, 0);
+    }
+    if new_state.tickets != old_tickets {
+        push_ev(eng, FrontEventKind::TicketsChanged, old_tickets as i32, new_state.tickets as i32, 0, 0);
     }
     eng.state = new_state;
     eng.shop = Some(new_shop);
@@ -193,6 +201,7 @@ pub struct ShopSlot {
     pub kind: u8,
     pub subtype: u8,
     pub rarity: u8,
+    pub quality: u8,
     pub price: u32,
     pub sold: u8,
 }
@@ -218,6 +227,7 @@ pub extern "C" fn engine_shop_get(ptr: *mut Engine, out: *mut ShopSlot, max_len:
         };
         buf[n] = ShopSlot {
             kind: 0, subtype, rarity,
+            quality: slot.quality as u8,
             price: slot.price,
             sold: slot.sold as u8,
         };
@@ -232,6 +242,7 @@ pub extern "C" fn engine_shop_get(ptr: *mut Engine, out: *mut ShopSlot, max_len:
         };
         buf[n] = ShopSlot {
             kind: 1, subtype, rarity: 0,
+            quality: slot.quality as u8,
             price: slot.price,
             sold: slot.sold as u8,
         };
@@ -245,6 +256,7 @@ pub extern "C" fn engine_shop_get(ptr: *mut Engine, out: *mut ShopSlot, max_len:
         };
         buf[n] = ShopSlot {
             kind: 2, subtype, rarity: 0,
+            quality: slot.quality as u8,
             price: slot.price,
             sold: slot.sold as u8,
         };

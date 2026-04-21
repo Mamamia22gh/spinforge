@@ -1,6 +1,7 @@
--- scenes/spin.lua — SPINNING phase: drives wheel spin + ball ejection.
+-- scenes/spin.lua — SPINNING phase: drives wheel spin + ball ejection, event-driven.
 
 local C = require('src.game.constants')
+local EV = C.EVENT
 
 local Spin = {}
 Spin.__index = Spin
@@ -18,6 +19,8 @@ function Spin:enter(game)
         game._kernel:emit('audio.tone', { freq = 900 + math.random() * 200, duration = 0.03, wave = 'square', vol = 0.03 })
     end
 
+    game.engine:clearEvents()
+
     w:spinAndEject(function(results)
         self:_resolveAll(results)
     end)
@@ -27,16 +30,30 @@ end
 
 function Spin:_resolveAll(results)
     local game = self.game
+
     for i, _wheelIdx in ipairs(results) do
         game:_queueEvent({ delay = (i == 1) and 0.15 or 0.45, blocking = true, func = function()
             if game._phase ~= 'SPINNING' then return true end
             local bi = i - 1
             local segIdx = _wheelIdx
-            local gained = game.engine:resolveBall(bi, segIdx)
+            game.engine:resolveBall(bi, segIdx)
             self._revealIdx = (self._revealIdx or 0) + 1
 
+            local events = game.engine:pollEvents()
+            local gained = 0
             local gold = game.engine:gold()
             local quota = game.engine:quota()
+
+            for _, ev in ipairs(events) do
+                if ev.kind == EV.BALL_LANDED then
+                elseif ev.kind == EV.SEGMENT_SCORED then
+                    gained = gained + ev.c
+                elseif ev.kind == EV.GOLD_CHANGED then
+                    gold = ev.b
+                elseif ev.kind == EV.TICKETS_CHANGED then
+                    game.wheel:setCounters(gold, ev.b)
+                end
+            end
 
             game._kernel:emit('audio.sfx', { name = 'coin' })
             local revNotes = { 523, 587, 659, 784, 880, 1047 }
@@ -70,6 +87,13 @@ function Spin:_resolveAll(results)
         if not ev._started then
             ev._started = true
             game.engine:finishRound()
+            local finishEvents = game.engine:pollEvents()
+            for _, fe in ipairs(finishEvents) do
+                if fe.kind == EV.ROUND_ENDED then
+                    ev._won = fe.c == 1
+                    ev._quota = fe.b
+                end
+            end
             local quota = game.engine:quota()
             if quota > 0 then
                 game.wheel:startGoldQuotaAnim(quota)
