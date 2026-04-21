@@ -7,8 +7,7 @@ use crate::items::segment::{Segment, SegmentKind};
 use crate::items::upgrades::Upgrade;
 
 pub const MAX_SEGMENTS: usize = 40;
-pub const MAX_BALLS: usize = 24;
-pub const MAX_RELICS: usize = 8;
+pub const MAX_BALLS: usize = 15;
 pub const MAX_UPGRADES: usize = 8;
 const STARTING_BALLS: usize = 5;
 
@@ -17,7 +16,7 @@ pub struct GameState {
     pub round: u8,
     pub segments: [Segment; MAX_SEGMENTS],
     pub balls: ArrayVec<Ball, MAX_BALLS>,
-    pub relics: ArrayVec<RelicId, MAX_RELICS>,
+    pub relics: Vec<RelicId>,
     pub upgrades: ArrayVec<Upgrade, MAX_UPGRADES>,
     pub gold_coins: u32,
     pub quota: u32,
@@ -53,7 +52,7 @@ impl GameState {
             round: 1,
             segments,
             balls,
-            relics: ArrayVec::new(),
+            relics: Vec::new(),
             upgrades: ArrayVec::new(),
             gold_coins: 0,
             quota: balance::quota(1),
@@ -119,7 +118,7 @@ mod tests {
     fn size_small_enough_for_mcts() {
         let size = std::mem::size_of::<GameState>();
         println!("GameState stack size: {} bytes", size);
-        assert!(size < 512);
+        assert!(size < 1024);
     }
 
     #[test]

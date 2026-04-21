@@ -13,7 +13,7 @@ const ROLLOUT_ROUNDS: u8 = 3;
 fn legal_actions(shop: &Shop, state: &GameState) -> Vec<ShopAction> {
     let mut actions = vec![ShopAction::Continue];
     for i in 0..3 {
-        if !shop.balls[i].sold && state.tickets >= shop.balls[i].price {
+        if !shop.balls[i].sold && state.tickets >= shop.balls[i].price && state.balls.len() < crate::core::state::MAX_BALLS {
             actions.push(ShopAction::BuyBall(i));
         }
     }
@@ -22,7 +22,7 @@ fn legal_actions(shop: &Shop, state: &GameState) -> Vec<ShopAction> {
             actions.push(ShopAction::BuyRelic(i));
         }
     }
-    if !shop.upgrade.sold && state.tickets >= shop.upgrade.price {
+    if !shop.upgrade.sold && state.tickets >= shop.upgrade.price && state.upgrades.len() < crate::core::state::MAX_UPGRADES {
         actions.push(ShopAction::BuyUpgrade);
     }
     if state.tickets >= shop.reroll_cost {
