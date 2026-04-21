@@ -160,7 +160,7 @@ impl Shop {
                 }
             }
             ShopAction::SellBall => {
-                if !state.balls.is_empty() {
+                if state.balls.len() > 1 {
                     let ball = state.balls.remove(0);
                     state.tickets += ball.cost / 2;
                 }

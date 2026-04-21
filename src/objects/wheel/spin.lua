@@ -72,6 +72,11 @@ function PW:spinAndEject(callback)
     end
     table.sort(self._ejectQueue, function(a, b) return a.dropDelay < b.dropDelay end)
     self._placedBalls = {}
+    if #self._ejectQueue == 0 then
+        self._ejecting = false
+        if callback then callback({}) end
+        return
+    end
     self._ejecting = true
     self._ejectClock = 0
 end
