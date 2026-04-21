@@ -1,9 +1,9 @@
 pub const ROUNDS_PER_RUN: u32 = 15;
 
 pub const QUOTA: [u32; 15] = [
-    60, 179, 333, 520, 740,
-    995, 1284, 1611, 1972, 2371,
-    2808, 3284, 3799, 4354, 4951,
+    60, 190, 374, 612, 909,
+    1267, 1688, 2174, 2730, 3360,
+    4067, 4862, 5762, 6778, 7926,
 ];
 
 pub const SURPLUS_CONVERSION_RATE: u32 = 20;
@@ -30,16 +30,16 @@ mod tests {
 
     #[test]
     fn quota_round_5() {
-        assert_eq!(quota(5), 740);
+        assert_eq!(quota(5), 909);
     }
 
     #[test]
     fn quota_round_12() {
-        assert_eq!(quota(12), 3284);
+        assert_eq!(quota(12), 4862);
     }
 
     #[test]
     fn quota_round_15() {
-        assert_eq!(quota(15), 4951);
+        assert_eq!(quota(15), 7926);
     }
 }
