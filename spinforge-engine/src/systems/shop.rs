@@ -112,8 +112,10 @@ impl Shop {
             }
             ShopAction::Reroll => {
                 if state.tickets >= self.reroll_cost {
+                    let next_cost = self.reroll_cost * 2;
                     state.tickets -= self.reroll_cost;
                     self = Shop::generate(rng);
+                    self.reroll_cost = next_cost;
                 }
             }
             ShopAction::Continue => {}
