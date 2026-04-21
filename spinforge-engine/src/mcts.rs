@@ -371,6 +371,13 @@ mod tests {
     }
 
     #[test]
+    fn mcts_100k_sims() {
+        let result = run_mcts(1, 100_000);
+        println!("100k sims: {:#?}", result);
+        assert!(result.avg_gold > 0.0);
+    }
+
+    #[test]
     fn full_game_with_shop() {
         let mut rng = Rng::new(555);
         let mut state = GameState::new();
