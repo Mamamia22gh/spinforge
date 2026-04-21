@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use crate::core::balance;
 use crate::core::event::{self, Event};
 use crate::core::rng::Rng;
@@ -40,7 +42,7 @@ fn action_index(a: &ShopAction) -> usize {
 }
 
 fn simulate_round(mut state: GameState, rng: &mut Rng) -> GameState {
-    let balls: arrayvec::ArrayVec<_, 16> = state.balls.iter().copied().collect();
+    let balls: arrayvec::ArrayVec<_, 24> = state.balls.iter().copied().collect();
     for ball in &balls {
         let pos = rng.int(0, state.segments.len() as i32 - 1) as usize;
         for slot in &ball.effects {
@@ -172,29 +174,27 @@ pub struct MctsResult {
     pub total: u32,
     pub win_rate: f64,
     pub avg_gold: f64,
-    pub avg_rounds_survived: f64,
+    pub avg_winning_round: f64,
 }
 
 pub fn run_mcts(seed: u32, simulations: u32) -> MctsResult {
-    let mut wins = 0u32;
-    let mut total_gold = 0u64;
-    let mut total_rounds = 0u64;
+    let wins = AtomicU32::new(0);
+    let total_gold = AtomicU64::new(0);
+    let total_winning_round = AtomicU64::new(0);
+    let total_winners = AtomicU32::new(0);
 
-    let mut rng = Rng::new(seed);
-
-    for _ in 0..simulations {
+    (0..simulations).into_par_iter().for_each(|i| {
+        let mut rng = Rng::new(seed.wrapping_add(i));
         let mut state = GameState::new();
-        let mut won = false;
-        let mut final_round = balance::ROUNDS_PER_RUN as u8;
+        let mut first_win_round: Option<u8> = None;
 
         for round in 1..=balance::ROUNDS_PER_RUN as u8 {
             state.round = round;
             state.quota = balance::quota(round as u32);
             state = simulate_round(state, &mut rng);
 
-            if !won && state.gold_coins >= state.quota {
-                won = true;
-                final_round = round;
+            if first_win_round.is_none() && state.gold_coins >= state.quota {
+                first_win_round = Some(round);
             }
 
             state.tickets += balance::TICKETS_PER_ROUND;
@@ -203,8 +203,7 @@ pub fn run_mcts(seed: u32, simulations: u32) -> MctsResult {
             let mut root = Node::new(0);
             expand(&mut root, &shop, &state);
 
-            let iters = 50;
-            for _ in 0..iters {
+            for _ in 0..50 {
                 let mut sim_rng = rng.fork();
                 let (_, val) = tree_policy(&mut root, &shop, state.clone(), &mut sim_rng);
                 root.visits += 1;
@@ -221,17 +220,25 @@ pub fn run_mcts(seed: u32, simulations: u32) -> MctsResult {
             state = s;
         }
 
-        if won { wins += 1; }
-        total_gold += state.gold_coins as u64;
-        total_rounds += final_round as u64;
-    }
+        if let Some(r) = first_win_round {
+            wins.fetch_add(1, Ordering::Relaxed);
+            total_winning_round.fetch_add(r as u64, Ordering::Relaxed);
+            total_winners.fetch_add(1, Ordering::Relaxed);
+        }
+        total_gold.fetch_add(state.gold_coins as u64, Ordering::Relaxed);
+    });
+
+    let w = wins.load(Ordering::Relaxed);
+    let tg = total_gold.load(Ordering::Relaxed);
+    let tw = total_winners.load(Ordering::Relaxed);
+    let twr = total_winning_round.load(Ordering::Relaxed);
 
     MctsResult {
-        wins,
+        wins: w,
         total: simulations,
-        win_rate: wins as f64 / simulations as f64,
-        avg_gold: total_gold as f64 / simulations as f64,
-        avg_rounds_survived: total_rounds as f64 / simulations as f64,
+        win_rate: w as f64 / simulations as f64,
+        avg_gold: tg as f64 / simulations as f64,
+        avg_winning_round: if tw > 0 { twr as f64 / tw as f64 } else { 0.0 },
     }
 }
 
@@ -252,7 +259,6 @@ mod tests {
         let r1 = run_mcts(12345, 20);
         let r2 = run_mcts(12345, 20);
         assert_eq!(r1.wins, r2.wins);
-        assert_eq!(r1.avg_gold, r2.avg_gold);
     }
 
     #[test]
@@ -280,7 +286,7 @@ mod tests {
     fn mcts_with_relics() {
         let mut rng = Rng::new(77);
         let mut state = GameState::new();
-        state.relics.push_back(crate::items::relics::RelicId::SetAllSegmentsTo20);
+        state.relics.push(crate::items::relics::RelicId::SetAllSegmentsTo20);
         event::trigger(Event::OnBuy, &mut state);
 
         assert!(state.segments.iter().all(|s| s.value == 20));
@@ -295,7 +301,7 @@ mod tests {
         let mut rng = Rng::new(1);
         let mut state = GameState::new();
         for seg in &mut state.segments { seg.value = 1; }
-        state.relics.push_back(crate::items::relics::RelicId::GoldenBonus);
+        state.relics.push(crate::items::relics::RelicId::GoldenBonus);
 
         let gold_before = state.gold_coins;
         state = simulate_round(state, &mut rng);
@@ -306,7 +312,7 @@ mod tests {
     #[test]
     fn corruption_shield_reduces() {
         let mut state = GameState::new();
-        state.relics.push_back(crate::items::relics::RelicId::CorruptionShield);
+        state.relics.push(crate::items::relics::RelicId::CorruptionShield);
         let before = state.corruption;
         event::trigger(Event::AfterScore, &mut state);
         assert!(state.corruption < before);

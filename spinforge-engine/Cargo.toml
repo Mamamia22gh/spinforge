@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 arrayvec = "0.7"
 automod = "1.0"
+rayon = "1.10"

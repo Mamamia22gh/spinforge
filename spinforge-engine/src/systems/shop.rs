@@ -89,7 +89,7 @@ impl Shop {
                     let cost = slot.price;
                     state.tickets -= cost;
                     if let ShopItem::Relic(id) = slot.item {
-                        state.relics.push_back(id);
+                        state.relics.push(id);
                     }
                     event::trigger(Event::OnBuy, &mut state);
                 }

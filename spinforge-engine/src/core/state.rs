@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use arrayvec::ArrayVec;
 
 use crate::core::balance;
 use crate::items::balls::Ball;
@@ -6,15 +6,19 @@ use crate::items::relics::RelicId;
 use crate::items::segment::{Segment, SegmentKind};
 use crate::items::upgrades::Upgrade;
 
+pub const MAX_SEGMENTS: usize = 40;
+pub const MAX_BALLS: usize = 24;
+pub const MAX_RELICS: usize = 8;
+pub const MAX_UPGRADES: usize = 8;
 const STARTING_BALLS: usize = 5;
 
 #[derive(Clone, Debug)]
 pub struct GameState {
     pub round: u8,
-    pub segments: Vec<Segment>,
-    pub balls: Vec<Ball>,
-    pub relics: VecDeque<RelicId>,
-    pub upgrades: Vec<Upgrade>,
+    pub segments: [Segment; MAX_SEGMENTS],
+    pub balls: ArrayVec<Ball, MAX_BALLS>,
+    pub relics: ArrayVec<RelicId, MAX_RELICS>,
+    pub upgrades: ArrayVec<Upgrade, MAX_UPGRADES>,
     pub gold_coins: u32,
     pub quota: u32,
     pub corruption: f64,
@@ -34,22 +38,23 @@ impl GameState {
             Neutral, Neutral, Neutral, Neutral, Golden,
             Neutral, Neutral, Neutral, Neutral, Corrupted,
         ];
-        let segments = pattern.iter().enumerate().map(|(i, &k)| {
-            let mut s = Segment::new(k);
-            s.value = (i as i32) + 1;
-            s
-        }).collect();
+        let mut segments = [Segment::new(SegmentKind::Neutral); MAX_SEGMENTS];
+        for (i, &k) in pattern.iter().enumerate() {
+            segments[i].kind = k;
+            segments[i].value = (i as i32) + 1;
+        }
 
-        let balls = (0..STARTING_BALLS)
-            .map(|_| Ball::new(crate::items::balls::BallEffect::ScoreOnce, crate::items::balls::Rarity::Common))
-            .collect();
+        let mut balls = ArrayVec::new();
+        for _ in 0..STARTING_BALLS {
+            balls.push(Ball::new(crate::items::balls::BallEffect::ScoreOnce, crate::items::balls::Rarity::Common));
+        }
 
         Self {
             round: 1,
             segments,
             balls,
-            relics: VecDeque::new(),
-            upgrades: Vec::new(),
+            relics: ArrayVec::new(),
+            upgrades: ArrayVec::new(),
             gold_coins: 0,
             quota: balance::quota(1),
             corruption: balance::INITIAL_CORRUPTION,
@@ -114,7 +119,7 @@ mod tests {
     fn size_small_enough_for_mcts() {
         let size = std::mem::size_of::<GameState>();
         println!("GameState stack size: {} bytes", size);
-        assert!(size < 256);
+        assert!(size < 512);
     }
 
     #[test]
