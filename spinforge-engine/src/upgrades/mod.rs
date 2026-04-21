@@ -1,6 +1,5 @@
-automod::dir!(pub "src/upgrades");
-
 use crate::state::GameState;
+pub mod effects;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Upgrade {
@@ -10,7 +9,7 @@ pub enum Upgrade {
 impl Upgrade {
     pub fn process(self, state: GameState) -> GameState {
         match self {
-            Upgrade::TicketPerSegment => ticket_per_segment::process(state),
+            Upgrade::TicketPerSegment => effects::ticket_per_segment::process(state),
         }
     }
 }

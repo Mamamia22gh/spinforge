@@ -1,7 +1,6 @@
-automod::dir!(pub "src/relics");
-
 use crate::balls::Rarity;
 use crate::state::GameState;
+pub mod effects;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RelicId {
@@ -31,8 +30,8 @@ pub struct RelicDef {
 impl RelicId {
     pub fn process(self, state: GameState) -> GameState {
         match self {
-            RelicId::TabletTwenty => tablet_twenty::process(state),
-            RelicId::TabletNineteen => tablet_nineteen::process(state),
+            RelicId::TabletTwenty => effects::tablet_twenty::process(state),
+            RelicId::TabletNineteen => effects::tablet_nineteen::process(state),
         }
     }
 }

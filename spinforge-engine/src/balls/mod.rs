@@ -1,6 +1,5 @@
-automod::dir!(pub "src/balls");
-
 use crate::state::GameState;
+pub mod effects;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BallEffect {
@@ -46,9 +45,9 @@ impl Ball {
 impl BallEffect {
     pub fn process(self, pos: usize, state: GameState) -> GameState {
         match self {
-            BallEffect::Double => double::process(pos, state),
-            BallEffect::Splash => splash::process(pos, state),
-            BallEffect::Ticket => ticket::process(pos, state),
+            BallEffect::Double => effects::double::process(pos, state),
+            BallEffect::Splash => effects::splash::process(pos, state),
+            BallEffect::Ticket => effects::ticket::process(pos, state),
         }
     }
 }
