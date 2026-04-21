@@ -39,6 +39,7 @@ pub fn run_mcts(seed: u32, simulations: u32) -> MctsResult {
             let shop = Shop::generate(&mut rng);
             let (_, st) = sim::mcts_shop_loop(shop, state, &mut rng);
             state = st;
+            sim::check_deals(&mut state, &mut rng);
         }
 
         if let Some(r) = first_win_round {

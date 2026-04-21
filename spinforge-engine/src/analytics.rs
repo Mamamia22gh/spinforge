@@ -51,7 +51,8 @@ fn run_logged_game(seed: u32) -> GameLog {
         let relics_sold_before: Vec<_> = shop.relics.iter().map(|s| s.sold).collect();
         let upgrade_sold_before = shop.upgrade.sold;
 
-        let (final_shop, new_state) = sim::mcts_shop_loop(shop, state, &mut rng);
+        let (final_shop, mut new_state) = sim::mcts_shop_loop(shop, state, &mut rng);
+        sim::check_deals(&mut new_state, &mut rng);
 
         // Diff to find purchases
         for i in 0..3 {

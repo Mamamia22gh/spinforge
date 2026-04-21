@@ -3,6 +3,7 @@ use crate::core::event::{self, Event};
 use crate::core::rng::Rng;
 use crate::core::state::GameState;
 use crate::systems::shop::{Shop, ShopAction};
+use crate::deals;
 
 pub const UCB_C: f64 = 1.414;
 pub const MCTS_ITERATIONS: u32 = 50;
@@ -98,6 +99,7 @@ fn rollout(mut state: GameState, rng: &mut Rng, rounds_left: u8) -> f64 {
         let shop = Shop::generate(rng);
         let (_, s) = shop.apply(ShopAction::Continue, state, rng);
         state = s;
+        check_deals(&mut state, rng);
     }
     evaluate(&state)
 }
@@ -167,6 +169,21 @@ fn tree_policy(node: &mut Node, shop: &Shop, state: GameState, rng: &mut Rng) ->
     child.visits += 1;
     child.total_value += val;
     val
+}
+
+/// Check and apply deals after shop. Track zero-corruption rounds.
+pub fn check_deals(state: &mut GameState, rng: &mut Rng) {
+    if deals::check_devil_deal(state) {
+        deals::apply_devil_deal(state, rng);
+        state.zero_corruption_rounds = 0;
+    } else if state.corruption == 0.0 {
+        state.zero_corruption_rounds += 1;
+        if deals::check_angel_deal(state) {
+            deals::apply_angel_deal(state);
+        }
+    } else {
+        state.zero_corruption_rounds = 0;
+    }
 }
 
 /// Run full MCTS shop decision loop: picks actions until Continue using UCB1 tree search.

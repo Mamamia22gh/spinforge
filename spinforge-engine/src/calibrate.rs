@@ -23,6 +23,7 @@ fn collect_gold_distributions(seed: u32, n: u32) -> Vec<[u32; ROUNDS]> {
             let shop = Shop::generate(&mut rng);
             let (_, st) = sim::mcts_shop_loop(shop, state, &mut rng);
             state = st;
+            sim::check_deals(&mut state, &mut rng);
         }
         golds
     }).collect()

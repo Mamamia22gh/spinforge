@@ -22,6 +22,7 @@ pub struct GameState {
     pub quota: u32,
     pub corruption: f64,
     pub tickets: u32,
+    pub zero_corruption_rounds: u8,
 }
 
 impl GameState {
@@ -58,6 +59,7 @@ impl GameState {
             quota: balance::quota(1),
             corruption: balance::INITIAL_CORRUPTION,
             tickets: 0,
+            zero_corruption_rounds: 0,
         }
     }
 }
@@ -101,7 +103,7 @@ mod tests {
     #[test]
     fn initial_corruption() {
         let run = GameState::new();
-        assert!((run.corruption - 0.5).abs() < f64::EPSILON);
+        assert!((run.corruption - 0.35).abs() < f64::EPSILON);
     }
 
     #[test]

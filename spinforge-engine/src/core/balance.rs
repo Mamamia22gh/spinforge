@@ -12,7 +12,11 @@ pub const SHOP_REROLL_BASE: u32 = 5;
 pub const SHOP_PRICE_SCALING: f64 = 0.5;
 
 pub const TICKETS_PER_ROUND: u32 = 15;
-pub const INITIAL_CORRUPTION: f64 = 0.5;
+pub const INITIAL_CORRUPTION: f64 = 0.35;
+pub const CORRUPTION_PER_CORRUPTED_BUY: f64 = 0.20;
+pub const CORRUPTION_PER_PURIFIED_BUY: f64 = 0.20;
+pub const CORRUPTION_RESET_AFTER_DEVIL: f64 = 0.35;
+pub const ANGEL_DEAL_ZERO_ROUNDS: u8 = 4;
 
 #[inline]
 pub fn quota(round: u32) -> u32 {
