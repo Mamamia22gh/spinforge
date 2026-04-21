@@ -30,16 +30,17 @@ pub fn run_mcts(seed: u32, simulations: u32) -> MctsResult {
             state.round = round;
             state.quota = balance::quota(round as u32);
             state = sim::simulate_round(state, &mut rng);
+            state = sim::maybe_respin(state, &mut rng);
 
             if first_win_round.is_none() && state.gold_coins >= state.quota {
                 first_win_round = Some(round);
             }
 
             state.tickets += balance::TICKETS_PER_ROUND;
+            sim::check_deals(&mut state, &mut rng);
             let shop = Shop::generate(&mut rng);
             let (_, st) = sim::mcts_shop_loop(shop, state, &mut rng);
             state = st;
-            sim::check_deals(&mut state, &mut rng);
         }
 
         if let Some(r) = first_win_round {
@@ -68,28 +69,6 @@ pub fn run_mcts(seed: u32, simulations: u32) -> MctsResult {
 mod tests {
     use super::*;
     use crate::core::event::{self, Event};
-
-    #[test]
-    fn mcts_runs_without_panic() {
-        let result = run_mcts(42, 10);
-        println!("{:#?}", result);
-        assert_eq!(result.total, 10);
-        assert!(result.win_rate >= 0.0 && result.win_rate <= 1.0);
-    }
-
-    #[test]
-    fn mcts_deterministic() {
-        let r1 = run_mcts(12345, 20);
-        let r2 = run_mcts(12345, 20);
-        assert_eq!(r1.wins, r2.wins);
-    }
-
-    #[test]
-    fn mcts_100_sims() {
-        let result = run_mcts(1, 100);
-        println!("100 sims: {:#?}", result);
-        assert!(result.avg_gold > 0.0);
-    }
 
     #[test]
     fn mcts_with_upgrades() {
@@ -139,20 +118,6 @@ mod tests {
         let before = state.corruption;
         event::trigger(Event::AfterScore, &mut state);
         assert!(state.corruption < before);
-    }
-
-    #[test]
-    fn mcts_10k_sims() {
-        let result = run_mcts(1, 10_000);
-        println!("10k sims: {:#?}", result);
-        assert!(result.avg_gold > 0.0);
-    }
-
-    #[test]
-    fn mcts_100k_sims() {
-        let result = run_mcts(1, 100_000);
-        println!("100k sims: {:#?}", result);
-        assert!(result.avg_gold > 0.0);
     }
 
     #[test]

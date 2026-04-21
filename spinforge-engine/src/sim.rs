@@ -24,6 +24,14 @@ pub fn simulate_round(mut state: GameState, rng: &mut Rng) -> GameState {
     state
 }
 
+pub fn maybe_respin(mut state: GameState, rng: &mut Rng) -> GameState {
+    if state.gold_coins < state.quota && state.respin_available {
+        state.respin_available = false;
+        state = simulate_round(state, rng);
+    }
+    state
+}
+
 pub fn evaluate(state: &GameState) -> f64 {
     let gold = state.gold_coins as f64;
     let quota = state.quota as f64;
@@ -95,11 +103,12 @@ fn rollout(mut state: GameState, rng: &mut Rng, rounds_left: u8) -> f64 {
         state.round = round;
         state.quota = balance::quota(round as u32);
         state = simulate_round(state, rng);
+        state = maybe_respin(state, rng);
         state.tickets += balance::TICKETS_PER_ROUND;
+        check_deals(&mut state, rng);
         let shop = Shop::generate(rng);
         let (_, s) = shop.apply(ShopAction::Continue, state, rng);
         state = s;
-        check_deals(&mut state, rng);
     }
     evaluate(&state)
 }
@@ -172,14 +181,41 @@ fn tree_policy(node: &mut Node, shop: &Shop, state: GameState, rng: &mut Rng) ->
 }
 
 /// Check and apply deals after shop. Track zero-corruption rounds.
+/// Generates 3 offerings and picks the best one via quick evaluation.
 pub fn check_deals(state: &mut GameState, rng: &mut Rng) {
     if deals::check_devil_deal(state) {
-        deals::apply_devil_deal(state, rng);
+        let offering = deals::generate_devil_offering(rng);
+        if let deals::DealOffering::Devil(offers) = offering {
+            let best = (0..3)
+                .max_by(|&a, &b| {
+                    let mut sa = state.clone();
+                    let mut ra = rng.fork();
+                    deals::apply_devil_choice(&mut sa, &offers[a], &mut ra);
+                    let mut sb = state.clone();
+                    let mut rb = rng.fork();
+                    deals::apply_devil_choice(&mut sb, &offers[b], &mut rb);
+                    evaluate(&sa).partial_cmp(&evaluate(&sb)).unwrap()
+                })
+                .unwrap();
+            deals::apply_devil_choice(state, &offers[best], rng);
+        }
         state.zero_corruption_rounds = 0;
     } else if state.corruption == 0.0 {
         state.zero_corruption_rounds += 1;
         if deals::check_angel_deal(state) {
-            deals::apply_angel_deal(state);
+            let offering = deals::generate_angel_offering(rng);
+            if let deals::DealOffering::Angel(blessings) = offering {
+                let best = (0..3)
+                    .max_by(|&a, &b| {
+                        let mut sa = state.clone();
+                        deals::apply_angel_choice(&mut sa, blessings[a]);
+                        let mut sb = state.clone();
+                        deals::apply_angel_choice(&mut sb, blessings[b]);
+                        evaluate(&sa).partial_cmp(&evaluate(&sb)).unwrap()
+                    })
+                    .unwrap();
+                deals::apply_angel_choice(state, blessings[best]);
+            }
         }
     } else {
         state.zero_corruption_rounds = 0;

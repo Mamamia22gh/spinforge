@@ -41,6 +41,7 @@ fn run_logged_game(seed: u32) -> GameLog {
         }
 
         state.tickets += balance::TICKETS_PER_ROUND;
+        sim::check_deals(&mut state, &mut rng);
         let shop = Shop::generate(&mut rng);
 
         // Snapshot shop offerings before MCTS consumes them
@@ -52,7 +53,6 @@ fn run_logged_game(seed: u32) -> GameLog {
         let upgrade_sold_before = shop.upgrade.sold;
 
         let (final_shop, mut new_state) = sim::mcts_shop_loop(shop, state, &mut rng);
-        sim::check_deals(&mut new_state, &mut rng);
 
         // Diff to find purchases
         for i in 0..3 {
@@ -177,76 +177,4 @@ pub fn analyze_metas(seed: u32, n: u32) -> MetaReport {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn analyze_1k() {
-        let report = analyze_metas(42, 1_000);
-        println!("\n============================================================");
-        println!("=== META ANALYSIS — {} games ===", report.total_games);
-        println!("Win rate: {:.1}%", report.win_rate * 100.0);
-        println!("Avg gold: {:.0}", report.avg_gold);
-        println!("Avg purchases/game: {:.1}", report.avg_purchases_per_game);
-
-        println!("\n--- Item Purchase Frequency (count | avg gold when bought) ---");
-        for (name, count, avg_g) in &report.item_buy_rates {
-            println!("  {:<40} {:>5}x  avg_gold={:.0}", name, count, avg_g);
-        }
-
-        println!("\n--- Relic Win Rates ---");
-        for (name, count, wr) in &report.relic_win_rates {
-            println!("  {:<30} {:>5} games  {:.1}% win", name, count, wr * 100.0);
-        }
-
-        println!("\n--- Upgrade Win Rates ---");
-        for (name, count, wr) in &report.upgrade_win_rates {
-            println!("  {:<30} {:>5} games  {:.1}% win", name, count, wr * 100.0);
-        }
-
-        println!("\n--- Ball Effect Win Rates ---");
-        for (name, count, wr) in &report.ball_win_rates {
-            println!("  {:<30} {:>5} games  {:.1}% win", name, count, wr * 100.0);
-        }
-
-        println!("\n--- Top Combos (min 10 games) ---");
-        for (name, count, wr) in &report.top_combos {
-            println!("  {:<55} {:>4} games  {:.1}% win", name, count, wr * 100.0);
-        }
-    }
-
-    #[test]
-    fn analyze_10k() {
-        let report = analyze_metas(1, 10_000);
-        println!("\n=== META ANALYSIS — {} games ===", report.total_games);
-        println!("Win rate: {:.1}%", report.win_rate * 100.0);
-        println!("Avg gold: {:.0}", report.avg_gold);
-        println!("Avg purchases/game: {:.1}", report.avg_purchases_per_game);
-
-        println!("\n--- Item Purchase Frequency ---");
-        for (name, count, avg_g) in &report.item_buy_rates {
-            println!("  {:<40} {:>6}x  avg_gold={:.0}", name, count, avg_g);
-        }
-
-        println!("\n--- Relic Win Rates ---");
-        for (name, count, wr) in &report.relic_win_rates {
-            println!("  {:<30} {:>6} games  {:.1}% win", name, count, wr * 100.0);
-        }
-
-        println!("\n--- Upgrade Win Rates ---");
-        for (name, count, wr) in &report.upgrade_win_rates {
-            println!("  {:<30} {:>6} games  {:.1}% win", name, count, wr * 100.0);
-        }
-
-        println!("\n--- Ball Effect Win Rates ---");
-        for (name, count, wr) in &report.ball_win_rates {
-            println!("  {:<30} {:>6} games  {:.1}% win", name, count, wr * 100.0);
-        }
-
-        println!("\n--- Top Combos ---");
-        for (name, count, wr) in &report.top_combos {
-            println!("  {:<55} {:>5} games  {:.1}% win", name, count, wr * 100.0);
-        }
-    }
-}

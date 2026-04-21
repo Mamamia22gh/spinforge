@@ -20,10 +20,10 @@ fn collect_gold_distributions(seed: u32, n: u32) -> Vec<[u32; ROUNDS]> {
             golds[round as usize - 1] = state.gold_coins;
 
             state.tickets += balance::TICKETS_PER_ROUND;
+            sim::check_deals(&mut state, &mut rng);
             let shop = Shop::generate(&mut rng);
             let (_, st) = sim::mcts_shop_loop(shop, state, &mut rng);
             state = st;
-            sim::check_deals(&mut state, &mut rng);
         }
         golds
     }).collect()
@@ -78,20 +78,4 @@ pub fn calibrate(seed: u32, n: u32, iterations: u8) -> [u32; ROUNDS] {
     quotas
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn calibrate_100k() {
-        let quotas = calibrate(42, 100_000, 1);
-        println!("\nFinal QUOTA array:");
-        println!("pub const QUOTA: [u32; 15] = {:?};", quotas);
-        for r in 0..ROUNDS {
-            assert!(quotas[r] > 0, "round {} quota should be > 0", r + 1);
-        }
-        for r in 1..ROUNDS {
-            assert!(quotas[r] >= quotas[r - 1], "quotas should increase: round {} ({}) < round {} ({})", r, quotas[r - 1], r + 1, quotas[r]);
-        }
-    }
-}

@@ -30,10 +30,15 @@ pub enum AngelBlessing {
 }
 
 #[derive(Clone, Debug)]
-pub struct DealOffering {
-    pub kind: DealKind,
-    pub devil_upgrades: [(DevilUpgrade, DevilDebuff); 3],
-    pub angel_blessings: [AngelBlessing; 3],
+pub struct DevilOffer {
+    pub upgrade: DevilUpgrade,
+    pub debuff: DevilDebuff,
+}
+
+#[derive(Clone, Debug)]
+pub enum DealOffering {
+    Devil([DevilOffer; 3]),
+    Angel([AngelBlessing; 3]),
 }
 
 pub fn check_devil_deal(state: &GameState) -> bool {
@@ -44,25 +49,35 @@ pub fn check_angel_deal(state: &GameState) -> bool {
     state.corruption == 0.0 && state.zero_corruption_rounds >= balance::ANGEL_DEAL_ZERO_ROUNDS
 }
 
-pub fn apply_devil_deal(state: &mut GameState, rng: &mut Rng) {
-    let upgrades = [DevilUpgrade::DoubleBallDamage, DevilUpgrade::FreeRerolls, DevilUpgrade::ExtraTickets];
-    let debuffs = [DevilDebuff::LoseOneBall, DevilDebuff::HigherQuota, DevilDebuff::CorruptedSegments];
-
+pub fn generate_devil_offering(rng: &mut Rng) -> DealOffering {
+    let all_upgrades = [DevilUpgrade::DoubleBallDamage, DevilUpgrade::FreeRerolls, DevilUpgrade::ExtraTickets];
+    let all_debuffs = [DevilDebuff::LoseOneBall, DevilDebuff::HigherQuota, DevilDebuff::CorruptedSegments];
+    let mut offers = [
+        DevilOffer { upgrade: all_upgrades[0], debuff: all_debuffs[0] },
+        DevilOffer { upgrade: all_upgrades[1], debuff: all_debuffs[1] },
+        DevilOffer { upgrade: all_upgrades[2], debuff: all_debuffs[2] },
+    ];
     for i in 0..3 {
-        apply_devil_upgrade(upgrades[i], state);
-        apply_devil_debuff(debuffs[i], state, rng);
+        let j = rng.int(0, 2) as usize;
+        let tmp = offers[i].debuff;
+        offers[i].debuff = offers[j].debuff;
+        offers[j].debuff = tmp;
     }
+    DealOffering::Devil(offers)
+}
 
+pub fn generate_angel_offering(_rng: &mut Rng) -> DealOffering {
+    DealOffering::Angel([AngelBlessing::HealCorruption, AngelBlessing::BonusGold, AngelBlessing::ExtraBall])
+}
+
+pub fn apply_devil_choice(state: &mut GameState, offer: &DevilOffer, rng: &mut Rng) {
+    apply_devil_upgrade(offer.upgrade, state);
+    apply_devil_debuff(offer.debuff, state, rng);
     state.corruption = balance::CORRUPTION_RESET_AFTER_DEVIL;
 }
 
-pub fn apply_angel_deal(state: &mut GameState) {
-    let blessings = [AngelBlessing::HealCorruption, AngelBlessing::BonusGold, AngelBlessing::ExtraBall];
-
-    for blessing in blessings {
-        apply_angel_blessing(blessing, state);
-    }
-
+pub fn apply_angel_choice(state: &mut GameState, blessing: AngelBlessing) {
+    apply_angel_blessing(blessing, state);
     state.zero_corruption_rounds = 0;
 }
 
@@ -132,42 +147,53 @@ mod tests {
     use super::*;
 
     #[test]
-    fn devil_deal_resets_corruption() {
+    fn devil_offering_has_3_offers() {
+        let mut rng = Rng::new(42);
+        let offering = generate_devil_offering(&mut rng);
+        match offering {
+            DealOffering::Devil(offers) => assert_eq!(offers.len(), 3),
+            _ => panic!("expected devil"),
+        }
+    }
+
+    #[test]
+    fn devil_choice_resets_corruption() {
         let mut state = GameState::new();
         let mut rng = Rng::new(42);
         state.corruption = 1.0;
-        apply_devil_deal(&mut state, &mut rng);
+        let offer = DevilOffer { upgrade: DevilUpgrade::FreeRerolls, debuff: DevilDebuff::HigherQuota };
+        apply_devil_choice(&mut state, &offer, &mut rng);
         assert!((state.corruption - balance::CORRUPTION_RESET_AFTER_DEVIL).abs() < f64::EPSILON);
     }
 
     #[test]
-    fn devil_deal_doubles_segments() {
+    fn devil_choice_applies_one_upgrade_one_debuff() {
         let mut state = GameState::new();
         let mut rng = Rng::new(42);
-        let v0 = state.segments[0].value;
         state.corruption = 1.0;
-        apply_devil_deal(&mut state, &mut rng);
-        assert_eq!(state.segments[0].value, v0 * 2);
+        let tickets_before = state.tickets;
+        let offer = DevilOffer { upgrade: DevilUpgrade::FreeRerolls, debuff: DevilDebuff::HigherQuota };
+        let quota_before = state.quota;
+        apply_devil_choice(&mut state, &offer, &mut rng);
+        assert_eq!(state.tickets, tickets_before + 30);
+        assert_eq!(state.quota, (quota_before as f64 * 1.25) as u32);
     }
 
     #[test]
-    fn angel_deal_heals_corrupted() {
-        let mut state = GameState::new();
-        state.corruption = 0.0;
-        state.zero_corruption_rounds = 4;
-        assert!(check_angel_deal(&state));
-        apply_angel_deal(&mut state);
-        assert!(state.segments.iter().all(|s| s.kind != crate::items::segment::SegmentKind::Corrupted));
-    }
-
-    #[test]
-    fn angel_deal_adds_gold_and_ball() {
+    fn angel_choice_applies_one_blessing() {
         let mut state = GameState::new();
         let gold_before = state.gold_coins;
-        let balls_before = state.balls.len();
-        apply_angel_deal(&mut state);
+        apply_angel_choice(&mut state, AngelBlessing::BonusGold);
         assert_eq!(state.gold_coins, gold_before + 50);
-        assert_eq!(state.balls.len(), balls_before + 1);
+        assert_eq!(state.zero_corruption_rounds, 0);
+    }
+
+    #[test]
+    fn angel_choice_does_not_apply_others() {
+        let mut state = GameState::new();
+        let balls_before = state.balls.len();
+        apply_angel_choice(&mut state, AngelBlessing::BonusGold);
+        assert_eq!(state.balls.len(), balls_before);
     }
 
     #[test]
@@ -196,7 +222,6 @@ mod tests {
         let mut state = GameState::new();
         state.tickets = 1000;
         let corr_before = state.corruption;
-        // Force a corrupted quality on first ball slot
         let mut shop2 = shop;
         shop2.balls[0].quality = crate::systems::shop::Quality::Corrupted;
         let (_, state) = shop2.apply(crate::systems::shop::ShopAction::BuyBall(0), state, &mut rng);

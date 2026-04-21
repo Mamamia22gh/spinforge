@@ -23,6 +23,7 @@ pub struct GameState {
     pub corruption: f64,
     pub tickets: u32,
     pub zero_corruption_rounds: u8,
+    pub respin_available: bool,
 }
 
 impl GameState {
@@ -60,6 +61,7 @@ impl GameState {
             corruption: balance::INITIAL_CORRUPTION,
             tickets: 0,
             zero_corruption_rounds: 0,
+            respin_available: true,
         }
     }
 }
