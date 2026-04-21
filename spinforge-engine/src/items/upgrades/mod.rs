@@ -11,8 +11,8 @@ impl Upgrade {
     pub fn on(self, event: Event, state: &mut GameState) {
         match self {
             Upgrade::TicketPerSegment => {
-                if event == Event::AfterScore {
-                    state.tickets += state.segments.len() as u32;
+                if matches!(event, Event::OnScore(_)) {
+                    state.tickets += 1;
                 }
             }
         }
