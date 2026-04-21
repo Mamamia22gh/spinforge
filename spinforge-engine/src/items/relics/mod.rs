@@ -5,8 +5,8 @@ pub mod effects;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RelicId {
-    TabletTwenty,
-    TabletNineteen,
+    SetAllSegmentsTo20,
+    SetAllSegmentsTo19,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -29,10 +29,15 @@ pub struct RelicDef {
 }
 
 impl RelicId {
-    pub fn on(self, _event: Event, _state: &mut GameState) {
+    pub fn on(self, event: Event, state: &mut GameState) {
+        if event != Event::OnBuy { return; }
         match self {
-            RelicId::TabletTwenty => {}
-            RelicId::TabletNineteen => {}
+            RelicId::SetAllSegmentsTo20 => {
+                for seg in &mut state.segments { seg.value = 20; }
+            }
+            RelicId::SetAllSegmentsTo19 => {
+                for seg in &mut state.segments { seg.value = 19; }
+            }
         }
     }
 }
@@ -43,7 +48,7 @@ mod tests {
 
     #[test]
     fn relic_id_is_copy() {
-        let a = RelicId::TabletTwenty;
+        let a = RelicId::SetAllSegmentsTo20;
         let b = a;
         assert_eq!(a, b);
     }

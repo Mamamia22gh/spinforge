@@ -43,7 +43,7 @@ impl Shop {
             sold: false,
         });
 
-        let relic_pool = [RelicId::TabletTwenty, RelicId::TabletNineteen];
+        let relic_pool = [RelicId::SetAllSegmentsTo20, RelicId::SetAllSegmentsTo19];
         let relics = std::array::from_fn(|_| {
             let id = *rng.pick(&relic_pool);
             ShopSlot {

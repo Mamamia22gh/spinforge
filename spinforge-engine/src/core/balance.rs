@@ -4,8 +4,6 @@ pub const QUOTA_GROWTH: f64 = 1.2;
 
 pub const SURPLUS_CONVERSION_RATE: u32 = 20;
 
-pub const MAX_WEIGHT_PER_SEGMENT: u32 = 5;
-
 pub const SHOP_REROLL_BASE: u32 = 5;
 pub const SHOP_PRICE_SCALING: f64 = 0.5;
 
