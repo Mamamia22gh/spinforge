@@ -31,7 +31,7 @@ function Spin:_resolveAll(results)
         game:_queueEvent({ delay = (i == 1) and 0.15 or 0.45, blocking = true, func = function()
             if game._phase ~= 'SPINNING' then return true end
             local bi = i - 1
-            local segIdx = game.engine:rollSegment()
+            local segIdx = _wheelIdx
             local gained = game.engine:resolveBall(bi, segIdx)
             self._revealIdx = (self._revealIdx or 0) + 1
 
