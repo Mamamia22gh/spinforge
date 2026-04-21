@@ -8,12 +8,12 @@ pub enum Event {
 }
 
 pub fn trigger(event: Event, state: &mut GameState) {
-    let relics: arrayvec::ArrayVec<_, 8> = state.relics.iter().copied().collect();
+    let relics: Vec<_> = state.relics.iter().copied().collect();
     for relic in relics {
         relic.on(event, state);
     }
 
-    let upgrades: arrayvec::ArrayVec<_, 8> = state.upgrades.iter().copied().collect();
+    let upgrades: Vec<_> = state.upgrades.iter().copied().collect();
     for upgrade in upgrades {
         upgrade.on(event, state);
     }

@@ -78,7 +78,7 @@ impl Shop {
                     state.tickets -= cost;
                     if let ShopItem::Ball(ball) = slot.item {
                         if state.balls.len() < crate::core::state::MAX_BALLS {
-                            state.balls.push(ball);
+                            if !state.balls.is_full() { state.balls.push(ball); }
                         }
                     }
                     event::trigger(Event::OnBuy, &mut state);
@@ -104,7 +104,7 @@ impl Shop {
                     state.tickets -= cost;
                     if let ShopItem::Upgrade(u) = slot.item {
                         if state.upgrades.len() < crate::core::state::MAX_UPGRADES {
-                            state.upgrades.push(u);
+                            if !state.upgrades.is_full() { state.upgrades.push(u); }
                         }
                     }
                     event::trigger(Event::OnBuy, &mut state);

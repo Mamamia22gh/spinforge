@@ -7,7 +7,7 @@ use crate::items::segment::{Segment, SegmentKind};
 use crate::items::upgrades::Upgrade;
 
 pub const MAX_SEGMENTS: usize = 40;
-pub const MAX_BALLS: usize = 15;
+pub const MAX_BALLS: usize = 32;
 pub const MAX_UPGRADES: usize = 8;
 const STARTING_BALLS: usize = 5;
 

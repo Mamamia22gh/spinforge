@@ -1,6 +1,10 @@
-pub const ROUNDS_PER_RUN: u32 = 12;
-pub const QUOTA_BASE: f64 = 69.0;
-pub const QUOTA_GROWTH: f64 = 1.2;
+pub const ROUNDS_PER_RUN: u32 = 15;
+
+pub const QUOTA: [u32; 15] = [
+    69, 82, 99, 119, 143,
+    172, 206, 248, 297, 357,
+    428, 512, 615, 738, 886,
+];
 
 pub const SURPLUS_CONVERSION_RATE: u32 = 20;
 
@@ -12,7 +16,7 @@ pub const INITIAL_CORRUPTION: f64 = 0.5;
 
 #[inline]
 pub fn quota(round: u32) -> u32 {
-    (QUOTA_BASE * QUOTA_GROWTH.powi(round as i32 - 1)).floor() as u32
+    QUOTA[(round as usize).saturating_sub(1).min(QUOTA.len() - 1)]
 }
 
 #[cfg(test)]
@@ -32,5 +36,10 @@ mod tests {
     #[test]
     fn quota_round_12() {
         assert_eq!(quota(12), 512);
+    }
+
+    #[test]
+    fn quota_round_15() {
+        assert_eq!(quota(15), 886);
     }
 }

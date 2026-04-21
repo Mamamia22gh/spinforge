@@ -7,7 +7,7 @@ use crate::core::state::GameState;
 use crate::systems::shop::{Shop, ShopAction};
 
 const UCB_C: f64 = 1.414;
-const MAX_DEPTH: u8 = 12;
+const MAX_DEPTH: u8 = 15;
 const ROLLOUT_ROUNDS: u8 = 3;
 
 fn legal_actions(shop: &Shop, state: &GameState) -> Vec<ShopAction> {
@@ -42,7 +42,7 @@ fn action_index(a: &ShopAction) -> usize {
 }
 
 fn simulate_round(mut state: GameState, rng: &mut Rng) -> GameState {
-    let balls: arrayvec::ArrayVec<_, 24> = state.balls.iter().copied().collect();
+    let balls: Vec<_> = state.balls.iter().copied().collect();
     for ball in &balls {
         let pos = rng.int(0, state.segments.len() as i32 - 1) as usize;
         for slot in &ball.effects {
