@@ -5,19 +5,19 @@
 
 local RELICS = {
     -- COMMON
-    { id = 'tablet_twenty',   name = 'Tablette du XX',    emoji = '📜', description = 'Tous les segments valent 20',                       rarity = 'common',    cost = 30,  minRound = 1, effects = { { type = 'set_base_value', value = 20, metaLevel = 0 } } },
-    { id = 'tablet_nineteen', name = 'Tablette du XIX',   emoji = '📜', description = 'Tous les segments valent 19',                       rarity = 'common',    cost = 25,  minRound = 1, effects = { { type = 'set_base_value', value = 19, metaLevel = 0 } } },
+    { id = 'tablet_twenty',   name = 'Tablette du XX',    description = 'Tous les segments valent 20',                       rarity = 'common',    cost = 30,  minRound = 1, effects = { { type = 'set_base_value', value = 20, metaLevel = 0 } } },
+    { id = 'tablet_nineteen', name = 'Tablette du XIX',   description = 'Tous les segments valent 19',                       rarity = 'common',    cost = 25,  minRound = 1, effects = { { type = 'set_base_value', value = 19, metaLevel = 0 } } },
 
     -- UNCOMMON
-    { id = 'even_charm',      name = 'Charme Pair',       emoji = '✨', description = '+1 aux cases de valeur paire',                      rarity = 'uncommon',  cost = 45,  minRound = 2, effects = { { type = 'add_even_segments', value = 1, metaLevel = 0 } } },
-    { id = 'odd_charm',       name = 'Charme Impair',     emoji = '✨', description = '+3 aux cases de valeur impaire',                    rarity = 'uncommon',  cost = 50,  minRound = 2, effects = { { type = 'add_odd_segments',  value = 3, metaLevel = 0 } } },
+    { id = 'even_charm',      name = 'Charme Pair',       description = '+1 aux cases de valeur paire',                      rarity = 'uncommon',  cost = 45,  minRound = 2, effects = { { type = 'add_even_segments', value = 1, metaLevel = 0 } } },
+    { id = 'odd_charm',       name = 'Charme Impair',     description = '+3 aux cases de valeur impaire',                    rarity = 'uncommon',  cost = 50,  minRound = 2, effects = { { type = 'add_odd_segments',  value = 3, metaLevel = 0 } } },
 
     -- RARE
-    { id = 'even_totem',      name = 'Totem Pair',        emoji = '🗿', description = '+5 aux cases de valeur paire',                      rarity = 'rare',      cost = 80,  minRound = 4, effects = { { type = 'add_even_segments', value = 5, metaLevel = 0 } } },
-    { id = 'odd_totem',       name = 'Totem Impair',      emoji = '🗿', description = '+10 aux cases de valeur impaire',                   rarity = 'rare',      cost = 90,  minRound = 4, effects = { { type = 'add_odd_segments',  value = 10, metaLevel = 0 } } },
+    { id = 'even_totem',      name = 'Totem Pair',        description = '+5 aux cases de valeur paire',                      rarity = 'rare',      cost = 80,  minRound = 4, effects = { { type = 'add_even_segments', value = 5, metaLevel = 0 } } },
+    { id = 'odd_totem',       name = 'Totem Impair',      description = '+10 aux cases de valeur impaire',                   rarity = 'rare',      cost = 90,  minRound = 4, effects = { { type = 'add_odd_segments',  value = 10, metaLevel = 0 } } },
 
     -- LEGENDARY
-    { id = 'celestial_crown', name = 'Couronne Céleste',  emoji = '👑', description = '+25 valeurs paires, +50 valeurs impaires',          rarity = 'legendary', cost = 200, minRound = 7, effects = { { type = 'add_even_segments', value = 25, metaLevel = 0 }, { type = 'add_odd_segments', value = 50, metaLevel = 0 } } },
+    { id = 'celestial_crown', name = 'Couronne Céleste',  description = '+25 valeurs paires, +50 valeurs impaires',          rarity = 'legendary', cost = 200, minRound = 7, effects = { { type = 'add_even_segments', value = 25, metaLevel = 0 }, { type = 'add_odd_segments', value = 50, metaLevel = 0 } } },
 }
 
 local RELIC_MAP = {}

@@ -1,0 +1,7 @@
+[package]
+name = "spinforge-engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+automod = "1.0"

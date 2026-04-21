@@ -1,0 +1,18 @@
+return { rows = {
+    '......GK........',
+    '.....GGYK.......',
+    '.....GGYK.......',
+    '.....GGYK.......',
+    '.....GGYGGK.....',
+    '.....GGYGGYGYK..',
+    '.GK..GGYGGYGYYK.',
+    'GGYK.GGYGGGGGYK.',
+    'GGYYKGGGGGGGGYK.',
+    '.GYYGGGGGGGGGGYK',
+    '.KGGGGGGGGGGGGYK',
+    '..KGGGGGGGGGGGYK',
+    '..KGGGGGGGGGGGYK',
+    '...KGGGGGGGGYK..',
+    '...KGGGGGGGGYK..',
+    '....KKKKKKKKK...',
+}}

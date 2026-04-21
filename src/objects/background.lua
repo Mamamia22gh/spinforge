@@ -1,22 +1,30 @@
---[[
-    Background — ISO port of JS legacy _initBackground (Forge Aura).
-    Pre-renders a 488×278 canvas once (Bayer 4×4 dither, radial rays, hiero ring).
-    Drawn every frame with bgOx/bgOy parallax offset.
-
-    Dimensions match JS:
-      W=480, H=270, BG_PAD=4, WHEEL_CX=240, WHEEL_CY=140
-      ORBIT_OUTER=115, HIERO_INNER=174, HIERO_OUTER=220
-      numSegs=16
-]]
+-- background.lua
+-- Responsabilités :
+--   * Classe BG : décor pixel-art autour de la roue (anneau hiéroglyphique +
+--     aura radiale + rayons + vignette), généré dans un ImageData BW×BH.
+--   * _build() : génération procédurale pixel par pixel —
+--       - zone intérieure (< ORBIT_OUTER=115) transparente pour la roue
+--       - dithering Bayer 4×4 pour les dégradés
+--       - rayons cos(angle*4)^6 et anneaux concentriques modulés par distance
+--       - anneau hiéro (HIERO_INNER=174..HIERO_OUTER=220), 16 segments alternés
+--       - vignette rectangulaire sur les bords 480×270
+--       - grain pseudo-aléatoire (hash déterministe, pixels midGray).
+--   * MENU_DEFS : 5 boutons dans l'anneau hiéro, positionnés par offsetFromEnd :
+--       catalogue(12,book), theme(13,brush), retry(3,arrow_right,label=RETRY),
+--       settings(4,gear), exit(5,exit).
+--   * hitTest(mx,my) : renvoie l'id du bouton sous la souris (filtre rayon
+--     HIERO_INNER..HIERO_OUTER puis plage angulaire).
+--   * draw() : blit image + sprites icônes centrées + label optionnel (RETRY)
+--     + overlay hover doré (arc semi-transparent avec stencil).
+--   * rebuild() : regénère l'image après changement de thème.
+--   * setHover(id) / getMenus() : exposés pour game.lua.
 
 local BG = {}
 BG.__index = BG
 
--- ── Palette (RGBA 0..255) — reads from central palette ────────
 local _P = require('src.palette')
 local PAL = setmetatable({}, { __index = function(_, k) return _P.rgb(k) end })
 
--- ── Constants matching JS ────────────────────────────────────
 local W, H         = 480, 270
 local BG_PAD       = 4
 local BW, BH       = W + BG_PAD * 2, H + BG_PAD * 2
@@ -30,7 +38,6 @@ local HIERO_MID    = (HIERO_INNER + HIERO_OUTER) / 2
 local numSegs      = 16
 local TWO_PI       = math.pi * 2
 
--- Bayer 4×4 ordered dither matrix (0..15)
 local BAYER = {
     { 0, 8, 2,10},
     {12, 4,14, 6},
@@ -38,9 +45,9 @@ local BAYER = {
     {15, 7,13, 5},
 }
 
--- Menu segments (offsetFromEnd → id, glyph)
 local MENU_DEFS = {
     { offsetFromEnd = 12, id = 'catalogue', sprite = 'book',        scale = 1 },
+    { offsetFromEnd = 13, id = 'theme',     sprite = 'brush',       scale = 1 },
     { offsetFromEnd = 3,  id = 'retry',     sprite = 'arrow_right', scale = 3, label = 'RETRY' },
     { offsetFromEnd = 4,  id = 'settings',  sprite = 'gear',        scale = 1 },
     { offsetFromEnd = 5,  id = 'exit',      sprite = 'exit',        scale = 1 },
@@ -51,7 +58,6 @@ local function hash(x, y)
     return math.floor(v) % 256
 end
 
--- ────────────────────────────────────────────────────────────
 function BG.new()
     local self = setmetatable({
         _time   = 0,
@@ -66,7 +72,6 @@ end
 function BG:_build()
     local img = love.image.newImageData(BW, BH)
 
-    -- Precompute hiero segment arcs
     local initAngle = -math.pi/2 - math.pi/numSegs
     local arcs = {}
     for i = 0, numSegs do arcs[i] = i * TWO_PI / numSegs end
@@ -86,14 +91,12 @@ function BG:_build()
             local dx, dy = x - CX, y - CY
             local dist2 = dx*dx + dy*dy
 
-            -- Inside UI ring — fully transparent
             if dist2 < ORBIT_OUTER * ORBIT_OUTER then
                 img:setPixel(x, y, 0, 0, 0, 0)
             else
                 local dist  = math.sqrt(dist2)
                 local bayer = BAYER[(y % 4) + 1][(x % 4) + 1]
 
-                -- Zone attenuation
                 local zoneAtt
                 if dist < ORBIT_OUTER + AURA_TRANS then
                     zoneAtt = (dist - ORBIT_OUTER) / AURA_TRANS
@@ -101,18 +104,14 @@ function BG:_build()
                     zoneAtt = 1
                 end
 
-                -- Edge vignette
                 local ex, ey = x - BG_PAD, y - BG_PAD
                 local ed = math.min(ex, ey, W - 1 - ex, H - 1 - ey)
                 local vignette = math.min(1, ed / 20)
 
-                -- Radial fade
                 local radialFade = math.max(0, 1 - math.max(0, dist - ORBIT_OUTER) / 90)
 
-                -- Angle rays
                 local angle = math.atan2(dy, dx)
 
-                -- Rim-counter cutout
                 if dist >= 94 and dist <= 108 then
                     local ca = angle % TWO_PI
                     if ca < 0 then ca = ca + TWO_PI end
@@ -126,11 +125,9 @@ function BG:_build()
                 local ray  = (cR > 0) and cR^6 or 0
                 local ray2 = (cR < 0) and (-cR)^6 or 0
 
-                -- Ring accents
                 local ringDist = (dist - ORBIT_OUTER) % 32
                 local ring = (dist > ORBIT_OUTER and ringDist < 1.0) and 0.25 or 0
 
-                -- Hiero ring seg
                 local hieroSeg = -1
                 if dist >= HIERO_INNER and dist <= HIERO_OUTER then
                     local ha = angle - initAngle
@@ -178,7 +175,6 @@ function BG:_build()
         end
     end
 
-    -- Glint scatter
     for y = 0, BH - 1 do
         for x = 0, BW - 1 do
             local dx, dy = x - CX, y - CY
@@ -191,7 +187,6 @@ function BG:_build()
     self._image = love.graphics.newImage(img)
     self._image:setFilter("nearest", "nearest")
 
-    -- Store menu segments for hit testing and overlay drawing
     for s = 0, numSegs - 1 do
         local menu = menuSegs[s]
         if menu then
@@ -218,7 +213,6 @@ end
 function BG:update(dt) self._time = self._time + dt end
 function BG:setHover(id) self._hover = id end
 
--- Hit-test hieroglyph ring; returns menu id or nil
 function BG:hitTest(mx, my)
     local dx, dy = mx - WCX, my - WCY
     local d2 = dx*dx + dy*dy
@@ -242,7 +236,6 @@ function BG:draw(g, font, atlas, bgOx, bgOy)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(self._image, -BG_PAD + bgOx, -BG_PAD + bgOy)
 
-    -- Draw menu sprites/labels stamped into ring (ISO legacy: sprite glyphs)
     for _, seg in ipairs(self._menus) do
         local gx = WCX + math.cos(seg.midAngle) * HIERO_MID + bgOx
         local gy = WCY + math.sin(seg.midAngle) * HIERO_MID + bgOy
@@ -257,11 +250,10 @@ function BG:draw(g, font, atlas, bgOx, bgOy)
         end
     end
 
-    -- Hover highlight (gold arc ring overlay — ISO legacy lines 1060-1075)
     if self._hover then
         for _, seg in ipairs(self._menus) do
             if seg.id == self._hover then
-                -- Stencil out the inner circle so we only highlight the ring
+
                 love.graphics.stencil(function()
                     love.graphics.circle('fill',
                         WCX + bgOx, WCY + bgOy, HIERO_INNER + 1)

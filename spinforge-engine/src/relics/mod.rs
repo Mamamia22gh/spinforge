@@ -1,0 +1,50 @@
+automod::dir!(pub "src/relics");
+
+use crate::balls::Rarity;
+use crate::state::GameState;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RelicId {
+    TabletTwenty,
+    TabletNineteen,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RelicEffectKind {
+    SetBaseValue,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct RelicEffect {
+    pub kind: RelicEffectKind,
+    pub value: i32,
+}
+
+pub struct RelicDef {
+    pub id: RelicId,
+    pub rarity: Rarity,
+    pub cost: u32,
+    pub min_round: u8,
+    pub effects: &'static [RelicEffect],
+}
+
+impl RelicId {
+    pub fn process(self, state: GameState) -> GameState {
+        match self {
+            RelicId::TabletTwenty => tablet_twenty::process(state),
+            RelicId::TabletNineteen => tablet_nineteen::process(state),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relic_id_is_copy() {
+        let a = RelicId::TabletTwenty;
+        let b = a;
+        assert_eq!(a, b);
+    }
+}

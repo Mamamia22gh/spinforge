@@ -1,13 +1,22 @@
---[[ Central palette — runtime-switchable theme system.
-     7 themes. Colors mutated IN PLACE so every module holding a reference
-     to PAL sees the update without re-requiring.
-
-     Usage:
-       local PAL = require('src.palette')
-       PAL.red          → {r, g, b, 1}  (0..1 floats)
-       PAL.setTheme('noir-velvet')
-       PAL.rgb('red')   → {R, G, B}     (0..255 ints, for ImageData)
-]]
+-- palette.lua
+-- Responsabilités :
+--   * 7 thèmes couleur (Pantone Classic, Classic Casino, Noir Velvet, Peach Fuzz,
+--     Ultra Violet, Emerald Vault, Mocha Mousse) définis dans THEMES.
+--   * Helpers hex() (→ {r,g,b,1} normalisé 0..1) et hex255() (→ {R,G,B} 0..255).
+--   * Table PAL avec 21 clés couleur (black, darkGray, midGray, lightGray, white,
+--     red, darkRed, blue, darkBlue, gold, darkGold, green, darkGreen, purple,
+--     darkPurple, neonPink, cyan, darkCyan, deepBlue, shadedBlue, shadedCyan)
+--     + alias sémantiques (segA, segB, dividerColor, hubBg, hubBorder, rimColor).
+--   * IMPORTANT : les tables couleur sont mutées in-place par _apply() — les
+--     références stockées ailleurs (SEG_A = PAL.segA, etc.) restent valides
+--     après changement de thème.
+--   * Table parallèle PAL_RGB (valeurs 0..255) accessible via PAL.rgb(key),
+--     utilisée par le pipeline pixel-art (background, sprites).
+--   * API thème : setTheme(id), cycleTheme(dir), getTheme(), getThemeList(),
+--     getThemeIndex(), getThemeCount(), getThemeLabel().
+--   * Système de listeners : onThemeChange(fn) — les consommateurs (background,
+--     atlas, pixel_wheel) s'enregistrent pour rebuild après changement.
+--   * Thème par défaut appliqué au require : 'original'.
 
 local function hex(h)
     h = h:gsub("#", "")
@@ -26,10 +35,8 @@ local function hex255(h)
     }
 end
 
--- ── Theme definitions ──────────────────────────────────────────
-
 local THEMES = {
-    -- All hex values are verified Pantone colors (TCX / PMS C)
+
     { id = 'original', label = 'Pantone Classic', colors = {
         black='#000000',      darkGray='#2D3359',   midGray='#53565A',    lightGray='#97999B',  white='#F2F0EB',
         red='#BE3455',        darkRed='#662E3B',    blue='#0F4C81',       darkBlue='#233658',
@@ -88,11 +95,9 @@ local THEMES = {
     }},
 }
 
--- Build lookup
 local THEME_MAP = {}
 for _, t in ipairs(THEMES) do THEME_MAP[t.id] = t end
 
--- ── Color keys ─────────────────────────────────────────────────
 local COLOR_KEYS = {
     'black','darkGray','midGray','lightGray','white',
     'red','darkRed','blue','darkBlue','gold','darkGold',
@@ -101,17 +106,14 @@ local COLOR_KEYS = {
     'deepBlue','shadedBlue','shadedCyan',
 }
 
--- ── Live PAL table (mutated in place) ──────────────────────────
 local PAL = {}
-local PAL_RGB = {}  -- 0-255 int format for ImageData
+local PAL_RGB = {}
 
--- Pre-allocate tables so references survive theme swaps
 for _, k in ipairs(COLOR_KEYS) do
     PAL[k] = {0, 0, 0, 1}
     PAL_RGB[k] = {0, 0, 0}
 end
 
--- Segment / chrome aliases (table refs, point to same underlying tables)
 PAL.segA         = PAL.darkGray
 PAL.segB         = PAL.black
 PAL.dividerColor = PAL.black
@@ -119,7 +121,6 @@ PAL.hubBg        = PAL.black
 PAL.hubBorder    = PAL.midGray
 PAL.rimColor     = PAL.darkGray
 
--- ── State ──────────────────────────────────────────────────────
 local _currentTheme = 'original'
 local _listeners = {}
 
@@ -135,8 +136,6 @@ local function _apply(id)
     end
     _currentTheme = id
 end
-
--- ── Public API (attached to PAL for convenience) ───────────────
 
 function PAL.getTheme()       return _currentTheme end
 function PAL.getThemeLabel(id) return THEME_MAP[id or _currentTheme] and THEME_MAP[id or _currentTheme].label or (id or _currentTheme) end
@@ -176,10 +175,8 @@ function PAL.cycleTheme(dir)
     PAL.setTheme(THEMES[idx].id)
 end
 
---- Get 0-255 RGB table for ImageData pixel work (background.lua)
 function PAL.rgb(key) return PAL_RGB[key] end
 
--- ── Bootstrap ──────────────────────────────────────────────────
 _apply('original')
 
 return PAL

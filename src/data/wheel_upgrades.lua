@@ -3,7 +3,7 @@
 ]]
 
 local WHEEL_UPGRADES = {
-    { id = 'upgrade_value_plus2', name = 'Amplificateur', emoji = '🔺',
+    { id = 'upgrade_value_plus2', name = 'Amplificateur',
       description = '+2 à toutes les valeurs pendant le décompte',
       rarity = 'common', cost = 35, effect = 'value_plus_2' },
 }

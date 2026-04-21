@@ -5,9 +5,7 @@
 local BALANCE = require('src.data.balance').BALANCE
 
 local META_UNLOCKS = {
-    { id = 'unlock_chain_bet', name = 'Pari Chaîne',        description = 'Débloque le pari Chaîne',           cost = 6,  category = 'bet' },
     { id = 'unlock_coin_flip', name = 'Quitte ou Double',    description = 'Débloque Quitte ou Double',         cost = 7,  category = 'bet' },
-    { id = 'unlock_extra_bet', name = 'Pari Bonus',         description = '+1 pari max par spin',              cost = 8,  category = 'upgrade' },
     { id = 'unlock_16_seg',    name = 'Grande Roue',        description = 'Roue extensible à 16 segments',     cost = 12, category = 'upgrade' },
     { id = 'unlock_gauge_2',   name = 'Chargeur Supérieur', description = 'Débloque le 2e chargeur de billes', cost = 8,  category = 'upgrade' },
     { id = 'unlock_gauge_3',   name = 'Chargeur Inférieur', description = 'Débloque le 3e chargeur de billes', cost = 15, category = 'upgrade' },
