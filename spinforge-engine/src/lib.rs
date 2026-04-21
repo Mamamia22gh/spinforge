@@ -18,6 +18,7 @@ pub use items::upgrades as upgrade;
 
 pub use systems::shop;
 
+pub mod sim;
 pub mod mcts;
 pub mod calibrate;
 pub mod analytics;
