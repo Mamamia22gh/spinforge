@@ -37,7 +37,7 @@ impl GameState {
         let segments = pattern.iter().map(|&k| Segment::new(k)).collect();
 
         let balls = (0..STARTING_BALLS)
-            .map(|_| Ball::normal())
+            .map(|_| Ball::new(crate::balls::BallEffect::ScoreOnce, crate::balls::Rarity::Common))
             .collect();
 
         Self {
@@ -71,7 +71,7 @@ mod tests {
     fn new_run_has_5_normal_balls() {
         let run = GameState::new();
         assert_eq!(run.balls.len(), 5);
-        assert!(run.balls.iter().all(|b| b.effects.iter().all(|e| e.is_none())));
+        assert!(run.balls.iter().all(|b| b.effects[0] == Some(BallEffect::ScoreOnce)));
     }
 
     #[test]
@@ -116,9 +116,9 @@ mod tests {
     #[test]
     fn adding_special_ball() {
         let mut run = GameState::new();
-        run.balls.push(Ball::special(BallEffect::Double, Rarity::Rare));
+        run.balls.push(Ball::new(BallEffect::ScoreDouble, Rarity::Rare));
         assert_eq!(run.balls.len(), 6);
-        assert_eq!(run.balls[5].effects[0], Some(BallEffect::Double));
+        assert_eq!(run.balls[5].effects[0], Some(BallEffect::ScoreDouble));
     }
 
     #[test]

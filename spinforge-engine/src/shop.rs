@@ -38,7 +38,7 @@ pub enum ShopAction {
 impl Shop {
     pub fn generate(rng: &mut Rng) -> Self {
         let balls = std::array::from_fn(|_| ShopSlot {
-            item: ShopItem::Ball(Ball::normal()),
+            item: ShopItem::Ball(Ball::new(crate::balls::BallEffect::ScoreOnce, crate::balls::Rarity::Common)),
             price: rng.int(5, 15) as u32,
             sold: false,
         });

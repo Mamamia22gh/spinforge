@@ -3,9 +3,10 @@ pub mod effects;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BallEffect {
-    Double,
-    Splash,
-    Ticket,
+    ScoreOnce,
+    ScoreDouble,
+    ScoreAdjacent,
+    ScoreTickets,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -23,11 +24,7 @@ pub struct Ball {
 }
 
 impl Ball {
-    pub fn normal() -> Self {
-        Self { effects: [None; 3], rarity: Rarity::Common }
-    }
-
-    pub fn special(effect: BallEffect, rarity: Rarity) -> Self {
+    pub fn new(effect: BallEffect, rarity: Rarity) -> Self {
         Self { effects: [Some(effect), None, None], rarity }
     }
 }
@@ -35,9 +32,10 @@ impl Ball {
 impl BallEffect {
     pub fn process(self, pos: usize, state: GameState) -> GameState {
         match self {
-            BallEffect::Double => effects::double::process(pos, state),
-            BallEffect::Splash => effects::splash::process(pos, state),
-            BallEffect::Ticket => effects::ticket::process(pos, state),
+            BallEffect::ScoreOnce => effects::score_once::process(pos, state),
+            BallEffect::ScoreDouble => effects::score_double::process(pos, state),
+            BallEffect::ScoreAdjacent => effects::score_adjacent::process(pos, state),
+            BallEffect::ScoreTickets => effects::score_tickets::process(pos, state),
         }
     }
 }
@@ -47,23 +45,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn normal_ball_has_no_effect() {
-        let b = Ball::normal();
-        assert!(b.effects.iter().all(|e| e.is_none()));
-        assert_eq!(b.rarity, Rarity::Common);
+    fn default_ball_has_score_once() {
+        let b = Ball::new(BallEffect::ScoreOnce, Rarity::Common);
+        assert_eq!(b.effects[0], Some(BallEffect::ScoreOnce));
+        assert_eq!(b.effects[1], None);
     }
 
     #[test]
-    fn special_ball_stores_effect() {
-        let b = Ball::special(BallEffect::Double, Rarity::Rare);
-        assert_eq!(b.effects[0], Some(BallEffect::Double));
-        assert_eq!(b.effects[1], None);
+    fn ball_with_effect() {
+        let b = Ball::new(BallEffect::ScoreDouble, Rarity::Rare);
+        assert_eq!(b.effects[0], Some(BallEffect::ScoreDouble));
         assert_eq!(b.rarity, Rarity::Rare);
     }
 
     #[test]
     fn ball_is_copy() {
-        let a = Ball::special(BallEffect::Splash, Rarity::Legendary);
+        let a = Ball::new(BallEffect::ScoreAdjacent, Rarity::Legendary);
         let b = a;
         assert_eq!(a.effects, b.effects);
     }
