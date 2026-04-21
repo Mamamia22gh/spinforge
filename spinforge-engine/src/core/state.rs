@@ -34,7 +34,11 @@ impl GameState {
             Neutral, Neutral, Neutral, Neutral, Golden,
             Neutral, Neutral, Neutral, Neutral, Corrupted,
         ];
-        let segments = pattern.iter().map(|&k| Segment::new(k)).collect();
+        let segments = pattern.iter().enumerate().map(|(i, &k)| {
+            let mut s = Segment::new(k);
+            s.value = (i as i32) + 1;
+            s
+        }).collect();
 
         let balls = (0..STARTING_BALLS)
             .map(|_| Ball::new(crate::items::balls::BallEffect::ScoreOnce, crate::items::balls::Rarity::Common))
@@ -103,7 +107,7 @@ mod tests {
         run.round = 5;
         run.segments[0].value = 99;
         assert_eq!(snap.round, 1);
-        assert_eq!(snap.segments[0].value, 0);
+        assert_eq!(snap.segments[0].value, 1);
     }
 
     #[test]
